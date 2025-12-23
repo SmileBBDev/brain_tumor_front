@@ -5,18 +5,14 @@ import AppHeader from './AppHeader';
 
 
 export default function AppLayout() {
-  const role = localStorage.getItem('role') as Role;
-
-  if(!role){ 
-   return <div>접근 권한 정보 없음</div>; 
-  }
+  const role = localStorage.getItem('role') as Role | null;
 
   return (
     <div className='app-layout'>
-      <Sidebar role={role}/>
+       {role && <Sidebar role={role}/> }
 
       <div className='app-body'>      
-        <AppHeader role={role} />
+         {role && <AppHeader role={role} /> }
         <main className='app-content'>
           <Outlet />
         </main>

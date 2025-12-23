@@ -16,11 +16,10 @@ export default function App(){
       {/* 로그인 */}
       <Route path = "/login" element={<LoginPage />}/>
 
+      {/* 기본 진입 */}
+      <Route path="/" element={<HomeRedirect />} />
+
       <Route element={<AppLayout />}>
-        {/* 기본 진입 */}
-        <Route path="/" element={<HomeRedirect />} />
-
-
         {/* Route 분리 : 
             같은 기능인데 사용자만 다른경우 - 페이지 내부에서 Role에 맞게 분기처리  
         */}

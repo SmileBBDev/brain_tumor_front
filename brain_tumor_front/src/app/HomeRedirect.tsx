@@ -4,8 +4,9 @@ import type { Role } from '@/types/role';
 
 export default function HomeRedirect() {
     const token = localStorage.getItem('accessToken');
-    const role = localStorage.getItem('role') as Role | null;
-    
+    const role = localStorage.getItem('role') as Role;
+    console.log("들어온 역할정보");
+    console.log(role);
     if (!token || !role) {
         return <Navigate to="/login" replace />;
     }
