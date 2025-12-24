@@ -40,7 +40,9 @@ export default function Sidebar( { role } : Props) {
             .filter(menu => isSystemManager ||hasMenu(menu.id)) // 권한 체크
             .map(menu => (
               <li key={menu.id} className="menu-item">
-                <NavLink to={menu.path ?? '#'}>
+                <NavLink to={menu.path ?? '#'} className={({ isActive }) =>
+                  `menu-link ${isActive ? 'active' : ''}`
+                }>
                   {menu.icon && <i className={`menu-icon icon-${menu.icon}`} />}
                   <span className="menu-label">{getMenuLabel(menu.id)}</span>
                 </NavLink>

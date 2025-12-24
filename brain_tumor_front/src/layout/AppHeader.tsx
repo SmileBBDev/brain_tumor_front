@@ -81,26 +81,29 @@ export default function AppHeader({ role, onToggleSidebar }: AppHeaderProps) {
 
       {/* 우측 : 사용자 정보 */}
       <div className="header-right">
-        <span
-          className={`session-timer ${
-            sessionRemain < 60 ? 'danger' : ''
-          }`}
-        >
-          ⏱ {formatTime(sessionRemain)}
-        </span>
         <div className="user-info">
-          <span className="role">{ROLE_LABEL[role]}</span>
-          <span className="divider">|</span>
-          <span className="userIcon">
+            <span className="role">{ROLE_LABEL[role]}</span>
+            <span className="divider">|</span>
+            <span className="userIcon">
             <a>
-              <i className={`fa-solid ${ROLE_ICON_MAP[role]}`} /> 
+                <i className={`fa-solid ${ROLE_ICON_MAP[role]}`} /> 
             </a>
-          </span>
-          <span className="divider">|</span>
+            </span>
+            <span className="divider">|</span>
             <a onClick={handleLogout}>
-              <i className="fa-solid fa-lock"/>&nbsp;로그아웃
+                <i className="fa-solid fa-lock"/>&nbsp;로그아웃
             </a>
-          </div>
+        </div>
+        <div className="timer-display">            
+            <span className="current-time">
+                <strong>{new Date().toLocaleTimeString()}</strong>
+            </span>
+            <span className="divider">|</span>
+            <span className={`session-timer ${sessionRemain < 300 ? 'danger' : ''}`}>
+                ⏱ {formatTime(sessionRemain)}
+            </span>
+        </div>
+
         </div>
     </header>
   );
