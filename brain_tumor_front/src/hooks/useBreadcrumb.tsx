@@ -31,22 +31,28 @@ function findBreadcrumbPath(
         }
 
         if(!matched && !menu.children) continue;
-
-        // 현재 menu label 결정
-        const label = 
-            menu.dynamicLabel?.(params) ??
-            menu.label[role] ?? 
-            menu.label.DEFAULT ?? '';
-
-        // ✅ 수정
-        const current: BreadcrumbItem | null = menu.path
-        ? {
+        
+        // ❗ path 없는 메뉴 (group)는 breadcrumb에서 제외
+        if (!menu.path && menu.children) {
+            // 단, children 탐색은 계속해야 함
+            const childResult = findBreadcrumbPath(
+                menu.children,
+                pathname,
+                role,
+                parents // ← 여기 중요 (group 안 넣음)
+            );
+            if (childResult) return childResult;
+            continue;
+        }
+        const current: BreadcrumbItem = {
             id: menu.id,
-            label,
+            label:
+                menu.dynamicLabel?.(params) ??
+                menu.label[role] ??
+                menu.label.DEFAULT ??
+                '',
             path: menu.breadcrumbOnly ? undefined : menu.path,
-            }
-        : null;
-
+        };
 
         // children이 있는 경우 재귀 탐색
         if (menu.children) {

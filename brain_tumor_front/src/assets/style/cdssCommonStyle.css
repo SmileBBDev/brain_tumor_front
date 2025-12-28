@@ -86,53 +86,6 @@ body{
   text-decoration: underline;
 }
 
-.menu-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* Menu Item */
-.menu-item {
-  margin: 4px 5px;
-}
-
-/* Menu Link */
-.menu-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  padding: 10px 20px;
-  color: var(--sidebar-text);
-  text-decoration: none;
-  border-radius: 8px;
-
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.menu-link:hover {
-  background-color:  var(--menu-hover-bg);
-  color: var(--menu-active-text);
-}
-
-/* Active */
-.menu-link.active {
-  background-color: var(--menu-active-bg);
-  color: var(--menu-active-text);
-  font-weight: 600;
-}
-
-/* Icon */
-.menu-icon {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.menu-link.active .menu-icon {
-  color: #38bb8f;
-}
-
 /* Label */
 .menu-label {
   font-size: 14px;

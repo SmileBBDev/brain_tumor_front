@@ -16,7 +16,7 @@
 /* 전체 레이아웃 */
 /* Header(최상단 영역) */
 .app-header {
-  position: relative; /* ⭐ 필수 */
+  position: relative;
   height: 56px;
 
   background-color: var(--header-bg);
@@ -207,4 +207,49 @@
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+}
+
+
+/* Breadcrumb 컨테이너 */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-left: 24px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1f2937; /* gray-800 */
+
+  white-space: nowrap;
+}
+
+/* 개별 breadcrumb 아이템 */
+.breadcrumb span {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 링크 (이전 경로) */
+.breadcrumb a {
+  color: #4f46e5; /* indigo-600 */
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+/* 구분자 */
+.breadcrumb .sep {
+  margin: 0 6px;
+  color: #9ca3af; /* gray-400 */
+  font-weight: 400;
+}
+
+/* 현재 페이지 (마지막 breadcrumb) */
+.breadcrumb span:last-child span {
+  color: #111827; /* 거의 블랙 */
+  font-weight: 700;
 }

@@ -104,12 +104,16 @@ interface SidebarItemProps {
   menu: MenuConfig;
   role: Role;
   canAccess: (menu: MenuConfig) => boolean;
+  isOpen :  boolean;
+  onToggle : () => void;
 }
 
 export default function SidebarItem({
   menu,
   role,
   canAccess,
+  isOpen,
+  onToggle,
 }: SidebarItemProps) {
   const location = useLocation();
 
@@ -123,21 +127,6 @@ export default function SidebarItem({
 
   const isGroup = !menu.path && menu.children?.length;
 
-  /** 현재 경로가 하위에 포함되면 자동 open */
-  const isActiveGroup = useMemo(() => {
-    if (!menu.children) return false;
-    return menu.children.some(child =>
-      child.path &&
-      location.pathname.startsWith(child.path.split('/:')[0])
-    );
-  }, [location.pathname, menu.children]);
-
-  const [open, setOpen] = useState(isActiveGroup);
-
-  useEffect(() => {
-    if (isActiveGroup) setOpen(true);
-  }, [isActiveGroup]);
-
   return (
     <li className="menu-item">
       {isGroup ? (
@@ -145,8 +134,9 @@ export default function SidebarItem({
           {/* Group Header */}
           <button
             type="button"
-            className={`menu-group ${open ? 'open' : ''}`}
-            onClick={() => setOpen(prev => !prev)}
+            className={`menu-group ${isOpen ? 'open' : ''}`}
+            // onClick={() => setOpen(prev => !prev)}
+            onClick={onToggle}
           >
             <span className="menu-group-left">
               {menu.icon && (
@@ -159,13 +149,13 @@ export default function SidebarItem({
 
             <i
               className={`menu-chevron fa fa-chevron-${
-                open ? 'down' : 'right'
+                isOpen ? 'down' : 'right'
               }`}
             />
           </button>
 
           {/* Children */}
-          {open && (
+          {isOpen && (
             <ul className="menu-children">
               {menu.children!.map(child => (
                 <SidebarItem
@@ -173,6 +163,8 @@ export default function SidebarItem({
                   menu={child}
                   role={role}
                   canAccess={canAccess}
+                  isOpen = {false} // 자식은 단일 그룹 열림 관리 없음(현재는)
+                  onToggle={()=>{}} // 자식은 토글 없음(현재는)
                 />
               ))}
             </ul>

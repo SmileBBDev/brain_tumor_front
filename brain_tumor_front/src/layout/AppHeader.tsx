@@ -65,7 +65,7 @@ export default function AppHeader({ role, onToggleSidebar }: AppHeaderProps) {
 
       {/* 중앙 : 현재 메뉴 표시 */}
       <div className="header-center">
-          <h1><Breadcrumb role={role} /></h1>
+          <Breadcrumb role={role} />
       </div>
 
       {/* 우측 : 사용자 정보 */}

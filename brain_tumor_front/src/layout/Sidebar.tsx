@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
 import { MENU_CONFIG } from '@/config/menuConfig';
 import type { MenuId } from '@/types/menu';
 import type { Role } from '@/types/role';
-import { MENU_LABEL_BY_ROLE } from '@/config/menuLabelByRole';
 import type{ MenuConfig } from '@/config/menuConfig';
 import SidebarItem from '@/layout/SidebarItem';
 import '@/assets/style/sidebarStyle.css'
@@ -39,15 +37,11 @@ export default function Sidebar( { role } : Props) {
     );
   };
 
-    
-  /** 메뉴 라벨 결정 */
-  const getMenuLabel = (menuId: MenuId) => {
-    return (
-      MENU_LABEL_BY_ROLE[menuId]?.[role] ??
-      MENU_CONFIG.find(m => m.id === menuId)?.label?.[role] ??
-      MENU_CONFIG.find(m => m.id === menuId)?.label?.DEFAULT ??
-      menuId
-    );
+  // 현재 열려있는 그룹 id 상태 관리
+  const [openGroup, setOpenGroup] = useState<MenuId | null>(null);
+
+  const handleToggle = (menuId : MenuId) => {
+    setOpenGroup(prev => (prev === menuId ? null : menuId));
   };
 
   return (
@@ -60,27 +54,11 @@ export default function Sidebar( { role } : Props) {
               menu={menu}
               role={role}
               canAccess={canAccess}
+              isOpen = {openGroup === menu.id}
+              onToggle={()=> handleToggle(menu.id)}
             />
           ))}
         </ul>
-
-        {/* <ul className="menu-list">
-          {MENU_CONFIG
-            .filter(menu => 
-              isSystemManager || menu.roles.includes(role) // role 필터링
-            ) 
-            .filter(menu => isSystemManager ||hasMenu(menu.id)) // 권한 체크
-            .map(menu => (
-              <li key={menu.id} className="menu-item">
-                <NavLink to={menu.path ?? '#'} end className={({ isActive }) =>
-                  `menu-link ${isActive ? 'active' : ''}`
-                }>
-                  {menu.icon && <i className={`menu-icon fa fa-${menu.icon}`} />}
-                  <span className="menu-label">{getMenuLabel(menu.id)}</span>
-                </NavLink>
-              </li>
-            ))}
-        </ul> */}
       </nav>
     </aside>
   );

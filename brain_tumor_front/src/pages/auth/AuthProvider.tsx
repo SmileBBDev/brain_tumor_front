@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const timer = setInterval(() => {
-      setSessionRemain((prev) => prev - 1);
+      setSessionRemain((prev) => Math.max(prev - 1, 0));
     }, 1000);
 
     return () => clearInterval(timer);

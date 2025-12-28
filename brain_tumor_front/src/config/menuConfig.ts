@@ -32,50 +32,29 @@ export const MENU_CONFIG: MenuConfig[] = [
 
  
   // Patient - 환자 관리
-  // {
-  //   id: 'PATIENT_LIST',
-  //   path: '/patients',
-  //   icon: 'users',
-  //   roles: ['DOCTOR', 'NURSE'],
-  //   label: {
-  //     DEFAULT: '환자 목록',
-  //     DOCTOR: '환자 목록',
-  //     NURSE: '환자 목록',
-  //   },
-  //   children: [
-  //     {
-  //       id: 'PATIENT_DETAIL',
-  //       path: '/patients/:id',
-  //       roles: ['DOCTOR', 'NURSE'],
-  //       breadcrumbOnly: true, // 🔥 핵심
-  //       label: {
-  //         DEFAULT: '환자 상세',
-  //       },
-  //     },
-  //   ],
-  // },
   {
-    id: 'PATIENT',
-    roles: ['DOCTOR', 'NURSE'],
-    groupLabel : '환자',
-    label: { DEFAULT: '환자' },
-    children: [
-      {
-        id: 'PATIENT_LIST',
-        path: '/patients',
-        icon: 'users',
-        roles: ['DOCTOR', 'NURSE'],
-        label: { DEFAULT: '환자 목록' },
-      },
-      {
-        id: 'PATIENT_DETAIL',
-        path: '/patients/:id',
-        roles: ['DOCTOR', 'NURSE'],
-        breadcrumbOnly: true,
-        label: { DEFAULT: '환자 상세' },
-      },
-    ],
-  },
+  id: 'PATIENT',
+  groupLabel: '환자',
+  label: { DEFAULT: '환자' },
+  roles: ['DOCTOR', 'NURSE'],
+  children: [
+    {
+      id: 'PATIENT_LIST',
+      path: '/patients',
+      roles: ['DOCTOR', 'NURSE'],
+      label: { DEFAULT: '환자 목록' },
+      children: [
+        {
+          id: 'PATIENT_DETAIL',
+          path: '/patients/:id',
+          roles: ['DOCTOR', 'NURSE'],
+          breadcrumbOnly: true,
+          label: { DEFAULT: '환자 상세' },
+        },
+      ],
+    },
+  ],
+},
 
 
 
