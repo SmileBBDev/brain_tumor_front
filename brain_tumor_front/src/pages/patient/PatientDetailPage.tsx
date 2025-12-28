@@ -1,7 +1,6 @@
 import type { Role } from '@/types/role';
 import { useParams, useSearchParams } from 'react-router-dom';
 
-import PatientDetailHeader from './PatientDetailHeader';
 import PatientDetailTabs from './PatientDetailTabs';
 import PatientDetailContent from './PatientDetailContent';
 import { useEffect } from 'react';
@@ -26,12 +25,15 @@ export default function PatientDetailPage() {
 
   return (
     <div className="page patient-detail">
-      {/* Header 영역 */}
+      {/* Header 영역 - 환자 기본 정보 */}
       <section className="page-header">
-        <PatientDetailHeader />
+        <div className="header-right">
+          <button className="btn">환자 요약</button>
+        </div>
       </section>
       
       {/* 환자 정보 */}
+      {/* <PatientInfoBar />  Todo :  환자 정보 컴포넌트 생성하기 */}
       <section className="patient-info-bar">
         <div className="info-item">
           <span>환자 ID:</span>

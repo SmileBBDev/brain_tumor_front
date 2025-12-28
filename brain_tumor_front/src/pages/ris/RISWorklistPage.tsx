@@ -1,10 +1,10 @@
 // RIS 판독 워크리스트 페이지
-export default function Worklist() {
+export default function RISWorklistPage() {
   return (
     <div className="page">
-      <header>
-        <h2>판독 워크리스트</h2>
-      </header>
+      <section className="page-content">
+        <div className="card">Worklist Table</div>
+      </section>
 
       <table>
         <thead>

@@ -15,6 +15,7 @@ import UserListPage from '@/pages/admin/UserList';
 import MenuPermissionPage from '@/pages/admin/MenuPermissionPage';
 import AuditLogPage from '@/pages/admin/AuditLog';
 import SystemMonitorPage from '@/pages/admin/SystemMonitorPage';
+import RISWorklistPage from '@/pages/ris/RISWorklistPage';
 
 
 
@@ -59,12 +60,22 @@ export default function App(){
           }
         />
 
+
+        {/* RIS */}
         {/* 영상 조회 */}
         <Route
           path="/imaging"
           element={
             <ProtectedRoute menu="IMAGE_VIEWER">
               <ImagingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ris/worklist"
+          element={
+            <ProtectedRoute menu="RIS_WORKLIST">
+              <RISWorklistPage />
             </ProtectedRoute>
           }
         />
@@ -89,6 +100,7 @@ export default function App(){
           }
         >
           <Route path="users" element={<UserListPage />} />
+          <Route path="roles" element={<CommingSoon />} />
           <Route path="permissions" element={<MenuPermissionPage />} />
           <Route path="audit" element={<AuditLogPage />} />
           <Route path="monitor" element={<SystemMonitorPage />} />
@@ -106,6 +118,14 @@ export default function App(){
           }
         >
           <Route
+            path="list"
+            element={
+              <ProtectedRoute menu="ORDER_LIST">
+                <CommingSoon />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="create"
             element={
               <ProtectedRoute menu="ORDER_CREATE">
@@ -115,14 +135,7 @@ export default function App(){
           />
         </Route>
 
-        <Route
-          path="/ris/worklist"
-          element={
-            <ProtectedRoute menu="RIS_WORKLIST">
-              <CommingSoon />
-            </ProtectedRoute>
-          }
-        />
+        {/* LAB */}
         <Route
           path="/lab"
           element={
@@ -139,29 +152,7 @@ export default function App(){
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin/permissions"
-          element={
-            <ProtectedRoute menu="ADMIN_MENU_PERMISSION">
-              <CommingSoon />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/audit"
-          element={
-            <ProtectedRoute menu="ADMIN_AUDIT_LOG">
-              <CommingSoon />
-            </ProtectedRoute>
-          }
-        /><Route
-          path="/admin/monitor"
-          element={
-            <ProtectedRoute menu="ADMIN_SYSTEM_MONITOR">
-              <CommingSoon />
-            </ProtectedRoute>
-          }
-        />
+        
       </Route>
     </Routes>
   )

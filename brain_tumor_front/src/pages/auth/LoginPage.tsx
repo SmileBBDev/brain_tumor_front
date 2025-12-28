@@ -50,6 +50,7 @@ export default function LoginPage(){
             case 'ADMIN':
                 menus = [
                     'ADMIN_USER',
+                    'ADMIN_ROLE',
                     'ADMIN_MENU_PERMISSION',
                     'ADMIN_AUDIT_LOG',
                     'ADMIN_SYSTEM_MONITOR',

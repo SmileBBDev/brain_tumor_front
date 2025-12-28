@@ -1,8 +1,7 @@
+// 시스템 접근 감사 로그 페이지
 export default function AuditLog() {
   return (
     <div className="admin-card">
-      <h2 className="admin-section-title">접근 감사 로그</h2>
-
       <div className="admin-toolbar">
         <input placeholder="사용자 ID" />
         <input type="date" />

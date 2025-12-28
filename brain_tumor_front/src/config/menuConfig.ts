@@ -12,7 +12,7 @@ export interface MenuConfig {
   children?: MenuConfig[]; // sidebar group
 
   // 실제 sidebar 메뉴로 구성되어있지는 않지만 상세메뉴로 화면이 바뀔 때
-  breadcrumbOnly?: boolean; // breadcrumb 전용
+  breadcrumbOnly?: boolean; // breadcrumb 전용 (사이드바에서 안보이게 하려면 해당 변수 속성을 false로 지정 또는 미작성)
   dynamicLabel?: (params : Record<string, string>) => string; // 상세 페이지용
 }
 
@@ -33,28 +33,28 @@ export const MENU_CONFIG: MenuConfig[] = [
  
   // Patient - 환자 관리
   {
-  id: 'PATIENT',
-  groupLabel: '환자',
-  label: { DEFAULT: '환자' },
-  roles: ['DOCTOR', 'NURSE'],
-  children: [
-    {
-      id: 'PATIENT_LIST',
-      path: '/patients',
-      roles: ['DOCTOR', 'NURSE'],
-      label: { DEFAULT: '환자 목록' },
-      children: [
-        {
-          id: 'PATIENT_DETAIL',
-          path: '/patients/:id',
-          roles: ['DOCTOR', 'NURSE'],
-          breadcrumbOnly: true,
-          label: { DEFAULT: '환자 상세' },
-        },
-      ],
-    },
-  ],
-},
+    id: 'PATIENT',
+    groupLabel: '환자',
+    label: { DEFAULT: '환자' },
+    roles: ['DOCTOR', 'NURSE'],
+    children: [
+      {
+        id: 'PATIENT_LIST',
+        path: '/patients',
+        roles: ['DOCTOR', 'NURSE'],
+        label: { DEFAULT: '환자 목록' },
+        children: [
+          {
+            id: 'PATIENT_DETAIL',
+            path: '/patients/:id',
+            roles: ['DOCTOR', 'NURSE'],
+            breadcrumbOnly: true, // 사이드바에서 보이게 하려면 false 또는 삭제
+            label: { DEFAULT: '환자 상세' },
+          },
+        ],
+      },
+    ],
+  },
 
 
 
@@ -73,7 +73,7 @@ export const MENU_CONFIG: MenuConfig[] = [
     children: [
       {
         id: 'ORDER_LIST',
-        path: '/orders',
+        path: '/orders/list',
         icon: 'clipboard',
         roles: ['DOCTOR', 'NURSE'],
         label: {
@@ -84,7 +84,6 @@ export const MENU_CONFIG: MenuConfig[] = [
         id: 'ORDER_CREATE',
         path: '/orders/create',
         roles: ['DOCTOR'],
-        breadcrumbOnly: true,
         label: {
           DEFAULT: '오더 생성',
         },
@@ -184,6 +183,14 @@ export const MENU_CONFIG: MenuConfig[] = [
         },
       },
       {
+        id: 'ADMIN_ROLE',
+        path: '/admin/roles',
+        roles: ['ADMIN'],
+        label: {
+          DEFAULT: '역할 권한 관리',
+        },
+      },
+      {
         id: 'ADMIN_MENU_PERMISSION',
         path: '/admin/permissions',
         roles: ['ADMIN'],
@@ -195,7 +202,6 @@ export const MENU_CONFIG: MenuConfig[] = [
         id: 'ADMIN_AUDIT_LOG',
         path: '/admin/audit',
         roles: ['ADMIN'],
-        breadcrumbOnly: true,
         label: {
           DEFAULT: '접근 감사 로그',
         },
@@ -204,7 +210,6 @@ export const MENU_CONFIG: MenuConfig[] = [
         id: 'ADMIN_SYSTEM_MONITOR',
         path: '/admin/monitor',
         roles: ['ADMIN'],
-        breadcrumbOnly: true,
         label: {
           DEFAULT: '시스템 모니터링',
         },

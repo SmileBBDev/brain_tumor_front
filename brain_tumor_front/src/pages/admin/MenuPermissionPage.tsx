@@ -7,10 +7,6 @@ import { useAuth } from '@/pages/auth/AuthProvider';
 
 const ROLES : Role[] = ['ADMIN','DOCTOR','NURSE','LIS', 'RIS', 'PATIENT'];
 
-function updateMenus(checkedMenus: MenuId[]) {
-    throw new Error('Function not implemented.');
-}
-
 export default function MenuPermissionPage(){
     const { role: currentRole, setMenus } = useAuth();
     const [selectedRole, setSelectedRole] = useState<Role>('ADMIN');
@@ -59,39 +55,52 @@ export default function MenuPermissionPage(){
     const isChanged = JSON.stringify(checkedMenus) !== JSON.stringify(originMenus);
 
     return (
+        <>
         <div>
-            <h2>메뉴 권한 관리</h2>
+            <section className="page-content grid">
+                {/* Role 선택 */}
+                <div className="card">
+                    <h3>Role 목록</h3>
+                    <select 
+                        value={selectedRole}
+                        onChange = {e => setSelectedRole(e.target.value as Role)}
+                    >
+                        {ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                        ))}
+                    </select>
+                </div>
+                {/* 메뉴 리스트 */}
+                <div className="card">
+                    <h3>메뉴</h3>
+                    <ul>
+                        {MENU_CONFIG.map(menu => (
+                            <li key = {menu.id}>
+                                <label>
+                                    <input type = "checkbox"
+                                        checked = {checkedMenus.includes(menu.id)}
+                                        onChange ={()=> toggleMenu(menu.id)}
+                                    />
+                                    {menu.id}
+                                </label>
+                            </li>
+                        ))}
+                    </ul>
 
-            {/* Role 선택 */}
-            <select 
-                value={selectedRole}
-                onChange = {e => setSelectedRole(e.target.value as Role)}
-            >
-                {ROLES.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                ))}
-            </select>
-
-            {/* 메뉴 리스트 */}
-            <ul>
-                {MENU_CONFIG.map(menu => (
-                    <li key = {menu.id}>
-                        <label>
-                            <input type = "checkbox"
-                                checked = {checkedMenus.includes(menu.id)}
-                                onChange ={()=> toggleMenu(menu.id)}
-                            />
-                            {menu.id}
-                        </label>
-                    </li>
-                ))}
-            </ul>
-
-            {/* 저장 버튼 */}
-            <div>
-                <button onClick={savePermissions} disabled={!isChanged}>저장</button>
+                    {/* 저장 버튼 */}
+                    <div>
+                        <button onClick={savePermissions} disabled={!isChanged}>저장</button>
+                    </div>
+                </div>
+            </section>
+            
+            <div className="card">
+                <h3>변경 이력</h3>
             </div>
         </div>
+        </>
+        
+        
     );
 
 }
