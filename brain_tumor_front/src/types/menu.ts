@@ -1,5 +1,15 @@
+// types/menu.ts
+export interface MenuNode {
+  id: string;
+  icon? : string;
+  labels: Record<string, string>;
+  breadcrumbOnly : boolean;
+  path?: string;
+  component?: string;
+  children?: MenuNode[];
+}
+
 // 메뉴 ID 정의
-// TODO : 메뉴가 추가되는 경우 - menu.ts 파일에도 추가 필요
 export type MenuId =
   // Group용 (화면 없음)
   | 'PATIENT'

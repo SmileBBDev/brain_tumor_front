@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import useBreadcrumb  from '../hooks/useBreadcrumb';
-import type { Role } from '@/types/role';
+import { useAuth } from '@/pages/auth/AuthProvider';
 
-interface Props {
-   role : Role;
-}
 
-export default function Breadcrumbs({role}: Props){
-    const breadcrumb = useBreadcrumb(role);
+export default function Breadcrumbs(){
+    const { role, menus, isAuthReady } = useAuth();
+
+    if (!isAuthReady) return null;
+    const breadcrumb = useBreadcrumb( menus, role );
 
     if (breadcrumb.length <= 0) return null;
 

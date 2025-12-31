@@ -4,7 +4,8 @@ export function connectPermissionSocket(onChanged: () => void) {
 
   ws.onmessage = (e) => {
     const data = JSON.parse(e.data);
-    if (data.type === 'PERMISSION_CHANGED') {
+    if (data.type === 'PERMISSION_CHANGED' ||
+      data.type === 'MENU_PERMISSION_UPDATED') {
       onChanged();
     }
   };

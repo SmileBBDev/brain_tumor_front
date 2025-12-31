@@ -17,64 +17,27 @@
 
  */
 import { useState } from 'react';
-import { login, fetchMe, fetchMenu } from './auth.api';
+import { login } from './auth.api';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/pages/auth/AuthProvider';
 
 import '@/assets/style/login.css';
-import { api } from '@/services/api';
 
 export default function LoginPage(){
     const [id, setId] = useState('');
     const [pw, setPw] = useState('');    
     const navigate = useNavigate();
 
-    const { setAuth } = useAuth();
-
     const handleLogin = async () => {
         //api 호출해서 로그인 처리 기능
         try{
             /** 로그인 API 호출 */
             const res = await login(id, pw);
-            // 로그인 성공
+            // 로그인 성공 - 토큰 저장
             localStorage.setItem('accessToken', res.data.access); // access 토큰 저장
             localStorage.setItem('refreshToken', res.data.refresh); // refresh 토큰도 저장
 
-            api.interceptors.request.use((config) => {
-                const token = localStorage.getItem("accessToken");
-                if (token) {
-                    config.headers.Authorization = `Bearer ${token}`;
-                }
-            return config;
-            });
-            
-            const meRes = await fetchMe(); // 내 정보
-            const menuRes = await fetchMenu(); // 메뉴
-
-            setAuth({
-                role : meRes.data.role,
-                menus : menuRes.data.menus,
-            })
-
-            // 새로고침 대비용
-            localStorage.setItem('role', meRes.data.role);
-            localStorage.setItem('menu', JSON.stringify(menuRes.data.menus));
-
             //  홈으로 이동
             navigate('/dashboard', {replace : true});
-
-        /**
-         * 
-         * // 로그인 성공 후
-            localStorage.setItem('role', role);
-            localStorage.setItem(
-            'menus',
-            JSON.stringify(
-                JSON.parse(localStorage.getItem(`menus:${role}`) || '[]')
-            )
-            );
-
-         */
         }catch(error){
             alert("로그인 실패")
             console.error(error);

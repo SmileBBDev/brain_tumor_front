@@ -1,13 +1,16 @@
 import { Navigate } from 'react-router-dom';
-import { Role_Home } from '@/pages/auth/roleHome';
-import type { Role } from '@/types/role';
+import { useAuth } from '@/pages/auth/AuthProvider';
 
 export default function HomeRedirect() {
     const token = localStorage.getItem('accessToken');
-    const role = localStorage.getItem('role') as Role;
+    const { role, isAuthReady } = useAuth();
+    // const role = localStorage.getItem('role') as Role;
     
-    if (!token || !role) {
+    if (!isAuthReady) return null;
+
+    if (!role) {
         return <Navigate to="/login" replace />;
     }
-    return <Navigate to={Role_Home[role]} replace />;
+
+    return <Navigate to="/dashboard" replace />;
 }

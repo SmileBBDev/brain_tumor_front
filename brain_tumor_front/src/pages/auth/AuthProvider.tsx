@@ -1,94 +1,114 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import type { Role } from '@/types/role';
 import SessionExtendModal from './SessionExtendModal';
-import type { MenuId } from '@/types/menu';
 import { connectPermissionSocket } from '@/socket/permissionSocket'
+import type { MenuNode } from '@/types/menu';
+import { fetchMe, fetchMenu } from './auth.api';
 
-export interface MenuNode {
-  id: string;
-  label: string;
-  path?: string;
-  children?: MenuNode[];
+interface User {
+  id: number;
+  login_id: string;
+  name: string;
+  role: {
+    code: string;
+    name: string;
+  };
 }
 
+
 interface AuthContextValue {
-  role: Role | null;
-  // setRole: (role: Role | null) => void;
-  sessionRemain: number;
-  logout: () => void;
-  isAuthReady: boolean;
-  // menus : MenuId[];
-  // setMenus : (menus : MenuId[]) => void;
+  user : User | null;
+  role: string | null;
   menus: MenuNode[];
-  // setMenus: (menus: MenuNode[]) => void;
 
-  setAuth: (payload: {
-    role: Role;
-    menus: MenuNode[];
-  }) => void;
+  sessionRemain: number;
+  isAuthReady: boolean;
+  isAuthenticated: boolean;
 
+  logout: () => void;
+  hasPermission: (menuId: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRole] = useState<Role | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [menus, setMenus] = useState<MenuNode[]>([]);
+
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [sessionRemain, setSessionRemain] = useState(30 * 60);
 
-  // 로그인 후 메뉴 로딩 호출
-
-  /** 로그인 성공 시 단일 진입점 */
-  const setAuth = ({role, menus,}: {
-    role: Role;
-    menus: MenuNode[];
-  }) => {
-    setRole(role);
-    setMenus(menus);
-    setIsAuthReady(true);
-  };
-
-
-  /** 앱 시작 시 role과 메뉴 복원 | localStorage → state 복원 */
+  // 앱 최초 1회: 서버 기준 인증 초기화
   useEffect(() => {
-    const role = localStorage.getItem('role') as Role | null;
-    const menus = JSON.parse(localStorage.getItem('menus') || '[]');
+    const initAuth = async () => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        setIsAuthReady(true);
+        return;
+      }
 
-    if (role) {
-      // setRole(savedRole);
-      setAuth({ role, menus });
-    }
-    setIsAuthReady(true);
+      try {
+        const meRes = await fetchMe(); // 내 정보
+        const menuRes = await fetchMenu(); // 메뉴
+
+        setUser(meRes.data);
+        setRole(meRes.data.role.code);
+        setMenus(menuRes.data.menus);
+      } catch (e) {
+        logout();
+      } finally {
+        setIsAuthReady(true);
+      }
+    };
+
+    initAuth();
   }, []);
+
+
+  const isAuthenticated = !!user;
 
   // WebSocket 메뉴 갱신
   useEffect(() => {
+    if (!isAuthenticated) return;
+    
     const ws = connectPermissionSocket(() => {
-      fetch('/api/menus')
+      fetch('/api/auth/menu/')
         .then(res => res.json())
-        .then(setMenus);
+        .then(res => setMenus(res.menus));
+        // .then((menus) => {
+        //   setMenus(menus);
+        //   localStorage.setItem('menus', JSON.stringify(menus));
+        // });
     });
 
     return () => ws.close();
-  }, []);
-
+  }, [isAuthenticated]);
 
   /** ⏱ 세션 타이머 */
   useEffect(() => {
-    if (!role) {
-      setShowExtendModal(false);
-      return;
-    }
+    if (!isAuthenticated) return;
 
     const timer = setInterval(() => {
       setSessionRemain((prev) => Math.max(prev - 1, 0));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [role]);
+  }, [isAuthenticated]);
 
   /** 만료 시 연장 또는 로그아웃 */
+  
+  // 로그아웃 처리
+  const logout = () => {
+    localStorage.clear();
+    setUser(null);
+    setRole(null);
+    setMenus([]);
+    setSessionRemain(30 * 60); // 초기값으로 복원
+    setHasWarned(false);    
+    setShowExtendModal(false);
+  };
+
   // 로그인 후 25분	-> 연장 모달 1회 표시
   // 연장 클릭	세션 30분 리셋 + 다시 25분 후 재등장
   // 무시	만료 시 자동 로그아웃
@@ -115,28 +135,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setShowExtendModal(false);
   };
 
-  // 로그아웃 처리
-  const logout = () => {
-    localStorage.clear();
-    setRole(null);
-    setMenus([]);
-    setSessionRemain(30 * 60); // 초기값으로 복원
-    setHasWarned(false);    
-    setShowExtendModal(false);
+
+  const hasPermission = (menuId: string) => {
+    // SYSTEMMANAGER는 모든 메뉴 접근 가능
+    if (role === 'SYSTEMMANAGER') return true;
+
+    const walk = (tree: MenuNode[]): boolean =>
+      tree.some(m => m.id === menuId || (m.children && walk(m.children)));
+
+    return walk(menus);
   };
 
-
-  // 권한 변경 시 Sidebar 메뉴 변경
-  // const [menus, setMenus] = useState<MenuId[]>([]);
-  // useEffect(() => {
-  //   const savedNewMenu = JSON.parse(
-  //     localStorage.getItem('menus')  || '[]'
-  //   );
-  //   setMenus(savedNewMenu);
-  // }, []); 
   return (
     <AuthContext.Provider
-      value={{ role, sessionRemain, logout, isAuthReady, menus, setAuth }}
+      value={{ 
+        user, role, sessionRemain, 
+        logout, isAuthReady, 
+        menus,
+        isAuthenticated,
+        hasPermission,
+      }}
     >
       {children}
       {showExtendModal && (

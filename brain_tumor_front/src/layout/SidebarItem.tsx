@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import type { MenuNode } from '@/pages/auth/AuthProvider';
+import type { MenuNode } from '@/types/menu';
+import { useAuth } from '@/pages/auth/AuthProvider';
 
 interface SidebarItemProps {
   menu: MenuNode;
@@ -12,6 +13,12 @@ export default function SidebarItem({
   isOpen,
   onToggle,
 }: SidebarItemProps) {
+  const { role } = useAuth();
+  const roleKey = role ?? 'DEFAULT';
+  const label =
+    menu.labels?.[roleKey] ||
+    menu.labels?.['DEFAULT'] ||
+    menu.id;
   const isGroup = !menu.path && menu.children && menu.children.length > 0;
 
   return (
@@ -25,7 +32,10 @@ export default function SidebarItem({
             onClick={onToggle}
           >
             <span className="menu-group-left">
-              <span className="menu-label">{menu.label}</span>
+              {menu.icon && (
+                <i className={`menu-icon fa fa-${menu.icon}`} />
+              )}
+              <span className="menu-label">{label}</span>
             </span>
 
             <i
@@ -57,7 +67,10 @@ export default function SidebarItem({
             `menu-link ${isActive ? 'active' : ''}`
           }
         >
-          <span className="menu-label">{menu.label}</span>
+          {menu.icon && (
+            <i className={`menu-icon fa fa-${menu.icon}`} />
+          )}
+          <span className="menu-label">{label}</span>
         </NavLink>
       )}
     </li>

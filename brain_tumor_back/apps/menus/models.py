@@ -1,10 +1,12 @@
 from django.db import models
+from django.conf import settings
+from apps.accounts.models.permission import Permission
 
-# Menu 모델 설계
+# Menu 모델 설계(메뉴 + 역할 매핑)
 
 # 메뉴 기본 정보 (path, icon, parent-child 구조)
 class Menu(models.Model):
-    id = models.CharField(max_length=50, primary_key=True) # ex: 'DASHBOARD'
+    menu_id = models.CharField(max_length=50, primary_key=True) # ex: 'DASHBOARD'
     path = models.CharField(max_length=200, blank=True, null=True)
     icon = models.CharField(max_length=50, blank=True, null=True)
     group_label = models.CharField(max_length=100, blank=True, null=True)
@@ -36,9 +38,18 @@ class MenuLabel(models.Model):
 
 
 # 접근 가능한 역할(Role)
-class MenuRole(models.Model):
-    menu = models.ForeignKey(Menu, related_name="roles", on_delete=models.CASCADE)
-    role = models.CharField(max_length=50)  # ex: 'DOCTOR', 'NURSE', 'ADMIN'
+# class MenuRole(models.Model):
+#     menu = models.ForeignKey(Menu, related_name="roles", on_delete=models.CASCADE)
+#     role = models.CharField(max_length=50)  # ex: 'DOCTOR', 'NURSE', 'ADMIN'
 
-    def __str__(self):
-        return f"{self.menu.id} - {self.role}"
+#     def __str__(self):
+#         return f"{self.menu.id} - {self.role}"
+
+
+# 메뉴와 Permission 매핑 (권한 기반 접근 제어)
+class MenuPermission(models.Model):
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE)
+    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
+    
+    class Meta:
+        unique_together = ("menu", "permission")

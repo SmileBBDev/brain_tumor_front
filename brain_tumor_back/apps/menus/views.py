@@ -1,23 +1,26 @@
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .services import get_user_menus
+from .services import get_user_menus, get_accessible_menus
 from .utils import build_menu_tree
-from .models import Menu
-from .serializers import MenuSerializer
 
 
 # 메뉴 API
-class UserMenuView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        user_role = getattr(request.user, "role", None)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def UserMenuView(request):
+    user = request.user
 
-        # 최상위 메뉴만 가져오기
+    # 유저가 가진 Permission code 목록
+    permission_codes = user.role.permissions.values_list("code", flat=True)
 
-        menus = get_user_menus(request.user)
-        tree = build_menu_tree(menus)
-        
-        return Response({"menus": tree})
+    # 접근 가능한 메뉴 조회
+    menus = get_accessible_menus(permission_codes)
+
+    # 트리로 변환
+    menu_tree = build_menu_tree(menus)
+
+    return Response({
+        "menus": menu_tree
+    })

@@ -1,74 +1,95 @@
+import { NavLink } from 'react-router-dom';
 import { useState } from 'react';
-// import { MENU_CONFIG } from '@/config/menuConfig';
-// import type { MenuId } from '@/types/menu';
-// import type{ MenuConfig } from '@/config/menuConfig';
-import type { MenuNode } from '@/pages/auth/AuthProvider';
-import SidebarItem from '@/layout/SidebarItem';
 import { useAuth } from '@/pages/auth/AuthProvider';
-
+import SidebarItem from './SidebarItem';
 import '@/assets/style/sidebarStyle.css'
 
-// interface Props {
-//   role: Role;
-// }
 export default function Sidebar() {
-  const { role, menus } = useAuth();
+  const { menus, isAuthReady } = useAuth();
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  const isSystemManager = role === 'SYSTEMMANAGER';
-
-  // const menus: MenuId[] = JSON.parse(
-  //   localStorage.getItem('menus') || '[]'
-  // );
-
-
-  /** 권한 체크 */
-  // const hasMenu = (menuId: MenuId) => {
-  //   return menus.includes(menuId);
-  // };
-
-  // const canAccess = (menu: MenuConfig): boolean => {
-  //   if (isSystemManager) return true;
-
-  //   // leaf
-  //   if(role){
-  //     if (menu.path) {
-  //     // breadcrumb-only 메뉴는 sidebar에 안 나옴
-  //     if (menu.breadcrumbOnly) return false;
-  //       return menu.roles.includes(role) && hasMenu(menu.id);
-  //     }
-
-  //     // group → children 중 하나라도 접근 가능하면 노출
-  //     return (
-  //       menu.children?.some(child => canAccess(child)) ?? false
-  //     );
-
-  //   }
-  //   return false;
-  // };
-
-  // 현재 열려있는 그룹 id 상태 관리
-  const [openGroup, setOpenGroup] = useState<string  | null>(null);
-
-  const handleToggle = (menuId : string ) => {
+  const handleToggle = (menuId: string) => {
     setOpenGroup(prev => (prev === menuId ? null : menuId));
   };
+
+  if (!isAuthReady) return null;
 
   return (
     <aside className="sidebar">
       <nav className="sidebar-nav">
-        <ul className="menu-list">
-          {menus.map((menu: MenuNode) => (
+
+        <ul  className="menu-list">
+          {menus.map(menu => (
             <SidebarItem
               key={menu.id}
               menu={menu}
-              // role={role!}
-              // canAccess={canAccess}
-              isOpen = {openGroup === menu.id}
+              isOpen={openGroup === menu.id}
               onToggle={()=> handleToggle(menu.id)}
             />
           ))}
         </ul>
       </nav>
+      {/* {menus.map(menu => (
+        <MenuItem key={menu.id} menu={menu} />
+      ))} */}
     </aside>
   );
 }
+
+function MenuItem({ menu }: { menu: any }) {
+  if (menu.children?.length) {
+    return (
+      <div className="menu-group">
+        <span className="menu-title">{menu.label}</span>
+        {menu.children.map((child: any) => (
+          <MenuItem key={child.id} menu={child} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <NavLink to={menu.path!} className="menu-item">
+      {menu.label}
+    </NavLink>
+  );
+}
+
+// import { useState } from 'react';
+// import { NavLink } from 'react-router-dom';
+// import type { MenuNode } from '@/types/menu';
+// import SidebarItem from '@/layout/SidebarItem';
+// import { useAuth } from '@/pages/auth/AuthProvider';
+
+// import '@/assets/style/sidebarStyle.css'
+
+// export default function Sidebar() {
+//   const { menus, isAuthReady } = useAuth();
+//   // 현재 열려있는 그룹 id 상태 관리
+//   const [openGroup, setOpenGroup] = useState<string  | null>(null);
+
+//   const handleToggle = (menuId : string ) => {
+//     setOpenGroup(prev => (prev === menuId ? null : menuId));
+//   };
+
+//   if (!isAuthReady) return null;
+
+//   return (
+//     <aside className="sidebar">
+//       <nav className="sidebar-nav">
+//         <ul className="menu-list">
+//           {menus.map(menu => (
+//             <SidebarItem
+//               key={menu.id}
+//               menu={menu}
+//               // role={role!}
+//               // canAccess={canAccess}
+//               isOpen = {openGroup === menu.id}
+//               onToggle={()=> handleToggle(menu.id)}
+//             />
+//           ))}
+//         </ul>
+//       </nav>
+//     </aside>
+//   );
+// }

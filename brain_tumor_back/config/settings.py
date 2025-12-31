@@ -3,8 +3,6 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from .base import * # 공통 설정
-from .dev import *  # 개발 환경 설정
-from .prod import * # 운영 환경 설정
 from corsheaders.defaults import default_headers
 
 
@@ -30,12 +28,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
+    "channels",
     "apps.accounts",
     "apps.audit",
     "apps.authorization",
     "apps.common",
     "apps.menus",
-    "corsheaders",
 
 ]
 
@@ -67,7 +66,6 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database

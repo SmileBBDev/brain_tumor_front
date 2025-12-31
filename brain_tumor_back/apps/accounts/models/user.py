@@ -4,14 +4,15 @@ from django.contrib.auth.models import(
     AbstractBaseUser,
     PermissionsMixin,
 )
+from .role import Role
 
 # 최상위 관리자 모델 
 class UserManager(BaseUserManager):
-    def create_user(self, login_id, password=None, **extra_fields):
+    def create_user(self, login_id, password=None, role=None, **extra_fields):
         if not login_id:
             raise ValueError("ID는 필수 항목")
         
-        user = self.model(login_id = login_id, **extra_fields)
+        user = self.model(login_id = login_id,  role=role, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -20,6 +21,16 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
+        
+        # role 기본값 지정
+        try:
+            system_role = Role.objects.get(code="SYSTEMMANAGER")
+        except Role.DoesNotExist:
+            system_role = None
+        extra_fields.setdefault("role", system_role)
+
+        # extra_fields.setdefault("role_id", 1)  # SYSTEMMANAGER 역할 ID
+
         
         return self.create_user(login_id, password, **extra_fields)
 
@@ -42,8 +53,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     
-    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default="PATIENT")
-        
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )  
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

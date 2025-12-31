@@ -6,7 +6,13 @@ class Role(models.Model):
     name = models.CharField(max_length=50)
     description = models.TextField(blank= True)
     created_at = models.DateTimeField(auto_now_add = True)
-    
+    permissions = models.ManyToManyField(
+        "accounts.Permission",  # Permission 모델 위치에 맞게 수정
+        related_name="roles",
+        blank=True
+    )
+
+
     def __str__(self) :
         return self.name
 

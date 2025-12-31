@@ -16,25 +16,43 @@ class LoginView(APIView):
     
     def post(self, request):
         serializer = LoginSerializer(data = request.data)
-        try : 
-            serializer.is_valid(raise_exception = True)
-        
+        if serializer.is_valid():
             user = serializer.validated_data["user"]
-            
+
             refresh = RefreshToken.for_user(user)
-            
-            create_audit_log(request, "LOGIN_SUCESS", user) # 로그인 성공 로그 남기기
-            
+
+            create_audit_log(request, "LOGIN_SUCCESS", user)  # 오탈자 수정
+
             return Response(
                 {
-                    "access" : str(refresh.access_token),
-                    "refresh" : str(refresh),
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
                 },
-                status = status.HTTP_200_OK,
+                status=status.HTTP_200_OK,
             )
-        except Exception :
-            create_audit_log(request, "LOGIN_FAIL") # 로그인 실패 로그 남기기
-            raise
+        else:
+            create_audit_log(request, "LOGIN_FAIL")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # try : 
+        #     serializer.is_valid(raise_exception = True)
+        
+        #     user = serializer.validated_data["user"]
+            
+        #     refresh = RefreshToken.for_user(user)
+            
+        #     create_audit_log(request, "LOGIN_SUCCESS", user) # 로그인 성공 로그 남기기
+            
+        #     return Response(
+        #         {
+        #             "access" : str(refresh.access_token),
+        #             "refresh" : str(refresh),
+        #         },
+        #         status = status.HTTP_200_OK,
+        #     )
+        # except Exception :
+        #     create_audit_log(request, "LOGIN_FAIL") # 로그인 실패 로그 남기기
+        #     raise
         
 
 # 내 정보 조회 view
@@ -42,16 +60,18 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        permissions = get_user_permission(request.user)
+        # permissions = get_user_permission(request.user)
         return Response(
-            {
-                "id": request.user.id
-                ,"login_id" : request.user.login_id
-                ,"name": request.user.name
-                ,"email": request.user.email
-                ,"is_active": request.user.is_active
-                ,"is_staff": request.user.is_staff
-                ,"permission" : permissions
-            }
+            MeSerializer(request.user).data
+            # {
+            #     "id": request.user.id
+            #     ,"login_id" : request.user.login_id
+            #     ,"name": request.user.name
+            #     ,"email": request.user.email
+            #     ,"is_active": request.user.is_active
+            #     ,"is_staff": request.user.is_staff
+            #     ,"role": request.user.role
+            #     ,"permission" : permissions
+            # }
         )
         

@@ -1,13 +1,13 @@
-import { Outlet, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useState } from 'react';
-import Sidebar from './Sidebar';
 import AppHeader from './AppHeader';
 import { useAuth } from '@/pages/auth/AuthProvider';
 import FullScreenLoader from '@/pages/common/FullScreenLoader';
 
+import Sidebar from '@/layout/Sidebar';
+import AppRoutes from '@/router/AppRoutes';
 
-
-export default function AppLayout() {
+function AppLayout() {
   const { role, isAuthReady } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -22,12 +22,12 @@ export default function AppLayout() {
 
   return (
     <div className='app-layout'>
-      {role && <AppHeader role={role} onToggleSidebar={toggleSidebar} /> }
+      <AppHeader onToggleSidebar={toggleSidebar} /> 
 
       <div className='app-body'>      
-        {role && isSidebarOpen && <Sidebar role={role}/> }
+        {isSidebarOpen && <Sidebar/> }
         <main className='app-content'>
-          <Outlet />
+          <AppRoutes />
         </main>
       </div>
 
@@ -35,3 +35,4 @@ export default function AppLayout() {
     
   );
 }
+export default AppLayout;

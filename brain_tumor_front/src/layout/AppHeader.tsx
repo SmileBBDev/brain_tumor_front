@@ -1,24 +1,11 @@
-import { useLocation, useNavigate } from 'react-router-dom';
-import type { Role } from '@/types/role';
-import { ROLE_ICON_MAP } from './header.constants';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/pages/auth/AuthProvider';
 import brainIcon from '@/assets/icon/mri-brain.png';
 import Breadcrumb from '@/layout/Breadcrumb';
 
 interface AppHeaderProps {
-  role: Role;
   onToggleSidebar: () => void;
 }
-
-const ROLE_LABEL: Record<Role, string> = {
-    DOCTOR: 'Doctor',
-    NURSE: 'Nurse',
-    ADMIN: 'Admin',
-    PATIENT: 'Patient',
-    LIS : 'LIS',
-    RIS : 'RIS',
-    SYSTEMMANAGER: 'System Manager',
-};
 
 /* 초 → mm:ss */
 function formatTime(sec: number) {
@@ -27,16 +14,16 @@ function formatTime(sec: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function AppHeader({ role, onToggleSidebar }: AppHeaderProps) {
+export default function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   const navigator = useNavigate();
 
-  
-  const { sessionRemain } = useAuth();
+  const { role, sessionRemain, logout } = useAuth(); 
+
+  if (!role) return null; // auth 준비 전 방어
 
   const handleLogout = () => {
     // 로그아웃 처리 로직 (예: 토큰 삭제, 리다이렉트 등)
-    localStorage.removeItem('role');
-    localStorage.removeItem('menus');
+    logout(); // AuthProvider에 위임 (권장)
     navigator('/login');
   }
 
@@ -65,17 +52,17 @@ export default function AppHeader({ role, onToggleSidebar }: AppHeaderProps) {
 
       {/* 중앙 : 현재 메뉴 표시 */}
       <div className="header-center">
-          <Breadcrumb role={role} />
+          <Breadcrumb />
       </div>
 
       {/* 우측 : 사용자 정보 */}
       <div className="header-right">
         <div className="user-info">
-            <span className="role">{ROLE_LABEL[role]}</span>
+            <span className="role">시스템 관리자</span>
             <span className="divider">|</span>
             <span className="userIcon">
             <a>
-                <i className={`fa-solid ${ROLE_ICON_MAP[role]}`} /> 
+                {/* <i className={`fa-solid ${}`} />  */}
             </a>
             </span>
             <span className="divider">|</span>
