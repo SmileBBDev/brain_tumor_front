@@ -104,6 +104,11 @@
   border-color: #2563eb;
 }
 
+.login-field input,
+.login-button {
+  box-sizing: border-box;
+}
+
 /* 로그인 버튼 */
 .login-button {
   width: 100%;

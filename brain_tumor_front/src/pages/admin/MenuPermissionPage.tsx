@@ -1,106 +1,145 @@
-// Admin 메뉴 권한 관리 구현 코드
+// // Admin 메뉴 권한 관리 구현 코드
 import { useEffect, useState } from 'react';
-import { MENU_CONFIG } from '@/config/menuConfig';
-import type { Role } from '@/types/role';
-import type { MenuId } from '@/types/menu';
-import { useAuth } from '@/pages/auth/AuthProvider';
+import type { MenuNode } from '@/types/menu';
+import type { Role } from '@/types/adminManager';
 
-const ROLES : Role[] = ['ADMIN','DOCTOR','NURSE','LIS', 'RIS', 'PATIENT'];
+import {
+  fetchRoles,
+  fetchMenuTree,
+  fetchRoleMenus,
+  saveRoleMenus,
+} from '@/services/admin.permission';
 
-export default function MenuPermissionPage(){
-    const { role: currentRole, setMenus } = useAuth();
-    const [selectedRole, setSelectedRole] = useState<Role>('ADMIN');
-    const [checkedMenus, setCheckedMenus] = useState<MenuId[]>([]);
-    const [originMenus, setOriginMenus] = useState<MenuId[]>([]);
+export default function MenuPermissionPage() {
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [menuTree, setMenuTree] = useState<MenuNode[]>([]);
+    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
-    /* Role 변경 시 권한 로딩 */
+    const [checkedMenuIds, setCheckedMenuIds] = useState<string[]>([]);
+    const [originMenuIds, setOriginMenuIds] = useState<string[]>([]);
+
+    /** 초기 로딩 */
     useEffect(() => {
-        const stored = JSON.parse(
-            localStorage.getItem(`menus:${selectedRole}`) || '[]'
-        );
-        setCheckedMenus(stored);
-        setOriginMenus(stored);
+    Promise.all([fetchRoles(), fetchMenuTree()]).then(
+        ([roles, menus]) => {
+            setRoles(roles);
+            setMenuTree(menus);
+            if (roles.length > 0) {
+                setSelectedRole(roles[0]);
+            }
+
+        }
+    );
+    }, []);
+
+    /** Role 변경 시 권한 조회 */
+    useEffect(() => {
+    if (!selectedRole) return;
+
+    fetchRoleMenus(selectedRole.code).then(ids => {
+        setCheckedMenuIds(ids);
+        setOriginMenuIds(ids);
+    });
     }, [selectedRole]);
 
-    /* 메뉴 체크 상태 변경시 발생 이벤트 */
-    const toggleMenu = (menuId : MenuId) => {
-        setCheckedMenus(prev => 
-            prev.includes(menuId) 
-            ? prev.filter(id => id !== menuId)
-            : [...prev, menuId]
+  
+    // Role과 무관하게 메뉴 이름 호출 함수
+    const getMenuLabel = (node: MenuNode) =>
+    node.labels?.['DEFAULT'] ??
+    Object.values(node.labels ?? {})[0] ??
+    node.id;
+
+    // 부모, 자식 메뉴 연결 함수
+    const collectMenuIds = (node: MenuNode): string[] => {
+        const ids = [node.id];
+        if (node.children) {
+            node.children.forEach(c => {
+            ids.push(...collectMenuIds(c));
+            });
+        }
+        return ids;
+    };
+
+    const toggleMenu = (node: MenuNode) => {
+        const ids = collectMenuIds(node);
+
+        setCheckedMenuIds(prev =>
+            prev.some(id => ids.includes(id))
+            ? prev.filter(id => !ids.includes(id))
+            : [...prev, ...ids]
         );
     };
 
-    /* 메뉴 권한 변경 저장 */
-    const savePermissions = () =>{
-        // localStorage.setItem(
-        //     `menus:${selectedRole}`,
-        //     JSON.stringify(checkedMenus)
-        // );
 
-        // 현재 로그인한 Role인 경우 즉시 반영
-        if(currentRole === selectedRole){
-            setMenus(checkedMenus); // 메뉴 변경 상태를 반영
-            localStorage.setItem(
-                'menus',
-                JSON.stringify(checkedMenus) // 메뉴 저장
+    const renderMenu = (nodes: MenuNode[], depth = 0) => (
+        <ul>
+            {nodes.map(node => {
+            const disabled = node.breadcrumbOnly;
+
+            return (
+                <li key={node.id} style={{ marginLeft: depth * 16 }}>
+                <label style={{ opacity: disabled ? 0.5 : 1 }}>
+                    <input
+                    type="checkbox"
+                    disabled={disabled}
+                    checked={checkedMenuIds.includes(node.id)}
+                    onChange={() => toggleMenu(node)}
+                    />
+                    {getMenuLabel(node)}
+                </label>
+
+                {node.children && renderMenu(node.children, depth + 1)}
+                </li>
             );
-        }
-
-        setOriginMenus(checkedMenus);
-        // sweetAlert로 변경
-        alert('접근 권한이 변경되었습니다.');
-    };
-
-    const isChanged = JSON.stringify(checkedMenus) !== JSON.stringify(originMenus);
-
-    return (
-        <>
-        <div>
-            <section className="page-content grid">
-                {/* Role 선택 */}
-                <div className="card">
-                    <h3>Role 목록</h3>
-                    <select 
-                        value={selectedRole}
-                        onChange = {e => setSelectedRole(e.target.value as Role)}
-                    >
-                        {ROLES.map(role => (
-                            <option key={role} value={role}>{role}</option>
-                        ))}
-                    </select>
-                </div>
-                {/* 메뉴 리스트 */}
-                <div className="card">
-                    <h3>메뉴</h3>
-                    <ul>
-                        {MENU_CONFIG.map(menu => (
-                            <li key = {menu.id}>
-                                <label>
-                                    <input type = "checkbox"
-                                        checked = {checkedMenus.includes(menu.id)}
-                                        onChange ={()=> toggleMenu(menu.id)}
-                                    />
-                                    {menu.id}
-                                </label>
-                            </li>
-                        ))}
-                    </ul>
-
-                    {/* 저장 버튼 */}
-                    <div>
-                        <button onClick={savePermissions} disabled={!isChanged}>저장</button>
-                    </div>
-                </div>
-            </section>
-            
-            <div className="card">
-                <h3>변경 이력</h3>
-            </div>
-        </div>
-        </>
-        
-        
+            })}
+        </ul>
     );
 
+
+    // 접근 권한 메뉴 변경 저장 API 호출
+    const save = async () => {
+        if (!selectedRole) return;
+
+        await saveRoleMenus(
+            selectedRole.code,
+            checkedMenuIds,
+        );
+
+        setOriginMenuIds(checkedMenuIds);
+        alert('저장 완료');
+    };
+
+    const isChanged =
+    JSON.stringify(checkedMenuIds) !== JSON.stringify(originMenuIds);
+
+    return (
+    <section className="page-content grid">
+        <div className="card">
+        <h3>Role</h3>
+        <select
+            value={selectedRole?.code}
+            onChange={e =>
+            setSelectedRole(
+                roles.find(r => r.code === e.target.value) ?? null
+            )
+            }
+        >
+            {roles.map(role => (
+            <option key={role.code} value={role.code}>
+                {role.name}
+            </option>
+            ))}
+        </select>
+        </div>
+
+        <div className="card">
+        <h3>메뉴 권한</h3>
+        {renderMenu(menuTree)}
+
+        <button disabled={!isChanged} onClick={save}>
+            저장
+        </button>
+        </div>
+    </section>
+    );
 }

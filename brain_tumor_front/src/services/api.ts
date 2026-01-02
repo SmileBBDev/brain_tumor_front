@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { show403Alert } from '@/utils/alert';
 
 // 비동기 api 통신 기본 세팅
 // Axios 인스턴스 생성
@@ -25,8 +26,10 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    const status = error.response?.status; 
 
-    if (error.response?.status === 401 && !original._retry) {
+    // 401 에러 발생 : token 만료
+    if (status === 401 && !original._retry) {
       original._retry = true;
 
       if (!isRefreshing) {
@@ -52,6 +55,12 @@ api.interceptors.response.use(
       return new Promise((resolve) => {
         refreshQueue.push(() => resolve(api(original)));
       });
+    }
+  
+    // 403 에러 : 권한 없음
+    if (status === 403) {
+      show403Alert();
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);

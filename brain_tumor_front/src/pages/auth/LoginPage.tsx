@@ -17,11 +17,12 @@
 
  */
 import { useState } from 'react';
-import { login } from './auth.api';
+import { login } from '../../services/auth.api';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/pages/auth/AuthProvider';
 
 import '@/assets/style/login.css';
-import { useAuth } from '@/pages/auth/AuthProvider';
+import Swal from 'sweetalert2';
 
 export default function LoginPage(){
     const [id, setId] = useState('');
@@ -41,103 +42,32 @@ export default function LoginPage(){
 
             await refreshAuth();
 
+            await Swal.fire({
+                icon: 'success',
+                title: '로그인 성공',
+                text: '오늘도 화이팅하세요.',
+                timer: 1200,
+                width: 424,
+                padding: '1.25rem',
+                showConfirmButton: false,
+            });
+
             //  홈으로 이동
             navigate('/dashboard', {replace : true});
         }catch(error){
-            alert("로그인 실패")
+            // 로그인 실패
+            Swal.fire({
+                icon: 'error',
+                title: '인증 실패',
+                text: '아이디 또는 비밀번호를 확인해주세요.',
+                width: 424,
+                padding: '1.25rem',
+                confirmButtonText: '확인',
+                confirmButtonColor: '#1d4ed8', // 기존 버튼 색이랑 맞춤
+                
+            });
             console.error(error);
         }
-        
-    //     // 임시 로그인 처리
-    //     // 🔥 1. 임시 토큰
-    //     localStorage.setItem('accessToken', 'mock-token');
-
-    //     // 🔥 2. role 지정 (테스트하고 싶은 거로)
-    //     const getTestRole = (): Role => {
-    //         return 'SYSTEMMANAGER';
-    //         //return 'ADMIN';
-    //         //return 'DOCTOR';
-    //         // return 'NURSE';
-    //         // return 'RIS';
-    //         // return 'LIS';
-    //         // return 'PATIENT';
-    //     };
-
-    //     let role: Role = getTestRole();
-
-    //     localStorage.setItem('accessToken', 'mock-token');
-    //     localStorage.setItem('role', role);
-    //     localStorage.setItem('menus', JSON.stringify([]));
-
-    //     // AuthContext 갱신 (🔥 이게 핵심)
-    //     setRole(role);
-
-    //     // 🔥 3. 해당 role에 맞는 메뉴a
-    //     let menus: MenuId[] = [];
-
-    //     switch (role) {
-    //         case 'SYSTEMMANAGER':
-    //             menus = []; // 모든 메뉴 접근 가능
-    //             break;
-    //         case 'ADMIN':
-    //             menus = [
-    //                 'ADMIN_USER',
-    //                 'ADMIN_ROLE',
-    //                 'ADMIN_MENU_PERMISSION',
-    //                 'ADMIN_AUDIT_LOG',
-    //                 'ADMIN_SYSTEM_MONITOR',
-    //             ];
-    //             break;
-    //         case 'DOCTOR':
-    //             menus = [
-    //                 'DASHBOARD',
-    //                 'PATIENT_LIST',
-    //                 'PATIENT_DETAIL',
-    //                 'PATIENT_SUMMARY',
-    //                 'PATIENT_IMAGING',
-    //                 'PATIENT_LAB_RESULT',
-    //                 'PATIENT_AI_SUMMARY',
-    //                 'ORDER_LIST',
-    //                 'ORDER_CREATE',
-    //                 'IMAGE_VIEWER',
-    //                 'AI_SUMMARY',
-    //             ];
-    //             break;
-
-    //         case 'NURSE':
-    //             menus = [
-    //                 'DASHBOARD',
-    //                 'PATIENT_LIST',
-    //                 'PATIENT_DETAIL',
-    //                 'PATIENT_SUMMARY',
-    //                 'PATIENT_IMAGING',
-    //                 'PATIENT_LAB_RESULT',
-    //                 'ORDER_LIST',
-    //                 'IMAGE_VIEWER',
-    //             ];
-    //             break;
-
-    //         case 'RIS':
-    //             menus = [
-    //                 'IMAGE_VIEWER',
-    //                 'RIS_WORKLIST',
-    //                 'RIS_READING',
-    //             ];
-    //             break;
-
-    //         case 'LIS':
-    //             menus = [
-    //                 'LAB_RESULT_UPLOAD',
-    //                 'LAB_RESULT_VIEW',
-    //             ];
-    //             break;
-    //     }
-
-    //     localStorage.setItem('menus', JSON.stringify(menus));
-
-    // // 🔁 4. 홈 이동 → HomeRedirect가 Role_Home 처리
-    //     navigate('/dashboard', { replace: true });
-
         
     }
 

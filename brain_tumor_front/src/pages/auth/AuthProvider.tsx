@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import SessionExtendModal from './SessionExtendModal';
 import { connectPermissionSocket } from '@/socket/permissionSocket'
 import type { MenuNode } from '@/types/menu';
-import { fetchMe, fetchMenu } from './auth.api';
+import { fetchMe, fetchMenu } from '../../services/auth.api';
 
 interface User {
   id: number;
@@ -95,27 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     wsRef.current = connectPermissionSocket(async () => {
       const menuRes = await fetchMenu();
       setMenus(menuRes.data.menus);
-      // fetch('/api/auth/menu/')
-      //   .then(res => res.json())
-      //   .then(res => setMenus(res.menus));
     });
-
-    // const ws = connectPermissionSocket(() => {
-    //   fetch('/api/auth/menu/')
-    //     .then(res => res.json())
-    //     .then(res => setMenus(res.menus));
-        // .then((menus) => {
-        //   setMenus(menus);
-        //   localStorage.setItem('menus', JSON.stringify(menus));
-        // });
-    // });
-
-    // 세션이 끝날 때만 닫도록 logout에서 처리
-    // return () => {
-    //   if (sessionRemain <= 0) {
-    //     ws.close();
-    //   }
-    // };
   }, [isAuthenticated]);
 
   /** ⏱ 세션 타이머 */
@@ -130,16 +110,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated]);
 
   /** 만료 시 연장 또는 로그아웃 */
-  
   // 로그아웃 처리
-  const logout = () => {
-    localStorage.clear();
+  const logout = async () => {
     setUser(null);
     setRole(null);
     setMenus([]);
+    await refreshAuth(); // ← 서버 기준 세션 재확인
     setSessionRemain(30 * 60); // 초기값으로 복원
     setHasWarned(false);    
     setShowExtendModal(false);
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
 
     // WebSocket 닫기
     if (wsRef.current) {
