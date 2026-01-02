@@ -1,6 +1,7 @@
-import type { Role } from '@/types/role';
-
-export default function ImagingTab({ role }: { role: Role }) {
+type Props = {
+  role: string;
+};
+export default function ImagingTab({ role }: Props ) {
   return (
     <div className="imaging-layout">
 

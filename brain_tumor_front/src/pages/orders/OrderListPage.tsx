@@ -1,10 +1,11 @@
-import type { Role } from '@/types/role';
+import { useAuth } from '../auth/AuthProvider';
 import OrderListHeader from './OrderListHeader';
 import OrderListFilter from './OrderListFilter';
 import OrderListTable from './OrderListTable';
 
 export default function OrderListPage() {
-  const role = localStorage.getItem('role') as Role | null;
+  const { user } = useAuth();
+  const role = user?.role.code;
   if (!role) return <div>접근 권한 정보 없음</div>;
 
   return (

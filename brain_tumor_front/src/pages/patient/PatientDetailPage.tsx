@@ -1,17 +1,17 @@
-import type { Role } from '@/types/role';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { useAuth } from '../auth/AuthProvider';
 import PatientDetailTabs from './PatientDetailTabs';
 import PatientDetailContent from './PatientDetailContent';
 import { useEffect } from 'react';
 import '@/assets/style/patientDetailView.css';
 
 export default function PatientDetailPage() {
-  const role = localStorage.getItem('role') as Role | null;
+  const { user } = useAuth();
+  const role = user?.role.code;
   const { patientId } = useParams();
 
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'summary';
 
   useEffect(()=>{
     // 탭 파라미터가 없으면 기본값 설정

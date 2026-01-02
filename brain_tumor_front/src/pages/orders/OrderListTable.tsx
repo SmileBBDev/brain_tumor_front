@@ -1,7 +1,9 @@
-import type { Role } from '@/types/role';
+type Props = {
+  role: string;
+};
 
 // role에 따른 테이블 컬럼 매핑 컴포넌트
-export default function OrderListTable({ role }: { role: Role }) {
+export default function OrderListTable({ role }: Props) {
   return (
     <table>
       <thead>

@@ -1,6 +1,8 @@
-import type { Role } from '@/types/role';
+type Props = {
+  role: string;
+};
 
-export default function OrderListFilter({ role }: { role: Role }) {
+export default function OrderListFilter({ role }: Props) {
 
     return (
          <div className="filters-bar">

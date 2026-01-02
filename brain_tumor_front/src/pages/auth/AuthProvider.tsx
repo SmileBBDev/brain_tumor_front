@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import SessionExtendModal from './SessionExtendModal';
 import { connectPermissionSocket } from '@/socket/permissionSocket'
 import type { MenuNode } from '@/types/menu';
@@ -25,6 +25,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
 
   logout: () => void;
+  refreshAuth: () => Promise<void>;
   hasPermission: (menuId: string) => boolean;
 }
 
@@ -39,6 +40,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [sessionRemain, setSessionRemain] = useState(30 * 60);
 
+   // WebSocket을 저장할 ref
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // 내 정보, 메뉴 조회
+  const refreshAuth = async () => {
+  try {
+    const meRes = await fetchMe();
+    const menuRes = await fetchMenu();
+
+    setUser(meRes.data);
+    setRole(meRes.data.role.code);
+    setMenus(menuRes.data.menus);
+  } catch (e) {
+    logout();
+    throw e;
+  }
+};
+
+
   // 앱 최초 1회: 서버 기준 인증 초기화
   useEffect(() => {
     const initAuth = async () => {
@@ -49,17 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const meRes = await fetchMe(); // 내 정보
-        const menuRes = await fetchMenu(); // 메뉴
-
-        setUser(meRes.data);
-        setRole(meRes.data.role.code);
-        setMenus(menuRes.data.menus);
-      } catch (e) {
-        logout();
+        await refreshAuth();
       } finally {
         setIsAuthReady(true);
       }
+
     };
 
     initAuth();
@@ -68,21 +82,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!user;
 
-  // WebSocket 메뉴 갱신
+  
+  // WebSocket 연결 (세션 동안 유지)
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    const ws = connectPermissionSocket(() => {
-      fetch('/api/auth/menu/')
-        .then(res => res.json())
-        .then(res => setMenus(res.menus));
+    // 이미 연결된 WebSocket이 있으면 닫고 새로 연결
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
+    wsRef.current = connectPermissionSocket(async () => {
+      const menuRes = await fetchMenu();
+      setMenus(menuRes.data.menus);
+      // fetch('/api/auth/menu/')
+      //   .then(res => res.json())
+      //   .then(res => setMenus(res.menus));
+    });
+
+    // const ws = connectPermissionSocket(() => {
+    //   fetch('/api/auth/menu/')
+    //     .then(res => res.json())
+    //     .then(res => setMenus(res.menus));
         // .then((menus) => {
         //   setMenus(menus);
         //   localStorage.setItem('menus', JSON.stringify(menus));
         // });
-    });
+    // });
 
-    return () => ws.close();
+    // 세션이 끝날 때만 닫도록 logout에서 처리
+    // return () => {
+    //   if (sessionRemain <= 0) {
+    //     ws.close();
+    //   }
+    // };
   }, [isAuthenticated]);
 
   /** ⏱ 세션 타이머 */
@@ -107,6 +140,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionRemain(30 * 60); // 초기값으로 복원
     setHasWarned(false);    
     setShowExtendModal(false);
+
+    // WebSocket 닫기
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
   };
 
   // 로그인 후 25분	-> 연장 모달 1회 표시
@@ -137,9 +176,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const hasPermission = (menuId: string) => {
-    // SYSTEMMANAGER는 모든 메뉴 접근 가능
-    if (role === 'SYSTEMMANAGER') return true;
-
     const walk = (tree: MenuNode[]): boolean =>
       tree.some(m => m.id === menuId || (m.children && walk(m.children)));
 
@@ -152,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user, role, sessionRemain, 
         logout, isAuthReady, 
         menus,
-        isAuthenticated,
+        isAuthenticated,refreshAuth,
         hasPermission,
       }}
     >

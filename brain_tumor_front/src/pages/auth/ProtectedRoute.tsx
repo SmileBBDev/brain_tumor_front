@@ -8,10 +8,10 @@ interface Props{
 }
 
 export default function ProtectedRoute({ menuId, children }: Props){
-    const { isAuthReady, hasPermission } = useAuth();
+    const { isAuthReady, hasPermission, menus } = useAuth();
 
     // Auth 초기화 대기
-    if (!isAuthReady) return null;
+    if (!isAuthReady || menus.length === 0) return null;
     
     
     // 권한 없음

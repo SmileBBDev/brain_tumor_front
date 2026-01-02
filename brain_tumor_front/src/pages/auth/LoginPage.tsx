@@ -21,12 +21,15 @@ import { login } from './auth.api';
 import { useNavigate } from 'react-router-dom';
 
 import '@/assets/style/login.css';
+import { useAuth } from '@/pages/auth/AuthProvider';
 
 export default function LoginPage(){
     const [id, setId] = useState('');
     const [pw, setPw] = useState('');    
     const navigate = useNavigate();
 
+    const { refreshAuth } = useAuth();
+    
     const handleLogin = async () => {
         //api 호출해서 로그인 처리 기능
         try{
@@ -35,6 +38,8 @@ export default function LoginPage(){
             // 로그인 성공 - 토큰 저장
             localStorage.setItem('accessToken', res.data.access); // access 토큰 저장
             localStorage.setItem('refreshToken', res.data.refresh); // refresh 토큰도 저장
+
+            await refreshAuth();
 
             //  홈으로 이동
             navigate('/dashboard', {replace : true});

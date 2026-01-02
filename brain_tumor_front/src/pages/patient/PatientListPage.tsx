@@ -1,11 +1,11 @@
-import type { Role } from '@/types/role';
 import {useState} from 'react';
-import PatientListHeader from './PatientListHeader';
 import PatientListTable from './PatientListTable';
 import Pagination from '@/layout/Pagination';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function PatientListPage() {
-  const role = localStorage.getItem('role') as Role | null;
+  const { user } = useAuth();
+  const role = user?.role.code;
   const isSystemManager = role === 'SYSTEMMANAGER';
   const [page, setPage] = useState(1); // 페이징 처리
 
@@ -58,7 +58,7 @@ export default function PatientListPage() {
 
       {/* 환자 리스트 테이블 */}
       <section className="content">
-        <PatientListTable role={role}/>
+        <PatientListTable role={role} />
       </section>
 
       {/* 페이징 */}

@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import type { Role } from '@/types/role';
 
-interface Props {
-  role: Role;
-}
+type Props = {
+  role: string;
+};
+
 // role에 따른 테이블 컬럼 매핑 컴포넌트
-export default function PatientListTable({ role}: Props) {
+export default function PatientListTable( {role} : Props ) {
   const navigate = useNavigate();
   const isDoctor = role === 'DOCTOR'; 
   const isSystemManager = role === 'SYSTEMMANAGER';

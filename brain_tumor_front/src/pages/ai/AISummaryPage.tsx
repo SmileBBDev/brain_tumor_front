@@ -1,9 +1,13 @@
-import type { Role } from '@/types/role';
 import AiViewer from './AiViewer';
 import AiResultPanel from './AiResultPanel';
 
+import { useAuth } from '../auth/AuthProvider';
+
+
 export default function AiSummaryPage() {
-  const role = localStorage.getItem('role') as Role | null;
+  const { user } = useAuth();
+  const role = user?.role.code;
+
   if (!role) return <div>접근 권한 정보 없음</div>;
 
   return (

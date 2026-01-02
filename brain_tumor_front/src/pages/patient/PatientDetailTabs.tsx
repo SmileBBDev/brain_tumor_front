@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import type { Role } from '@/types/role';
 
-interface Props {
-  role: Role;
-}
+type Props = {
+  role: string;
+};
 
-export default function PatientDetailTabs({ role }: Props) {
+export default function PatientDetailTabs( {role} : Props ) {
+  
   const isSystemManager = role === 'SYSTEMMANAGER';
   const tabs = [
     { key: 'summary', label: '요약', roles: ['DOCTOR', 'NURSE', 'PATIENT'] },

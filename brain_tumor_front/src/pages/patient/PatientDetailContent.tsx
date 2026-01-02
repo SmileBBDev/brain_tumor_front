@@ -1,16 +1,15 @@
 import { useSearchParams } from 'react-router-dom';
-import type { Role } from '@/types/role';
 
 import SummaryTab from './tabs/SummaryTab';
 import ImagingTab from './tabs/ImagingTab';
 import LabResultTab from './tabs/LabResultTab';
 import AiSummaryTab from './tabs/AiSummaryTab';
 
-interface Props {
-  role: Role;
-}
+type Props = {
+  role: string;
+};
 
-export default function PatientDetailContent({ role }: Props) {
+export default function PatientDetailContent( {role} : Props ) {
   const isDoctor = role === 'DOCTOR';
   const isSystemManager = role === 'SYSTEMMANAGER';
   

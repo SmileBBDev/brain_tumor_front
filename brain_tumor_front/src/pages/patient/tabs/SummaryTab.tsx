@@ -1,6 +1,10 @@
-import type { Role } from '@/types/role';
 import '@/assets/style/patientListView.css';
-export default function SummaryTab({ role }: { role: Role }) {
+
+type Props = {
+  role: string;
+};
+
+export default function SummaryTab({ role }: Props ) {
   const isDoctor = role === 'DOCTOR';
   const isSystemManager = role === 'SYSTEMMANAGER';
   return (

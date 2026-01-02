@@ -5,9 +5,10 @@ import { routeMap } from './routeMap';
 import type { MenuNode } from '@/types/menu';
 
 function flattenMenus(menus: MenuNode[]): MenuNode[] {
-  return menus.flatMap(menu =>
-    menu.children?.length ? flattenMenus(menu.children) : [menu]
-  );
+  return menus.flatMap(menu => [
+    menu,
+    ...(menu.children?.length ? flattenMenus(menu.children) : []),
+  ]);
 }
 
 export default function AppRoutes() {
@@ -41,6 +42,9 @@ export default function AppRoutes() {
           />
         );
       })}
+
+      {/* 기본 홈 경로 */}
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
       {/* 없는 경로 */}
       <Route path="*" element={<Navigate to="/403" replace />} />

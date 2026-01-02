@@ -1,7 +1,6 @@
-import type { Role } from '@/types/role';
 
 interface Props {
-  role: Role;
+  role: string;
 }
 
 export default function LabTab({ role }: Props) {

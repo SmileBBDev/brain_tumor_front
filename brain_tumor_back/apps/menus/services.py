@@ -13,12 +13,43 @@ def get_user_menus(user):
     
     role = user.role
     permissions = role.permissions.all()
-    # 메뉴 조회
-    menus = Menu.objects.filter(
-        # menu_id__in = menu_ids,
-        menupermission__permission__in=permissions,
-        is_active = True,
-    ).distinct()
+
+    # 메뉴 조회 로직 
+    # 1. 권한이 있는 메뉴 ID들 (실제 페이지)
+    allowed_menu_ids = set(
+        MenuPermission.objects
+        .filter(permission__in=permissions)
+        .values_list("menu_id", flat=True)
+    )
+
+    # 2. 부모 메뉴까지 재귀적으로 포함
+    def include_parents(menu_id, result):
+        try:
+            menu = Menu.objects.get(menu_id=menu_id)
+            if menu.parent_id:
+                result.add(menu.parent_id)
+                include_parents(menu.parent_id, result)
+        except Menu.DoesNotExist:
+            pass
+
+    visible_menu_ids = set(allowed_menu_ids)
+
+    for menu_id in allowed_menu_ids:
+        include_parents(menu_id, visible_menu_ids)
+
+    # 3. 메뉴 조회
+    menus =(
+        Menu.objects.filter(
+            # menu_id__in = menu_ids,
+            # menupermission__permission__in=permissions,
+            is_active = True,
+            menu_id__in=visible_menu_ids
+        )
+        .select_related("parent")
+        .prefetch_related("children", "labels")
+        .order_by("order")
+        # .distinct()
+    ) 
     # ).order_by("order").prefetch_related("labels", "roles", "children")
     
     return menus
