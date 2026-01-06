@@ -13,6 +13,7 @@ export interface User {
     failed_login_count: number;
     locked_at: string | null; // 계정 잠금 시각
     is_online: boolean;        // 현재 접속 중
+    must_change_password: boolean;
 }
 
 export interface UserProfileForm {

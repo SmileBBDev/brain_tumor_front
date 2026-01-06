@@ -3,6 +3,7 @@ import type { UserProfileForm } from "@/types/user";
 import UserForm from "./UserForm";
 import type { AccountForm } from "./AccountSection";
 import { createUser, type CreateUserPayload } from "@/services/users.api";
+import Swal from "sweetalert2";
 
 interface Props {
   onClose: () => void;
@@ -14,21 +15,38 @@ export default function UserCreateModal({ onClose, onCreated }: Props) {
     // profile + account → CreateUserPayload로 변환
     const payload: CreateUserPayload = {
       login_id: data.account.login_id,
-      password: data.account.password,
+      // password: data.account.password,
       role: data.account.role,
       name: data.profile.name,
       email: data.profile.email,
-      phoneMobile: data.profile.phoneMobile,
-      phoneOffice: data.profile.phoneOffice,
-      birthDate: data.profile.birthDate,
-      hireDate: data.profile.hireDate,
-      departmentId: data.profile.departmentId,
-      title: data.profile.title,
+      profile: {
+        phoneMobile: data.profile.phoneMobile,
+        phoneOffice: data.profile.phoneOffice,
+        birthDate: data.profile.birthDate,
+        hireDate: data.profile.hireDate,
+        departmentId: data.profile.departmentId,
+        title: data.profile.title,
+      },
+
+      
     };
 
-    await createUser(payload);   // API 호출
-    onCreated();              // 부모(UserListPage)에서 목록 새로고침
-    onClose();                // 모달 닫기
+    try {
+      // 사용자 생성 API 호출
+      await createUser(payload);
+      Swal.fire({
+        icon: "success",
+        title: "사용자 생성 완료",
+        confirmButtonText: "확인",
+      }).then(() => {
+        // 알림창에서 확인 버튼을 누른 뒤 실행
+        onCreated();   // 목록 새로고침
+        onClose();     // 모달 닫기
+      });
+    }
+    catch (error : any) {
+      alert(error.message || "사용자 생성 실패");
+    }
   };
 
 
@@ -45,6 +63,7 @@ export default function UserCreateModal({ onClose, onCreated }: Props) {
           <button type="button" className="ghost" onClick={onClose}>
             취소
           </button>
+
           <button
             className="primary"
             type="button"

@@ -15,7 +15,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
 
   logout: () => void;
-  refreshAuth: () => Promise<void>;
+  refreshAuth: () => Promise<User | null>;
   hasPermission: (menuId: string) => boolean;
 }
 
@@ -35,17 +35,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 내 정보, 메뉴 조회
   const refreshAuth = async () => {
-  try {
+  
     const meRes = await fetchMe();
+    const meInfo = meRes.data;
     const menuRes = await fetchMenu();
 
-    setUser(meRes.data);
-    setRole(meRes.data.role.code);
+    setUser(meInfo);
+    setRole(meInfo.role.code);
+    
+    // 비밀번호 변경 필요하면 메뉴/소켓/권한 로딩 중단
+    if (meInfo.must_change_password) {
+      setMenus([]);
+      return meInfo;
+    }
+
     setMenus(menuRes.data.menus);
-  } catch (e) {
-    logout();
-    throw e;
-  }
+    return meInfo;
+    
+    
 };
 
 
@@ -76,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // WebSocket 연결 (세션 동안 유지)
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (user?.must_change_password) return;
     
     // 이미 연결된 WebSocket이 있으면 닫고 새로 연결
     if (wsRef.current) {
@@ -86,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const menuRes = await fetchMenu();
       setMenus(menuRes.data.menus);
     });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   // WebSocket 연결 - 서버로부터 실시간 알림 수신
   useEffect(() => {
@@ -94,8 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
     const ws = new WebSocket(`ws://localhost:8000/ws/presence/?token=${token}`);
-
-    // const ws = new WebSocket("ws://localhost:8000/ws/presence/");
 
     let interval: number | null = null;
 
@@ -119,13 +125,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** ⏱ 세션 타이머 */
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (user.must_change_password) return;
 
     const timer = setInterval(() => {
       setSessionRemain((prev) => Math.max(prev - 1, 0));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   /** 만료 시 연장 또는 로그아웃 */
   // 로그아웃 처리
@@ -133,10 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setRole(null);
     setMenus([]);
-    await refreshAuth(); // ← 서버 기준 세션 재확인
+
     setSessionRemain(30 * 60); // 초기값으로 복원
     setHasWarned(false);    
     setShowExtendModal(false);
+    
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
 

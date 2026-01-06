@@ -108,7 +108,7 @@ export default function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                     <li onClick={() => navigator('/mypage')}>
                       <i className="fa-solid fa-user" /> 마이페이지
                     </li>
-                    <li onClick={() => navigator('/password')}>
+                    <li onClick={() => navigator('/change-password')}>
                       <i className="fa-solid fa-key" /> 비밀번호 변경
                     </li>
                   </ul>

@@ -1,16 +1,29 @@
 import type { UserProfileForm } from "@/types/user";
+import { useEffect, useState } from "react";
 
 interface Props {
   value: UserProfileForm;
-  onChange: (v: UserProfileForm) => void;
+  // onChange: (v: UserProfileForm) => void;
+  onChange: (v: UserProfileForm | ((prev: UserProfileForm) => UserProfileForm)) => void;
+
 }
 
 export default function UserInfoSection({ value, onChange }: Props) {
-    const handle = 
-    (key : keyof UserProfileForm) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        onChange({ ...value, [key]: e.target.value });
-    };
+  const handle = 
+  (key : keyof UserProfileForm) =>
+  (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      onChange({ ...value, [key]: e.target.value });
+  };
+
+  const [phone1, setPhone1] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [phone3, setPhone3] = useState("");
+  useEffect(() => {
+    onChange((prev) => ({
+      ...prev,
+      phoneMobile: `${phone1}-${phone2}-${phone3}`,
+    }));  
+  }, [phone1, phone2, phone3]);
 
 
   return (
@@ -35,22 +48,59 @@ export default function UserInfoSection({ value, onChange }: Props) {
           </div>
 
           <div className="field">
-            <label>성년월일</label>
-            <input 
+            <label>생년월일</label>
+            <input
+                type="date"
                 id="user-birth-date" 
                 className = "userInfo"
-                value={value.birthDate} 
+                placeholder="YYYY-MM-DD"
+                value={value.birthDate}
                 onChange={handle("birthDate")} />
           </div>
 
           <div className="field">
             <label>연락처</label>
-            <input
+            {/* <input
               placeholder="010-0000-0000"
               id="user-phone-mobile"
                 className = "userInfo"
               value={value.phoneMobile}
               onChange={handle("phoneMobile")}
+            /> */}
+            <input
+              value={phone1}
+              maxLength={3}
+              onChange={(e) => {
+                setPhone1(e.target.value.replace(/\D/g, ""));
+                if (e.target.value.length === 3) {
+                  document.getElementById("phone-2")?.focus();
+                }
+              }}
+            />
+
+            <span>-</span>
+
+            <input
+              id="phone-2"
+              value={phone2}
+              maxLength={4}
+              onChange={(e) => {
+                setPhone2(e.target.value.replace(/\D/g, ""));
+                if (e.target.value.length === 4) {
+                  document.getElementById("phone-3")?.focus();
+                }
+              }}
+            />
+
+            <span>-</span>
+
+            <input
+              id="phone-3"
+              value={phone3}
+              maxLength={4}
+              onChange={(e) => {
+                setPhone3(e.target.value.replace(/\D/g, ""));
+              }}
             />
           </div>
 

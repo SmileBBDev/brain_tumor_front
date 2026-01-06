@@ -51,6 +51,11 @@ class LoginView(APIView):
                 {
                     "access": str(refresh.access_token),
                     "refresh": str(refresh),
+                    "user": {
+                        "id": user.id,
+                        "login_id": user.login_id,
+                        "must_change_password": user.must_change_password,
+                    }
                 },
                 status=status.HTTP_200_OK,
             )
@@ -90,3 +95,24 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             user.save(update_fields=["last_seen", "last_login_ip"])
 
         return response
+
+# 비밀번호 변경 API
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        old_password = request.data.get("old_password", "").strip()
+        new_password = request.data.get("new_password", "").strip()
+
+        if not user.check_password(old_password):
+            return Response(
+                {"message": "현재 비밀번호가 올바르지 않습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.must_change_password = False
+        user.save()
+
+        return Response({"message": "비밀번호 변경 완료"})

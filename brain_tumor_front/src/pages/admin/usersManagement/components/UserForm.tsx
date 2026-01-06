@@ -13,7 +13,7 @@ interface Props {
   };
 }
 
-export default function UserForm({ onSubmit, onClose, onCreated, initialData }: Props) {
+export default function UserForm({ onSubmit, initialData }: Props) {
   const [profile, setProfile] = useState<UserProfileForm>({
     name: "",
     birthDate: "",
@@ -28,22 +28,35 @@ export default function UserForm({ onSubmit, onClose, onCreated, initialData }: 
 
   const [account, setAccount] = useState<AccountForm>({
     login_id: "",
-    password: "",
     role: "",
     ...initialData?.account,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!account.login_id || !account.role) {
+      alert("계정 정보를 모두 입력하세요.");
+      return;
+    }
+
+    if (!profile.name || !profile.birthDate) {
+      alert("필수 개인정보가 누락되었습니다.");
+      return;
+    }
+
+    // 데이터 넘김
     await onSubmit({ profile, account });
-    onCreated();
-    onClose();
   };
 
   return (
-    <form className="user-form" onSubmit={handleSubmit}>
+    <form className="user-form" id="user-form" onSubmit={handleSubmit}>
       <UserInfoSection value={profile} onChange={setProfile} />
-      <AccountSection value={account} onChange={setAccount} />
+      <AccountSection 
+        value={account} 
+        onChange={setAccount} 
+        userName={profile.name}
+        birthDate={profile.birthDate}
+      />
     </form>
   );
 }

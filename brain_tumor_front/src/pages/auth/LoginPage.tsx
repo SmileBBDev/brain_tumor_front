@@ -29,7 +29,7 @@ export default function LoginPage(){
     const [pw, setPw] = useState('');    
     const navigate = useNavigate();
 
-    const { refreshAuth } = useAuth();
+    const { user, refreshAuth } = useAuth();
     
     const handleLogin = async () => {
         //api 호출해서 로그인 처리 기능
@@ -40,6 +40,15 @@ export default function LoginPage(){
             localStorage.setItem('accessToken', res.data.access); // access 토큰 저장
             localStorage.setItem('refreshToken', res.data.refresh); // refresh 토큰도 저장
 
+            // 비밀번호 변경 필요 시 변경 페이지로 이동
+            if (res.data.user.must_change_password) {
+                await refreshAuth();
+                navigate('/change-password', { replace: true });
+                return;
+            }
+
+            
+            // 로그인 후 유저 정보 갱신
             await refreshAuth();
 
             await Swal.fire({

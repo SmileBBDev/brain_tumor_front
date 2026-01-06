@@ -10,16 +10,18 @@ export interface UserListParams {
 /* 사용자 생성 */
 export interface CreateUserPayload {
   login_id: string;
-  password: string;
+  // password: string;
   name: string;
   role: string; // role code (ADMIN, DOCTOR ...)
   email: string;
-  phoneMobile: string;
-  phoneOffice: string;
-  birthDate: string;
-  hireDate: string;
-  departmentId: string;
-  title: string;
+  profile : {
+    phoneMobile: string;
+    phoneOffice: string;
+    birthDate: string;
+    hireDate: string;
+    departmentId: string;
+    title: string;
+  }
 }
 
 /* 사용자 수정 */
@@ -56,9 +58,24 @@ export const fetchUserDetail = async (id: number) => {
 
 /* 사용자 생성 */
 export const createUser = async (payload: CreateUserPayload) => {
-  const res = await api.post<User>("/users/", payload);
-  return res.data;
-};
+  const token = localStorage.getItem("accessToken");
+
+  const res = await fetch("/api/users/", {
+    method: "POST",
+    headers: {
+      "Content-Type" : "application/json",
+      "Authorization" : `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "사용자 생성 실패");
+  }
+
+  return res.json();
+}
 
 /* 사용자 수정 */
 export const updateUser = async (

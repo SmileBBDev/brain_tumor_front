@@ -6,6 +6,7 @@ import FullScreenLoader from '@/pages/common/FullScreenLoader';
 
 import Sidebar from '@/layout/Sidebar';
 import AppRoutes from '@/router/AppRoutes';
+import RequirePasswordChange from '@/pages/auth/RequirePasswordChange';
 
 function AppLayout() {
   const { role, isAuthReady } = useAuth();
@@ -21,18 +22,19 @@ function AppLayout() {
   }
 
   return (
-    <div className='app-layout'>
-      <AppHeader onToggleSidebar={toggleSidebar} /> 
+    <RequirePasswordChange>
+      <div className='app-layout'>
+        <AppHeader onToggleSidebar={toggleSidebar} /> 
 
-      <div className='app-body'>      
-        {isSidebarOpen && <Sidebar/> }
-        <main className='app-content'>
-          <AppRoutes />
-        </main>
+        <div className='app-body'>      
+          {isSidebarOpen && <Sidebar/> }
+          <main className='app-content'>
+            <AppRoutes />
+          </main>
+        </div>
+
       </div>
-
-    </div>
-    
+    </RequirePasswordChange>
   );
 }
 export default AppLayout;

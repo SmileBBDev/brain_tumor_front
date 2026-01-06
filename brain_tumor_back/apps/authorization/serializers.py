@@ -106,6 +106,7 @@ class MeSerializer(serializers.ModelSerializer) :
             "is_active",
             "is_staff",
             "role",
+            "must_change_password",
         )
 
 # 로그인 성공 시 last_login 갱신을 위한 커스텀 시리얼라이저
@@ -117,5 +118,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # 로그인 성공 → last_login 갱신
         self.user.last_login = timezone.now()
         self.user.save(update_fields=["last_login"])
-
+        
+        # 프론트에 최소한의 사용자 정보 전달
+        data["user"] = {
+            "id": self.user.id,
+            "login_id": self.user.login_id,
+            "name": self.user.name,
+            "email": self.user.email,
+            "role": {
+                "code": self.user.role.code if self.user.role else None,
+                "name": self.user.role.name if self.user.role else None,
+            },
+            "must_change_password": self.user.must_change_password,
+        }
         return data

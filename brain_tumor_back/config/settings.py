@@ -4,6 +4,8 @@ from pathlib import Path
 from datetime import timedelta
 from .base import * # 공통 설정
 from corsheaders.defaults import default_headers
+from dotenv import load_dotenv
+load_dotenv()
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -179,6 +181,9 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
 
 }
 
@@ -201,3 +206,15 @@ SPECTACULAR_SETTINGS = {
 # 보안 기능 활성화 여부 (True/False)
 ENABLE_SECURITY = True  # 운영 환경
 # ENABLE_SECURITY = False  # 개발 환경
+
+# 이메일 발송
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = f"BrainTumor System <{EMAIL_HOST_USER}>"
+print("EMAIL_HOST_USER =", EMAIL_HOST_USER)
+print("EMAIL_HOST_PASSWORD =", len(EMAIL_HOST_PASSWORD))

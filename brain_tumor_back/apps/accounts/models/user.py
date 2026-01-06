@@ -47,6 +47,8 @@ ROLE_CHOICES = (
 # User 모델
 class User(AbstractBaseUser, PermissionsMixin):
     login_id = models.CharField(max_length=50, unique = True)
+    must_change_password = models.BooleanField(default=False)
+    
     name = models.CharField(max_length=50)
     email = models.EmailField(blank=True, null= True)
     

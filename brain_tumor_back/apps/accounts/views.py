@@ -8,16 +8,17 @@ from rest_framework.views import APIView
 from .models import User
 from .serializers import UserSerializer, UserCreateUpdateSerializer
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import BooleanField, Case, When, Value
 
-
+ALLOWED_CREATE_ROLES = {"ADMIN", "SYSTEMMANAGER"}
 # 1. 사용자 목록 조회 & 추가 API(관리자 전용 view)
 # 검색, 필터, 생성, 온라인 상태
 class UserListView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminUser]
+    # permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
     filter_backends = [filters.SearchFilter]
     
@@ -48,10 +49,18 @@ class UserListView(generics.ListCreateAPIView):
         return qs
     
     # 사용자 생성
-    def get_serializer_class(self):
+    def create_new_user(self):
         if self.request.method == "POST":
             return UserCreateUpdateSerializer
         return UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        if request.user.role.code not in ALLOWED_CREATE_ROLES :
+            return Response(
+                {"detail": "관리자만 사용자 생성이 가능합니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
 # 2. 사용자 상세 조회(GET) & 수정(PUT) & 삭제(DELETE) API
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
