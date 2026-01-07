@@ -1,0 +1,168 @@
+// Imaging types
+
+export type ImagingModality = 'CT' | 'MRI' | 'PET' | 'X-RAY';
+
+export type ImagingStatus = 'ordered' | 'scheduled' | 'in-progress' | 'completed' | 'reported' | 'cancelled';
+
+export type ReportStatus = 'draft' | 'signed' | 'amended';
+
+export interface TumorLocation {
+  lobe: string;
+  hemisphere: string;
+}
+
+export interface TumorSize {
+  max_diameter_cm: number;
+  volume_cc: number;
+}
+
+export interface ImagingStudy {
+  id: number;
+  patient: number;
+  patient_name: string;
+  patient_number: string;
+  encounter: {
+    id: number;
+    encounter_type?: string;
+    department?: string;
+  };
+  modality: ImagingModality;
+  modality_display: string;
+  body_part: string;
+  status: ImagingStatus;
+  status_display: string;
+  ordered_by: number;
+  ordered_by_name: string;
+  ordered_at: string;
+  scheduled_at: string | null;
+  performed_at: string | null;
+  radiologist: number | null;
+  radiologist_name: string | null;
+  study_uid: string | null;
+  series_count: number;
+  instance_count: number;
+  clinical_info: string;
+  special_instruction: string;
+  is_completed: boolean;
+  has_report: boolean;
+  report?: ImagingReport;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImagingReport {
+  id: number;
+  imaging_study: number;
+  radiologist: number;
+  radiologist_name: string;
+  findings: string;
+  impression: string;
+  tumor_detected: boolean;
+  tumor_location: TumorLocation | null;
+  tumor_size: TumorSize | null;
+  status: ReportStatus;
+  status_display: string;
+  signed_at: string | null;
+  is_signed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImagingStudyListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ImagingStudy[];
+}
+
+export interface ImagingReportListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ImagingReport[];
+}
+
+export interface ImagingStudySearchParams {
+  q?: string;
+  modality?: ImagingModality;
+  status?: ImagingStatus;
+  patient?: number;
+  encounter?: number;
+  radiologist?: number;
+  start_date?: string;
+  end_date?: string;
+  has_report?: boolean;
+  report_status?: ReportStatus;
+  page?: number;
+  page_size?: number;
+}
+
+export interface ImagingStudyCreateData {
+  patient: number;
+  encounter: number;
+  modality: ImagingModality;
+  body_part?: string;
+  scheduled_at?: string;
+  clinical_info?: string;
+  special_instruction?: string;
+}
+
+export interface ImagingStudyUpdateData {
+  modality?: ImagingModality;
+  body_part?: string;
+  status?: ImagingStatus;
+  scheduled_at?: string;
+  performed_at?: string;
+  radiologist?: number | null;
+  clinical_info?: string;
+  special_instruction?: string;
+  study_uid?: string;
+  series_count?: number;
+  instance_count?: number;
+}
+
+export interface ImagingReportCreateData {
+  imaging_study: number;
+  findings: string;
+  impression: string;
+  tumor_detected?: boolean;
+  tumor_location?: TumorLocation | null;
+  tumor_size?: TumorSize | null;
+}
+
+export interface ImagingReportUpdateData {
+  findings?: string;
+  impression?: string;
+  tumor_detected?: boolean;
+  tumor_location?: TumorLocation | null;
+  tumor_size?: TumorSize | null;
+  status?: ReportStatus;
+}
+
+export interface ImagingStudyDetailResponse extends ImagingStudy {
+  patient_details?: {
+    id: number;
+    name: string;
+    patient_number: string;
+    gender: string;
+    date_of_birth: string;
+    age: number;
+  };
+  encounter_details?: {
+    id: number;
+    encounter_type: string;
+    admission_date: string;
+    chief_complaint: string;
+  };
+  report?: ImagingReport;
+}
+
+// Form data for creating report with tumor details
+export interface TumorReportFormData {
+  tumor_detected: boolean;
+  tumor_lobe?: string;
+  tumor_hemisphere?: string;
+  tumor_max_diameter?: number;
+  tumor_volume?: number;
+}

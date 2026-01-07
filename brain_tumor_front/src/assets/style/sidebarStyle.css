@@ -66,12 +66,6 @@
   font-weight: 600;
 }
 
-/* 자식 menu-link가 active일 때 부모 menu-group 스타일 변경 */
-.menu-group:has(+ .menu-children .menu-link.active) {
-  background: var(--sidebar-bg);
-  color: var(--sidebar-text);
-}
-
 /* Icon */
 .menu-icon {
   font-size: 12px;

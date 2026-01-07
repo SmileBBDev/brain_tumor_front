@@ -6,6 +6,7 @@ import PatientDetailPage from '@/pages/patient/PatientDetailPage';
 import EncounterListPage from '@/pages/encounter/EncounterListPage';
 import ImagingPage from '@/pages/imaging/ImagingPage';
 import ImagingListPage from '@/pages/imaging/ImagingListPage';
+import ImagingReportPage from '@/pages/imaging/ImagingReportPage';
 import ImagingWorklistPage from '@/pages/imaging/ImagingWorklistPage';
 import AISummaryPage from '@/pages/ai/AISummaryPage';
 import RISWorklistPage from '@/pages/ris/RISWorklistPage';
@@ -31,7 +32,7 @@ export const routeMap: Record<string, ComponentType> = {
 
   IMAGE_VIEWER: ImagingPage,
   IMAGING_STUDY_LIST: ImagingListPage,
-  IMAGING_REPORT: ImagingListPage,
+  IMAGING_REPORT: ImagingReportPage,
   IMAGING_WORKLIST: ImagingWorklistPage,
   AI_SUMMARY :AISummaryPage,
   ORDER_LIST: OrderListPage,

@@ -24,6 +24,9 @@ urlpatterns = [
     # 진료 관리 API
     path("api/encounters/", include("apps.encounters.urls")),
 
+    # 영상 관리 API
+    path("api/imaging/", include("apps.imaging.urls")),
+
     # API 문서화 엔드포인트
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

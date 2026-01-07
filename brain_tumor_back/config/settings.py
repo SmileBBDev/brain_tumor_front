@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     # CDSS 앱들
     "apps.patients",        # 환자 관리
     "apps.encounters",      # 진료 관리
+    "apps.imaging",         # 영상 관리
     # "apps.scripts",         # 스크립트
     # # 새로운 권한별 앱들
     # "apps.doctor",          # 의사용 앱
