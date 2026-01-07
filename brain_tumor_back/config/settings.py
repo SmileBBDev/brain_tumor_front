@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     "apps.accounts",        # 사용자 관리
     "apps.audit",           # 감사 로그
     "apps.authorization",   # 인증/권한 (로그인 시스템)
-    #"apps.common",          # 공통 모델
+    "apps.common",          # 공통 모델
     "apps.menus",           # 메뉴 관리
     # "apps.scripts",         # 스크립트
     # # 새로운 권한별 앱들
