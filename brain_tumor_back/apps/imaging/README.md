@@ -43,7 +43,6 @@ apps/imaging/
 ├── urls.py                                          # URL 라우팅
 ├── admin.py                                         # Django Admin 설정
 ├── apps.py                                          # App 설정
-├── create_dummy_imaging.py                          # 더미 데이터 생성 스크립트 (개발용)
 ├── tests.py                                         # 테스트 파일
 ├── management/
 │   └── commands/
@@ -192,18 +191,18 @@ python manage.py register_imaging_menu
 ```
 
 ### 5. 더미 데이터 생성 (선택)
-```bash
-# 방법 1: Django shell에서 직접 실행
-python manage.py shell
->>> from apps.imaging.create_dummy_imaging import create_dummy_imaging_studies
->>> create_dummy_imaging_studies(30, 20)
->>> exit()
 
-# 방법 2: 한 줄로 실행
-python manage.py shell -c "from apps.imaging.create_dummy_imaging import create_dummy_imaging_studies; create_dummy_imaging_studies(30, 20)"
+더미 데이터 생성 스크립트는 `brain_tumor_back/dummy_data/` 폴더로 통합되었습니다.
+
+📖 **자세한 사용법**: [../../dummy_data/README.md](../../dummy_data/README.md)
+
+**빠른 실행:**
+```bash
+cd brain_tumor_back
+python manage.py shell -c "from dummy_data.create_dummy_imaging import create_dummy_imaging_studies; create_dummy_imaging_studies(30, 20)"
 ```
 
-더미 데이터:
+생성되는 데이터:
 - 30개의 영상 검사 (다양한 modality와 status)
 - 20개의 판독문 (종양 발견 포함)
 
@@ -291,11 +290,15 @@ daphne -b 127.0.0.1 -p 8000 config.asgi:application
    - 경로 정확히 일치할 때만 active 상태 적용
    - 부모 경로 포함 시 활성화되는 문제 해결
 
-5. **불필요한 파일 정리**
-   - 메뉴 등록 스크립트 삭제 (add_menus.py, register_menus.py)
-   - SQL 파일 삭제 (imaging_menu.sql)
-   - 테스트 스크립트 삭제 (test_create.py)
-   - 더미 데이터 생성 스크립트 삭제 (create_dummy_imaging.py)
+5. **파일 정리 및 구조 개선**
+   - 불필요한 파일 삭제 (add_menus.py, register_menus.py, imaging_menu.sql, test_create.py)
+   - 더미 데이터 생성 스크립트 통합: `create_dummy_imaging.py` → `dummy_data/` 폴더로 이동
+   - 더미 데이터 관리 문서화: `dummy_data/README.md` 생성
+
+6. **백엔드 권한 체크 제거**
+   - `apps/imaging/views.py`: 모든 role 기반 권한 체크 제거
+   - `ImagingStudyViewSet`, `ImagingReportViewSet`: IsAuthenticated만 유지
+   - 권한 관리는 프론트엔드 라우터에서 처리
 
 ## 🔮 향후 개발 계획
 

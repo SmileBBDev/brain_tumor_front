@@ -64,8 +64,9 @@
 - `DELETE /api/patients/{id}/` - 삭제
 
 #### 더미 데이터
-- 스크립트: `apps/patients/create_dummy_patients.py`
+- 스크립트 위치: `dummy_data/create_dummy_patients.py`
 - 30명의 환자 데이터 (P2026-0001 ~ P2026-0030)
+- 📖 자세한 사용법: [dummy_data/README.md](brain_tumor_back/dummy_data/README.md)
 
 ---
 
@@ -97,8 +98,9 @@
 - `GET /api/encounters/statistics/` - 통계
 
 #### 더미 데이터
-- 스크립트: `apps/encounters/create_dummy_encounters.py`
-- 30건의 진료 데이터
+- 스크립트 위치: `dummy_data/create_dummy_encounters.py`
+- 20건의 진료 데이터
+- 📖 자세한 사용법: [dummy_data/README.md](brain_tumor_back/dummy_data/README.md)
 
 ---
 
@@ -148,9 +150,10 @@
 5. **PatientImagingHistoryPage** (`/imaging/patient-history`) - 환자 히스토리
 
 #### 더미 데이터
-- 스크립트: `apps/imaging/create_dummy_imaging.py`
+- 스크립트 위치: `dummy_data/create_dummy_imaging.py`
 - 30개의 영상 검사
 - 20개의 판독문
+- 📖 자세한 사용법: [dummy_data/README.md](brain_tumor_back/dummy_data/README.md)
 
 #### 향후 계획
 - **Phase 3**: 정적 썸네일, Series 모델, 기본 이미지 뷰어
@@ -252,11 +255,20 @@
   - 메뉴 등록 스크립트 삭제
   - SQL 파일 삭제
   - 테스트 스크립트 삭제
-  - `create_dummy_imaging.py`는 개발용으로 유지
+
+- ✅ **더미 데이터 스크립트 통합 관리**
+  - 모든 더미 데이터 스크립트를 `dummy_data/` 폴더로 통합
+  - 파일 이동:
+    - `apps/patients/create_dummy_patients.py` → `dummy_data/`
+    - `apps/encounters/create_dummy_encounters.py` → `dummy_data/`
+    - `apps/imaging/create_dummy_imaging.py` → `dummy_data/`
+  - `dummy_data/README.md` 생성: 통합 사용법 문서
+  - management/commands 폴더의 중복 스크립트 삭제
 
 - ✅ **README 업데이트**
-  - `apps/imaging/README.md`: 최신 상태 반영
-  - Phase 2 완료 상태 명시
+  - `apps/imaging/README.md`: 더미 데이터 경로 수정
+  - `README.md`: 더미 데이터 섹션 통합 안내
+  - `PROJECT_STATUS.md`: 더미 데이터 경로 업데이트
 
 ---
 
@@ -278,6 +290,11 @@ brain_tumor_back/
 │   ├── patients/                     # 환자 관리 ✅
 │   ├── encounters/                   # 진료 관리 ✅
 │   └── imaging/                      # 영상 관리 ✅
+├── dummy_data/                       # 더미 데이터 생성 스크립트
+│   ├── create_dummy_patients.py      # 환자 데이터
+│   ├── create_dummy_encounters.py    # 진료 데이터
+│   ├── create_dummy_imaging.py       # 영상 데이터
+│   └── README.md                     # 📖 사용법 문서
 └── manage.py
 ```
 

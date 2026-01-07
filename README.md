@@ -123,23 +123,23 @@ daphne -b 127.0.0.1 -p 8000 config.asgi:application
 **SQL 파일 실행**
 - 메뉴, 사용자 데이터 생성 가능
 
-**환자 더미 데이터 생성**
-```bash
-cd brain_tumor_back
-python manage.py shell -c "exec(open('apps/patients/create_dummy_patients.py', encoding='utf-8').read())"
-```
-- 30명의 환자 데이터 생성
-- 환자번호: P2026-0001 ~ P2026-0030
+**더미 데이터 생성 스크립트**
+- 📁 위치: `brain_tumor_back/dummy_data/`
+- 📖 자세한 사용법: [dummy_data/README.md](brain_tumor_back/dummy_data/README.md) 참조
 
-**진료 더미 데이터 생성**
+**빠른 시작:**
 ```bash
 cd brain_tumor_back
-python manage.py shell -c "exec(open('apps/encounters/create_dummy_encounters.py', encoding='utf-8').read())"
+
+# 1. 환자 데이터 (30명)
+python manage.py shell -c "exec(open('dummy_data/create_dummy_patients.py', encoding='utf-8').read())"
+
+# 2. 진료 데이터 (20건)
+python manage.py shell -c "exec(open('dummy_data/create_dummy_encounters.py', encoding='utf-8').read())"
+
+# 3. 영상 검사 데이터 (30건 검사, 20건 판독문)
+python manage.py shell -c "from dummy_data.create_dummy_imaging import create_dummy_imaging_studies; create_dummy_imaging_studies(30, 20)"
 ```
-- 30건의 진료 데이터 생성
-- 외래/입원/응급 진료 포함
-- 입원중(discharge_date NULL) 및 퇴원완료 데이터 포함
-- 랜덤하게 환자 및 담당 의사 배정
 
 <br/>
 <br/>
