@@ -26,11 +26,7 @@ class EncounterViewSet(viewsets.ModelViewSet):
     """
     진료 CRUD API
 
-    - 목록 조회: 모든 역할 가능
-    - 상세 조회: 모든 역할 가능
-    - 생성: DOCTOR, SYSTEMMANAGER만 가능
-    - 수정: DOCTOR, SYSTEMMANAGER만 가능
-    - 삭제: SYSTEMMANAGER만 가능 (soft delete)
+    권한 체크는 프론트엔드 라우터에서 관리
     """
     queryset = Encounter.objects.filter(is_deleted=False)
     permission_classes = [IsAuthenticated]
@@ -46,32 +42,8 @@ class EncounterViewSet(viewsets.ModelViewSet):
             return EncounterUpdateSerializer
         return EncounterDetailSerializer
 
-    def check_role_permission(self, allowed_roles):
-        """역할 기반 권한 체크"""
-        user = self.request.user
-        if not user.is_authenticated:
-            return False
-        return user.role.code in allowed_roles
-
-    def perform_create(self, serializer):
-        """생성 전 권한 체크"""
-        if not self.check_role_permission(['DOCTOR', 'SYSTEMMANAGER']):
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('의사 또는 시스템 관리자만 진료를 등록할 수 있습니다.')
-        serializer.save()
-
-    def perform_update(self, serializer):
-        """수정 전 권한 체크"""
-        if not self.check_role_permission(['DOCTOR', 'SYSTEMMANAGER']):
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('의사 또는 시스템 관리자만 진료를 수정할 수 있습니다.')
-        serializer.save()
-
     def perform_destroy(self, instance):
-        """삭제 전 권한 체크"""
-        if not self.check_role_permission(['SYSTEMMANAGER']):
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('시스템 관리자만 진료를 삭제할 수 있습니다.')
+        """Soft Delete"""
         instance.is_deleted = True
         instance.save()
 
