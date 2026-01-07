@@ -51,28 +51,3 @@ export default function AppRoutes() {
     </Routes>
   );
 }
-
-
-// import { Routes, Route } from 'react-router-dom';
-// import { useAuth } from '@/pages/auth/AuthProvider';
-// import AppLayout from '@/layout/AppLayout';
-// import LoginPage from '@/pages/auth/LoginPage';
-// import HomeRedirect from '@/app/HomeRedirect';
-// import { renderMenuRoutes } from './renderRoutes';
-
-// export default function AppRoutes() {
-//   const { menus, isAuthReady } = useAuth();
-
-//   if (!isAuthReady) return null;
-
-//   return (
-//     <Routes>
-//       <Route path="/login" element={<LoginPage />} />
-//       <Route path="/" element={<HomeRedirect />} />
-
-//       <Route element={<AppLayout />}>
-//         {renderMenuRoutes(menus)}
-//       </Route>
-//     </Routes>
-//   );
-// }

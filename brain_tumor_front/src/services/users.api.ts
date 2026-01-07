@@ -1,10 +1,15 @@
 import type { User } from '@/types/user';
+import type { PaginatedResponse } from '@/types/pagination'
 import { api } from './api';
 
 // 사용자 목록 조회 파라미터
 export interface UserListParams {
   search?: string;
-  role?: string;
+  role__code?: string;
+  
+  is_active?: boolean;
+  page?: number;
+  size?: number;
 }
 
 /* 사용자 생성 */
@@ -34,7 +39,7 @@ export interface UpdateUserPayload {
 // API 함수 모음
 /* 사용자 목록 조회 api */
 export const fetchUsers = async (params?: UserListParams) => {
-    const res = await api.get<User[]>("/users/", {
+    const res = await api.get<PaginatedResponse<User>>("/users/", {
         params,
     });
     return res.data;
@@ -73,5 +78,5 @@ export const updateUser = async (
 
 /* 사용자 삭제 */
 export const deleteUser = async (id: number) => {
-  await api.delete(`/users/${id}/`);
+  await api.delete(`/users/${id}/toggle-active/`);
 };

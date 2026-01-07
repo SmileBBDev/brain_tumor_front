@@ -1,5 +1,6 @@
 import React from "react";
 import type { User } from "@/types/user";
+import { useNavigate } from "react-router-dom";
 
 interface UserTableRowProps {
   user: User;
@@ -20,8 +21,14 @@ const formatDate = (dateString: string | null) => {
 };
 
 const UserTableRow: React.FC<UserTableRowProps> = ({ user, onToggleActive, onUnlock }) => {
+  const navigate = useNavigate();
+
+  const handleClickUser = (userId: number) => {
+    navigate(`/admin/users/${userId}`);
+  };
+
   return (
-    <tr>
+    <tr onClick={() => handleClickUser(user.id)}>
       <td>{user.login_id}</td>
       <td>{user.name}</td>
       <td>{user.role?.name ?? "없음"}</td>
@@ -50,7 +57,11 @@ const UserTableRow: React.FC<UserTableRowProps> = ({ user, onToggleActive, onUnl
             잠금 해제
           </button>
         ) : (
-          <button className="ghost" onClick={() => onToggleActive(user.id)}>
+          <button className="ghost" onClick={(e) => {
+            e.stopPropagation();
+            onToggleActive(user.id)
+            }}
+          >
             {user.is_active ? "비활성화" : "활성화"}
           </button>
         )}

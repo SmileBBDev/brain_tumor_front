@@ -1,5 +1,5 @@
 // 사용자 추가 모달 컴포넌트
-import type { UserProfileForm } from "@/types/user";
+import type { UserUpdateForm, User } from "@/types/user";
 import UserForm from "./UserForm";
 import type { AccountForm } from "./AccountSection";
 import { createUser, type CreateUserPayload } from "@/services/users.api";
@@ -11,21 +11,21 @@ interface Props {
 }
 
 export default function UserCreateModal({ onClose, onCreated }: Props) {
-  const handleSubmit = async (data: { profile: UserProfileForm; account: AccountForm }) => {
+  const handleSubmit = async (data: { form: UserUpdateForm; account: AccountForm}) => {
     // profile + account → CreateUserPayload로 변환
     const payload: CreateUserPayload = {
       login_id: data.account.login_id,
       // password: data.account.password,
       role: data.account.role,
-      name: data.profile.name,
-      email: data.profile.email,
+      name: data.form.name,
+      email: data.form.email,
       profile: {
-        phoneMobile: data.profile.phoneMobile,
-        phoneOffice: data.profile.phoneOffice,
-        birthDate: data.profile.birthDate,
-        hireDate: data.profile.hireDate,
-        departmentId: data.profile.departmentId,
-        title: data.profile.title,
+        phoneMobile: data.form.profile.phoneMobile,
+        phoneOffice: data.form.profile.phoneOffice,
+        birthDate: data.form.profile.birthDate,
+        hireDate: data.form.profile.hireDate,
+        departmentId: data.form.profile.departmentId,
+        title: data.form.profile.title,
       },
 
       

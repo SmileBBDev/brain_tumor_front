@@ -1,29 +1,33 @@
 import { useState } from "react";
 import UserInfoSection from "./UserInfoSection";
 import AccountSection, { type AccountForm } from "./AccountSection";
-import type { UserProfileForm } from "@/types/user";
+import type { UserUpdateForm } from "@/types/user";
 
 interface Props {
-  onSubmit: (data: { profile: UserProfileForm; account: AccountForm }) => void;
+  onSubmit: (data: { form: UserUpdateForm; account: AccountForm}) => void;
   onClose: () => void;
   onCreated: () => void;
   initialData?: {
-    profile?: UserProfileForm;
+    profile?: UserUpdateForm;
     account?: AccountForm;
   };
 }
 
 export default function UserForm({ onSubmit, initialData }: Props) {
-  const [profile, setProfile] = useState<UserProfileForm>({
+  const [form, setForm] = useState<UserUpdateForm>({
     name: "",
-    birthDate: "",
-    phoneMobile: "",
-    phoneOffice: "",
     email: "",
-    hireDate: "",
-    departmentId: "",
-    title: "",
-    ...initialData?.profile,
+    role: "",
+    is_active: true,
+    profile: {
+      birthDate: "",
+      phoneMobile: "",
+      phoneOffice: "",
+      hireDate: "",
+      departmentId: "",
+      title: "",
+      ...initialData?.profile,
+    },
   });
 
   const [account, setAccount] = useState<AccountForm>({
@@ -39,23 +43,26 @@ export default function UserForm({ onSubmit, initialData }: Props) {
       return;
     }
 
-    if (!profile.name || !profile.birthDate) {
+    if (!form.name || !form.profile.birthDate) {
       alert("필수 개인정보가 누락되었습니다.");
       return;
     }
 
     // 데이터 넘김
-    await onSubmit({ profile, account });
+    await onSubmit({ form, account });
   };
 
   return (
     <form className="user-form" id="user-form" onSubmit={handleSubmit}>
-      <UserInfoSection value={profile} onChange={setProfile} />
+      <UserInfoSection 
+        value={form} 
+        onChange={setForm}
+      />
       <AccountSection 
         value={account} 
         onChange={setAccount} 
-        userName={profile.name}
-        birthDate={profile.birthDate}
+        userName={form.name}  
+        birthDate={form.profile.birthDate}
       />
     </form>
   );

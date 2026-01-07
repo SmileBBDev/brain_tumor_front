@@ -39,6 +39,6 @@
 | 사용자 생성 | POST   | createUser       |
 | 상세 조회  | GET    | fetchUserDetail  |
 | 수정     | PUT    | updateUser       |
-| 삭제     | DELETE | deleteUser       |
+| 삭제     | DELETE | deleteUser       | => 사용자 비활성화 처리
 | 활성 토글  | PATCH  | toggleUserActive |
 | 잠금 해제  | PATCH  | unlockUser       |

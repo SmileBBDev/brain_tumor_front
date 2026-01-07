@@ -1,30 +1,31 @@
-import type { UserProfileForm } from "@/types/user";
-import { useEffect, useState } from "react";
+import type { UserUpdateForm } from "@/types/user";
+import PhoneInput from "@/pages/common/PhoneInput";
 
 interface Props {
-  value: UserProfileForm;
+  value: UserUpdateForm;
   // onChange: (v: UserProfileForm) => void;
-  onChange: (v: UserProfileForm | ((prev: UserProfileForm) => UserProfileForm)) => void;
-
+  onChange: (v: UserUpdateForm | ((prev: UserUpdateForm) => UserUpdateForm)) => void;
 }
 
 export default function UserInfoSection({ value, onChange }: Props) {
-  const handle = 
-  (key : keyof UserProfileForm) =>
+  const handleUser = (key: keyof UserUpdateForm) =>
   (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      onChange({ ...value, [key]: e.target.value });
+    onChange(prev => ({ ...prev, [key]: e.target.value }));
   };
 
-  const [phone1, setPhone1] = useState("");
-  const [phone2, setPhone2] = useState("");
-  const [phone3, setPhone3] = useState("");
-  useEffect(() => {
-    onChange((prev) => ({
+  const handleProfile = (key: keyof UserUpdateForm["profile"]) =>
+  (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    onChange(prev => ({
       ...prev,
-      phoneMobile: `${phone1}-${phone2}-${phone3}`,
-    }));  
-  }, [phone1, phone2, phone3]);
-
+      profile: { ...prev.profile, [key]: e.target.value }
+    }));
+  };
+  
+  // const handle = 
+  // (key : keyof UserUpdateForm) =>
+  // (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  //     onChange({ ...value, [key]: e.target.value });
+  // };
 
   return (
     <section className="form-section dashed">
@@ -44,7 +45,7 @@ export default function UserInfoSection({ value, onChange }: Props) {
                 id="user-name"
                 className = "userInfo"
                 value={value.name} 
-                onChange={handle("name")} />
+                onChange={handleUser("name")} />
           </div>
 
           <div className="field">
@@ -54,77 +55,55 @@ export default function UserInfoSection({ value, onChange }: Props) {
                 id="user-birth-date" 
                 className = "userInfo"
                 placeholder="YYYY-MM-DD"
-                value={value.birthDate}
-                onChange={handle("birthDate")} />
+                value={value.profile.birthDate}
+                onChange={handleProfile("birthDate")} />
           </div>
 
           <div className="field">
             <label>연락처</label>
-            {/* <input
-              placeholder="010-0000-0000"
-              id="user-phone-mobile"
-                className = "userInfo"
-              value={value.phoneMobile}
-              onChange={handle("phoneMobile")}
-            /> */}
-            <input
-              value={phone1}
-              maxLength={3}
-              onChange={(e) => {
-                setPhone1(e.target.value.replace(/\D/g, ""));
-                if (e.target.value.length === 3) {
-                  document.getElementById("phone-2")?.focus();
-                }
-              }}
-            />
-
-            <span>-</span>
-
-            <input
-              id="phone-2"
-              value={phone2}
-              maxLength={4}
-              onChange={(e) => {
-                setPhone2(e.target.value.replace(/\D/g, ""));
-                if (e.target.value.length === 4) {
-                  document.getElementById("phone-3")?.focus();
-                }
-              }}
-            />
-
-            <span>-</span>
-
-            <input
-              id="phone-3"
-              value={phone3}
-              maxLength={4}
-              onChange={(e) => {
-                setPhone3(e.target.value.replace(/\D/g, ""));
-              }}
+            <PhoneInput
+              value={value.profile.phoneMobile}
+              onChange={(v) =>
+                onChange(prev => ({ 
+                  ...prev, 
+                  profile :{
+                    ...prev.profile, phoneMobile: v 
+                  }
+                }))
+              }
+              segments={[3, 4, 4]}
             />
           </div>
 
           <div className="field">
             <label>이메일</label>
-             <input
-              type="email"
-              id="user-email"
-              className = "userInfo"
-              value={value.email}
-              onChange={handle("email")}
-            />
+            <div className="email-input-wrapper">
+              <span className="email-icon">@</span>
+              <input
+                type="email"
+                id="user-email"
+                placeholder="example@email.com"
+                value={value.email}
+                onChange={handleUser("email")}
+              />
+            </div>
+
           </div>
 
           <div className="field">
             <label>유선전화</label>
-            <input
-              placeholder="042-000-0000"
-              id="user-phone-office"
-              className = "userInfo"
-              value={value.phoneOffice}
-              onChange={handle("phoneOffice")}
+            <PhoneInput
+              value={value.profile.phoneOffice}
+              onChange={(v) =>
+                onChange(prev => ({ ...prev, 
+                  profile :{
+                    ...prev.profile, phoneOffice: v 
+                  }}))
+              }
+              segments={[3, 3, 4]}
             />
           </div>
+
 
           <div className="field">
             <label>입사일</label>
@@ -132,8 +111,8 @@ export default function UserInfoSection({ value, onChange }: Props) {
               type="date"
               id="user-hire-date"
               className="userInfo"
-              value={value.hireDate}
-              onChange={handle("hireDate")}
+              value={value.profile.hireDate}
+              onChange={handleProfile("hireDate")}
             />
           </div>
 
@@ -141,8 +120,8 @@ export default function UserInfoSection({ value, onChange }: Props) {
             <label>소속부서</label>
              <select
               className="userInfoOption"
-              value={value.departmentId}
-              onChange={handle("departmentId")}
+              value={value.profile.departmentId}
+              onChange={handleProfile("departmentId")}
             >
               <option value="">선택</option>
               <option value="1">신경외과</option>
@@ -155,7 +134,7 @@ export default function UserInfoSection({ value, onChange }: Props) {
             <label>호칭</label>
             <select 
                 className="userInfoOption" 
-                value={value.title} onChange={handle("title")}>
+                value={value.profile.title} onChange={handleProfile("title")}>
               <option value="">선택</option>
               <option value="교수">교수</option>
               <option value="정교수">정교수</option>
