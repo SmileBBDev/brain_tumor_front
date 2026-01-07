@@ -29,7 +29,7 @@ Frontend: React (Vite) - 기존 구조 활용
 
 ## 2. CDSS 핵심 기능 정의
 
-### 2.1 환자 관리 (Patient Management)
+### 2.1 환자 관리 (Patient Management) [0107_12:28]
 **목적**: 뇌종양 환자의 기본 정보 관리
 
 **주요 기능**:
@@ -60,7 +60,7 @@ Patient:
 
 ---
 
-### 2.2 진료 관리 (Encounter Management)
+### 2.2 진료 관리 (Encounter Management) [0107_]
 **목적**: 환자의 진료 세션 관리
 
 **주요 기능**:
@@ -88,18 +88,13 @@ Encounter:
 ```
 
 
-
-
-
-
-
-
-
 ====
 ---
 
 ### 2.3 영상 검사 관리 (Imaging Study Management)
 **목적**: 뇌종양 진단을 위한 영상 검사 오더 및 결과 관리
+
+**⚠️ 중요**: Phase 2에서 기본 RIS 기능을 먼저 구현하고, Phase 3에서 **OCS(섹션 2.7)와 통합**됩니다.
 
 **주요 기능**:
 - 영상 검사 오더 생성 (CT, MRI, PET 등)
@@ -107,6 +102,7 @@ Encounter:
 - 검사 이미지 메타데이터 저장 (실제 DICOM은 추후 Orthanc 연동)
 - 판독 소견 작성 및 서명
 - 검사 결과 조회
+- RIS 워크리스트 제공 (Phase 3 이후 OCS 워크리스트로 통합)
 
 **데이터 모델**:
 ```python
@@ -114,6 +110,7 @@ ImagingStudy:
   - id (PK)
   - encounter (FK to Encounter)
   - patient (FK to Patient)
+  - order (FK to Order, nullable)  # OCS 통합
   - modality (검사 종류: CT/MRI/PET/X-RAY)
   - body_part (촬영 부위: brain)
   - status (상태: ordered/scheduled/in-progress/completed/reported)
@@ -259,6 +256,73 @@ FollowUp:
 
 ---
 
+### 2.7 오더 통합 관리 (OCS - Order Communication System)
+**목적**: 모든 부서의 오더를 통합 관리하고 진행 상태 및 의견 공유
+
+**주요 기능**:
+- 오더 통합 조회 (영상검사, 검사실, 치료, AI 분석 등)
+- 부서별 오더 워크리스트 자동 생성
+- 오더별 진행 상태 실시간 추적 (워크플로우 단계별)
+- 부서 간 의견 교환 (코멘트 시스템)
+- 오더 이력 관리 및 타임라인 시각화
+- 긴급 오더 우선순위 관리
+
+**데이터 모델**:
+```python
+Order:
+  - id (PK)
+  - order_number (오더번호, Unique, 자동 생성)
+  - patient (FK to Patient)
+  - encounter (FK to Encounter)
+  - order_type (오더 유형: imaging/lab/treatment/ai_analysis)
+  - order_category (세부 분류: CT/MRI/혈액검사/수술 등)
+  - priority (우선순위: routine/urgent/stat)
+  - status (상태: ordered/accepted/in-progress/completed/cancelled)
+  - ordered_by (FK to User)
+  - target_department (목표 부서)
+  - clinical_info (임상 정보, Text)
+
+  # 연결된 실제 오더 (Polymorphic)
+  - imaging_study (FK to ImagingStudy, nullable)
+  - treatment_plan (FK to TreatmentPlan, nullable)
+  - ai_analysis_job (FK to AIAnalysisJob, nullable)
+
+  - created_at, updated_at
+
+OrderProgress:
+  - id (PK)
+  - order (FK to Order)
+  - workflow_stage (워크플로우 단계: RIS/LIS/AI별 상이)
+  - performed_by (FK to User)
+  - timestamp (상태 변경 일시)
+  - note (진행 메모)
+
+OrderComment:
+  - id (PK)
+  - order (FK to Order)
+  - comment_type (유형: question/answer/note/instruction)
+  - content (내용)
+  - author (FK to User)
+  - parent_comment (FK to OrderComment, nullable, 답글)
+  - is_read (읽음 여부)
+  - created_at, updated_at
+```
+
+**워크플로우 예시**:
+- **RIS**: ordered → scheduled → performing → performed → reading → reported
+- **LIS**: ordered → collected → processing → analyzed → reported
+- **AI**: ordered → queued → analyzing → analyzed → reviewing → reviewed
+- **Treatment**: ordered → scheduled → preparing → performing → completed
+
+**통합 특징**:
+- 부서 간 실시간 협업 (의사-방사선사-검사실-AI)
+- 워크플로우 기반 상태 관리 (숫자 진행률 대신 업무 단계)
+- Polymorphic 연결로 하나의 Order가 여러 타입 오더와 연결
+- 상세 내용은 [섹션 7. OCS 시스템](#7-오더-통합-관리-시스템-ocs---order-communication-system) 참조
+
+====
+---
+
 ## 3. 시스템 아키텍처
 
 ### 3.1 레이어드 아키텍처 (7-Layer)
@@ -275,11 +339,25 @@ FollowUp:
 ├─────────────────────────────────────┤
 │  3. DTOs (Data Transfer Objects)    │  ← serializers.py
 ├─────────────────────────────────────┤
-│  2. Domain (Entities)                │  ← models.py
+│  2. Domain (Entities)               │  ← models.py
 ├─────────────────────────────────────┤
-│  1. Main (Integration)               │  ← urls.py
+│  1. Main (Integration)              │  ← urls.py
 └─────────────────────────────────────┘
 ```
+
+
+
+
+
+
+
+
+
+# 여기 중심으로 작업
+
+
+
+
 
 ### 3.2 Django 앱 구조
 
@@ -291,7 +369,7 @@ brain_tumor_back/
 │   ├── authorization/     # 기존 권한 (재사용)
 │   ├── menus/             # 기존 메뉴 (재사용)
 │   │
-│   ├── patients/          # 신규: 환자 관리
+│   ├── patients/          # 신규: 환자 관리 [0107_12:28]
 │   │   ├── models.py
 │   │   ├── serializers.py
 │   │   ├── services.py
@@ -331,7 +409,15 @@ brain_tumor_back/
 │   │   ├── urls.py
 │   │   └── tests.py
 │   │
-│   └── followup/          # 신규: 경과 추적
+│   ├── followup/          # 신규: 경과 추적
+│   │   ├── models.py
+│   │   ├── serializers.py
+│   │   ├── services.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests.py
+│   │
+│   └── ocs/               # 신규: 오더 통합 관리 (Order Communication System)
 │       ├── models.py
 │       ├── serializers.py
 │       ├── services.py
@@ -515,14 +601,307 @@ PERMISSIONS = {
     # 경과 추적
     'view_followup': ['admin', 'neurosurgeon', 'neurologist', 'nurse'],
     'add_followup': ['admin', 'neurosurgeon', 'neurologist', 'nurse'],
+
+    # OCS 오더 통합 관리
+    'view_order': ['admin', 'neurosurgeon', 'neurologist', 'radiologist', 'radiologic_technologist', 'nurse'],
+    'add_order': ['admin', 'neurosurgeon', 'neurologist', 'radiologist'],
+    'change_order': ['admin', 'neurosurgeon', 'neurologist', 'radiologist', 'radiologic_technologist'],
+    'cancel_order': ['admin', 'neurosurgeon', 'neurologist'],
+    'update_order_progress': ['admin', 'neurosurgeon', 'neurologist', 'radiologist', 'radiologic_technologist', 'nurse'],
+    'view_order_comment': ['admin', 'neurosurgeon', 'neurologist', 'radiologist', 'radiologic_technologist', 'nurse'],
+    'add_order_comment': ['admin', 'neurosurgeon', 'neurologist', 'radiologist', 'radiologic_technologist', 'nurse'],
 }
 ```
 
 ---
 
-## 7. 데이터베이스 설계
+## 7. 오더 통합 관리 시스템 (OCS - Order Communication System)
 
-### 7.1 ERD 개념
+### 7.1 개요
+**목적**: 모든 부서의 오더를 통합 관리하고 진행 상태 및 의견 공유
+
+**핵심 개념**:
+- OCS는 독립적인 Django 앱으로 구현
+- 영상검사(RIS), 검사실(LIS), AI 분석, 치료 등 모든 오더를 통합 관리
+- 부서 간 실시간 의견 교환 및 협업 지원
+- 오더별 진행 상태를 워크플로우 단계로 추적
+
+### 7.2 주요 기능
+- 오더 통합 조회 (영상검사, 검사실, 치료 등)
+- 부서별 오더 워크리스트
+- 오더별 진행 상태 실시간 추적 (RIS/LIS/AI 분석 단계별)
+- 부서 간 의견 교환 (텍스트 코멘트)
+- 오더 이력 관리 및 타임라인
+
+### 7.3 데이터 모델
+
+```python
+Order:
+  - id (PK)
+  - order_number (오더번호, Unique, 자동 생성: ORD-YYYYMMDD-NNNN)
+  - patient (FK to Patient)
+  - encounter (FK to Encounter)
+  - order_type (오더 유형: imaging/lab/treatment/consultation/ai_analysis)
+  - order_category (세부 분류: CT/MRI/PET/혈액검사/수술 등)
+  - priority (우선순위: routine/urgent/stat)
+  - status (상태: ordered/accepted/in-progress/completed/cancelled)
+  - ordered_by (FK to User, 오더 의사)
+  - ordered_at (오더 일시)
+  - target_department (목표 부서: radiology/lab/surgery/neurology/ai)
+  - scheduled_datetime (예약 일시)
+  - completed_at (완료 일시)
+  - clinical_info (임상 정보, Text)
+  - special_instruction (특별 지시사항, Text)
+
+  # 연결된 실제 오더 (Polymorphic 관계)
+  - imaging_study (FK to ImagingStudy, nullable)
+  - treatment_plan (FK to TreatmentPlan, nullable)
+  - ai_analysis_job (FK to AIAnalysisJob, nullable)
+  # 추후 확장: lab_order, consultation_order 등
+
+  - created_at, updated_at
+  - is_deleted (Soft Delete)
+
+OrderProgress:
+  - id (PK)
+  - order (FK to Order)
+  - workflow_stage (워크플로우 단계)
+    # RIS: ordered → scheduled → performing → performed → reading → reported
+    # LIS: ordered → collected → processing → analyzed → reported
+    # AI: ordered → queued → analyzing → analyzed → reviewed
+    # Treatment: ordered → scheduled → preparing → performing → completed
+  - status_detail (상세 상태 설명, Text)
+  - performed_by (FK to User, 수행자)
+  - department (수행 부서)
+  - timestamp (상태 변경 일시)
+  - note (진행 메모, Text)
+  - created_at
+
+OrderComment:
+  - id (PK)
+  - order (FK to Order)
+  - comment_type (코멘트 유형: question/answer/note/instruction/alert)
+  - content (내용, Text)
+  - author (FK to User, 작성자)
+  - department (작성자 소속 부서)
+  - parent_comment (FK to OrderComment, nullable, 답글 기능)
+  - is_read (읽음 여부, Boolean)
+  - is_important (중요 표시, Boolean)
+  - created_at
+  - updated_at
+
+OrderAttachment:
+  - id (PK)
+  - order (FK to Order)
+  - file_path (파일 경로)
+  - file_name (파일명)
+  - file_type (파일 유형: document/image/report)
+  - uploaded_by (FK to User)
+  - created_at
+```
+
+### 7.4 워크플로우 단계 정의
+
+```python
+# RIS (Radiology Information System) 워크플로우
+RIS_WORKFLOW = [
+    'ordered',       # 오더 생성
+    'scheduled',     # 검사 예약
+    'performing',    # 검사 수행 중
+    'performed',     # 검사 완료
+    'reading',       # 판독 중
+    'reported',      # 판독 완료
+]
+
+# LIS (Laboratory Information System) 워크플로우
+LIS_WORKFLOW = [
+    'ordered',       # 오더 생성
+    'collected',     # 검체 채취
+    'processing',    # 검체 처리 중
+    'analyzing',     # 분석 중
+    'analyzed',      # 분석 완료
+    'reported',      # 결과 보고
+]
+
+# AI Analysis 워크플로우
+AI_WORKFLOW = [
+    'ordered',       # AI 분석 요청
+    'queued',        # 대기열 등록
+    'analyzing',     # 분석 중
+    'analyzed',      # 분석 완료
+    'reviewing',     # 의사 검토 중
+    'reviewed',      # 검토 완료
+]
+
+# Treatment 워크플로우
+TREATMENT_WORKFLOW = [
+    'ordered',       # 치료 계획 수립
+    'scheduled',     # 치료 예약
+    'preparing',     # 치료 준비
+    'performing',    # 치료 수행 중
+    'completed',     # 치료 완료
+    'followup',      # 경과 관찰
+]
+```
+
+### 7.5 주요 API 엔드포인트
+
+```
+# 오더 관리
+GET    /api/ocs/orders/                      # 오더 목록 (필터: 부서, 상태, 우선순위, 날짜)
+POST   /api/ocs/orders/                      # 오더 생성
+GET    /api/ocs/orders/{id}/                 # 오더 상세
+PATCH  /api/ocs/orders/{id}/status/          # 오더 상태 변경
+DELETE /api/ocs/orders/{id}/                 # 오더 취소 (Soft Delete)
+
+# 오더 진행 상태
+GET    /api/ocs/orders/{id}/progress/        # 진행 상태 조회 (전체 타임라인)
+POST   /api/ocs/orders/{id}/progress/        # 진행 상태 업데이트 (다음 단계로 이동)
+GET    /api/ocs/orders/{id}/timeline/        # 오더 타임라인 (시각화용)
+GET    /api/ocs/orders/{id}/current-stage/   # 현재 워크플로우 단계
+
+# 오더 코멘트
+GET    /api/ocs/orders/{id}/comments/        # 코멘트 목록
+POST   /api/ocs/orders/{id}/comments/        # 코멘트 작성
+PUT    /api/ocs/orders/{id}/comments/{cid}/  # 코멘트 수정
+DELETE /api/ocs/orders/{id}/comments/{cid}/  # 코멘트 삭제
+PATCH  /api/ocs/orders/{id}/comments/{cid}/read/  # 읽음 처리
+GET    /api/ocs/orders/{id}/comments/unread/ # 안 읽은 코멘트 수
+
+# 오더 첨부파일
+GET    /api/ocs/orders/{id}/attachments/     # 첨부파일 목록
+POST   /api/ocs/orders/{id}/attachments/     # 첨부파일 업로드
+DELETE /api/ocs/orders/{id}/attachments/{aid}/ # 첨부파일 삭제
+
+# 부서별 워크리스트
+GET    /api/ocs/worklist/radiology/          # 영상의학과 워크리스트
+GET    /api/ocs/worklist/lab/                # 검사실 워크리스트
+GET    /api/ocs/worklist/surgery/            # 수술실 워크리스트
+GET    /api/ocs/worklist/ai/                 # AI 분석 워크리스트
+GET    /api/ocs/worklist/my-tasks/           # 내 담당 오더 목록
+GET    /api/ocs/worklist/{dept}/pending/     # 부서별 대기 오더
+
+# 통계 및 대시보드
+GET    /api/ocs/statistics/                  # 전체 오더 통계
+GET    /api/ocs/statistics/department/       # 부서별 통계
+GET    /api/ocs/statistics/turnaround-time/  # TAT (소요 시간) 통계
+GET    /api/ocs/pending-orders/              # 대기 중인 오더
+GET    /api/ocs/urgent-orders/               # 긴급 오더 목록
+```
+
+### 7.6 워크플로우 예시 (영상검사 오더)
+
+```
+1. 의사가 영상검사 오더 생성
+   POST /api/ocs/orders/
+   {
+     "order_type": "imaging",
+     "order_category": "MRI",
+     "target_department": "radiology",
+     "priority": "routine",
+     "clinical_info": "두통, 구토 증상. 뇌종양 의심"
+   }
+   → Order 생성, ImagingStudy 자동 연결
+   → OrderProgress: workflow_stage = "ordered"
+   ↓
+
+2. 영상의학과에서 오더 확인 및 수락
+   PATCH /api/ocs/orders/{id}/status/
+   {"status": "accepted"}
+   ↓
+
+3. 방사선사가 검사 예약
+   POST /api/ocs/orders/{id}/progress/
+   {
+     "workflow_stage": "scheduled",
+     "note": "검사 예약 완료: 2026-01-08 14:00"
+   }
+   ↓
+
+4. 방사선사가 질문 코멘트
+   POST /api/ocs/orders/{id}/comments/
+   {
+     "comment_type": "question",
+     "content": "조영제 사용 가능한가요? 신기능 검사 결과 필요합니다.",
+     "is_important": true
+   }
+   ↓
+
+5. 의사가 답변
+   POST /api/ocs/orders/{id}/comments/
+   {
+     "comment_type": "answer",
+     "parent_comment": {comment_id},
+     "content": "네, 조영제 사용 가능합니다. 신기능 정상입니다."
+   }
+   ↓
+
+6. 검사 수행 시작
+   POST /api/ocs/orders/{id}/progress/
+   {
+     "workflow_stage": "performing",
+     "note": "검사 시작"
+   }
+   ↓
+
+7. 검사 완료
+   POST /api/ocs/orders/{id}/progress/
+   {
+     "workflow_stage": "performed",
+     "note": "검사 완료. DICOM 영상 320장 전송 완료"
+   }
+   ↓
+
+8. 판독의 판독 시작
+   POST /api/ocs/orders/{id}/progress/
+   {
+     "workflow_stage": "reading",
+     "performed_by": {radiologist_id}
+   }
+   ↓
+
+9. 판독 완료 및 보고
+   POST /api/ocs/orders/{id}/progress/
+   {
+     "workflow_stage": "reported",
+     "note": "판독 완료. 좌측 측두엽 종양 의심 소견"
+   }
+
+   PATCH /api/ocs/orders/{id}/status/
+   {"status": "completed"}
+```
+
+### 7.7 통합 특징
+
+1. **부서 간 협업**: 의사-방사선사-검사실-AI 시스템 간 실시간 의견 교환
+2. **진행 상태 투명성**: 환자와 의료진 모두 오더 진행 상태 확인 가능
+3. **우선순위 관리**: STAT(응급), Urgent(긴급), Routine(일반) 오더 구분
+4. **통합 워크리스트**: 각 부서별 업무 목록 자동 생성
+5. **이력 추적**: 모든 오더 변경 사항 타임라인으로 기록
+6. **워크플로우 기반**: 숫자 진행률이 아닌 업무 단계별 상태 관리
+7. **Polymorphic 연결**: 하나의 Order가 여러 타입의 실제 오더와 연결
+
+### 7.8 기존 앱과의 통합
+
+```python
+# ImagingStudy와 Order 연결
+ImagingStudy:
+  - order (FK to Order, nullable)  # 추가 필드
+
+# AIAnalysisJob과 Order 연결
+AIAnalysisJob:
+  - order (FK to Order, nullable)  # 추가 필드
+
+# TreatmentPlan과 Order 연결
+TreatmentPlan:
+  - order (FK to Order, nullable)  # 추가 필드
+```
+
+---
+
+## 8. 데이터베이스 설계
+
+### 8.1 ERD 개념
 
 ```
 User (기존)
@@ -531,33 +910,49 @@ User (기존)
   ├─── has many ──> ImagingReport (판독의)
   ├─── has many ──> AIAnalysisJob (요청자)
   ├─── has many ──> AIAnalysisResult (검토자)
-  └─── has many ──> TreatmentPlan (계획 의사)
+  ├─── has many ──> TreatmentPlan (계획 의사)
+  └─── has many ──> Order (오더 의사)
 
 Patient
   ├─── has many ──> Encounter
   ├─── has many ──> ImagingStudy
   ├─── has many ──> AIAnalysisJob
   ├─── has many ──> TreatmentPlan
-  └─── has many ──> FollowUp
+  ├─── has many ──> FollowUp
+  └─── has many ──> Order
 
 Encounter
   ├─── has many ──> ImagingStudy
-  └─── has many ──> TreatmentPlan
+  ├─── has many ──> TreatmentPlan
+  └─── has many ──> Order
+
+Order (OCS)
+  ├─── has many ──> OrderProgress
+  ├─── has many ──> OrderComment
+  ├─── has many ──> OrderAttachment
+  ├─── belongs to ──> Patient
+  ├─── belongs to ──> Encounter
+  ├─── may reference ──> ImagingStudy (nullable)
+  ├─── may reference ──> AIAnalysisJob (nullable)
+  └─── may reference ──> TreatmentPlan (nullable)
 
 ImagingStudy
   ├─── has one ──> ImagingReport
   ├─── has many ──> AIAnalysisJob
-  └─── belongs to ──> Encounter
+  ├─── belongs to ──> Encounter
+  └─── may belong to ──> Order (nullable)
 
 AIAnalysisJob
   ├─── has one ──> AIAnalysisResult
-  └─── belongs to ──> ImagingStudy
+  ├─── belongs to ──> ImagingStudy
+  └─── may belong to ──> Order (nullable)
 
 TreatmentPlan
   ├─── has many ──> TreatmentSession
   ├─── has many ──> FollowUp
   ├─── belongs to ──> Patient
-  └─── belongs to ──> Encounter
+  ├─── belongs to ──> Encounter
+  └─── may belong to ──> Order (nullable)
 
 FollowUp
   ├─── belongs to ──> Patient
@@ -565,7 +960,7 @@ FollowUp
   └─── may reference ──> ImagingStudy
 ```
 
-### 7.2 MySQL 설정
+### 8.2 MySQL 설정
 
 ```python
 # config/dev.py 수정
@@ -587,9 +982,9 @@ DATABASES = {
 
 ---
 
-## 8. 프론트엔드 메뉴 구조
+## 9. 프론트엔드 메뉴 구조
 
-### 8.1 메뉴 계층
+### 9.1 메뉴 계층
 
 ```
 대시보드
@@ -627,13 +1022,19 @@ AI 분석
   ├─ 경과 등록
   └─ 환자별 경과 차트
 
+오더 관리 (OCS)
+  ├─ 전체 오더 목록
+  ├─ 부서별 워크리스트
+  ├─ 내 담당 오더
+  └─ 긴급 오더
+
 보고서
   ├─ 환자 통계
   ├─ AI 분석 통계
   └─ 치료 성과 분석
 ```
 
-### 8.2 메뉴 권한 매핑
+### 9.2 메뉴 권한 매핑
 
 ```json
 [
@@ -678,13 +1079,20 @@ AI 분석
     "icon": "trending-up",
     "permission": "view_followup",
     "roles": ["admin", "neurosurgeon", "neurologist", "nurse"]
+  },
+  {
+    "label": "오더 관리",
+    "route": "/ocs",
+    "icon": "clipboard-list",
+    "permission": "view_order",
+    "roles": ["admin", "neurosurgeon", "neurologist", "radiologist", "radiologic_technologist", "nurse"]
   }
 ]
 ```
 
 ---
 
-## 9. 개발 단계별 계획
+## 10. 개발 단계별 계획
 
 ### Phase 1: 기본 환자/진료 관리 (1주)
 - [ ] patients 앱 생성 및 모델 정의
@@ -695,33 +1103,51 @@ AI 분석
 
 ### Phase 2: 영상 검사 관리 (1주)
 - [ ] imaging 앱 생성 및 모델 정의
-- [ ] 검사 오더 API 구현
+- [ ] ImagingStudy, ImagingReport 모델 구현
+- [ ] 검사 이미지 메타데이터 API 구현
 - [ ] 판독문 작성/서명 API 구현
-- [ ] 프론트엔드 영상 검사 화면
-- [ ] 판독 워크플로우 구현
+- [ ] 프론트엔드 영상 검사 화면 (IMAGE_VIEWER)
+- [ ] **OCS 없이 독립적으로 동작하는 기본 RIS 기능**
 
-### Phase 3: AI 분석 관리 (1주)
+### Phase 3: OCS 오더 통합 관리 (1주)
+**⚠️ 중요: imaging 앱이 먼저 구현되어야 실제 통합 테스트 가능**
+- [ ] ocs 앱 생성 및 모델 정의 (Order, OrderProgress, OrderComment, OrderAttachment)
+- [ ] 워크플로우 정의 및 상수 설정 (RIS/LIS/AI/Treatment)
+- [ ] **ImagingStudy와 Order 연결 (기존 imaging에 통합)**
+- [ ] 오더 생성/조회 기본 API 구현
+- [ ] 오더 진행 상태 업데이트 API 구현
+- [ ] 오더 코멘트 API 구현 (첨부파일은 Phase 5로 연기)
+- [ ] 프론트엔드 `/orders` 화면 연동 (OrderListPage, OrderCreate)
+- [ ] RIS 워크리스트 화면 연동 (OCS API 활용)
+- [ ] 기본 워크리스트 API (부서별 필터링)
+
+### Phase 4: AI 분석 관리 (1주)
 - [ ] ai_analysis 앱 생성 및 모델 정의
+- [ ] **AIAnalysisJob과 Order 연결 (OCS 통합)**
 - [ ] AI 작업 생성/조회 API 구현
 - [ ] AI 결과 저장 API 구현 (Mock 데이터)
 - [ ] AI 결과 검토 API 구현
 - [ ] 프론트엔드 AI 분석 화면
 
-### Phase 4: 치료 및 경과 관리 (1주)
+### Phase 5: 치료 및 경과 관리 + OCS 고도화 (1주)
 - [ ] treatment 앱 생성 및 모델 정의
 - [ ] followup 앱 생성 및 모델 정의
+- [ ] **TreatmentPlan과 Order 연결 (OCS 통합)**
 - [ ] 치료 계획/세션 API 구현
 - [ ] 경과 추적 API 구현
 - [ ] 프론트엔드 치료/경과 화면
+- [ ] **OCS 첨부파일 기능 추가**
+- [ ] **부서별 고급 워크리스트 필터 및 통계**
+- [ ] **오더 타임라인 시각화 개선**
 
-### Phase 5: 통합 및 최적화 (1주)
-- [ ] 전체 워크플로우 통합 테스트
-- [ ] 실시간 알림 (WebSocket) 구현
-- [ ] 대시보드 통계 화면 구현
+### Phase 6: 통합 및 최적화 (1주)
+- [ ] 전체 워크플로우 통합 테스트 (OCS 포함)
+- [ ] 실시간 알림 (WebSocket) 구현 - OCS 오더 상태 변경 알림
+- [ ] 대시보드 통계 화면 구현 (OCS 통계 포함)
 - [ ] 성능 최적화 (쿼리 최적화, 인덱싱)
 - [ ] 문서화 및 배포 준비
 
-### Phase 6: 외부 시스템 연동 준비 (추후)
+### Phase 7: 외부 시스템 연동 준비 (추후)
 - [ ] Redis 연동 (캐싱)
 - [ ] Orthanc 연동 (DICOM 저장/조회)
 - [ ] FastAPI AI Core 연동 (실제 AI 추론)
@@ -730,20 +1156,20 @@ AI 분석
 
 ---
 
-## 10. 품질 관리
+## 11. 품질 관리
 
-### 10.1 코드 품질
+### 11.1 코드 품질
 - **Layered Architecture**: Controller → Service → Repository 분리
 - **DRY 원칙**: 중복 코드 최소화
 - **Type Hints**: Python 3.10+ 타입 힌트 사용
 - **Docstrings**: 모든 함수/클래스에 설명 추가
 
-### 10.2 데이터 검증
+### 11.2 데이터 검증
 - **Serializer 검증**: 필수 필드, 타입, 형식 검증
 - **Business Logic 검증**: Service Layer에서 비즈니스 규칙 검증
 - **DB Constraints**: UNIQUE, CHECK, FK 제약 조건 설정
 
-### 10.3 에러 핸들링
+### 11.3 에러 핸들링
 ```python
 # 표준 에러 응답 형식
 {
@@ -757,49 +1183,49 @@ AI 분석
 }
 ```
 
-### 10.4 감사 로그
+### 11.4 감사 로그
 - **모든 중요 작업 기록**: 환자 등록, 진단, 치료 계획, AI 분석 등
 - **기존 audit 앱 활용**: AuditLog 모델 사용
 - **로그 항목**: user, action, resource_type, resource_id, ip_address, details
 
 ---
 
-## 11. 보안 고려사항
+## 12. 보안 고려사항
 
-### 11.1 개인정보 보호
+### 12.1 개인정보 보호
 - **SSN 암호화**: 주민등록번호는 암호화하여 저장
 - **접근 로그**: 모든 환자 정보 접근 기록
 - **권한 기반 접근**: RBAC으로 최소 권한 원칙 적용
 
-### 11.2 데이터 무결성
+### 12.2 데이터 무결성
 - **Soft Delete**: 실제 삭제 대신 상태 변경 (is_deleted=True)
 - **Version Control**: 중요 데이터는 버전 관리
 - **Audit Trail**: 모든 변경 이력 추적
 
-### 11.3 API 보안
+### 12.3 API 보안
 - **JWT 인증**: 기존 시스템의 JWT 토큰 사용
 - **Rate Limiting**: API 호출 횟수 제한 (추후 구현)
 - **Input Validation**: 모든 입력 데이터 검증
 
 ---
 
-## 12. 향후 확장 계획
+## 13. 향후 확장 계획
 
-### 12.1 외부 시스템 연동
+### 13.1 외부 시스템 연동
 1. **Orthanc PACS**: DICOM 영상 저장 및 조회
 2. **Redis**: 세션 캐싱 및 메시지 브로커
 3. **FastAPI AI Core**: 실제 AI 모델 추론 서버
 4. **OpenEMR**: 전자의무기록 연동
 5. **HAPI FHIR**: HL7 FHIR 표준 변환
 
-### 12.2 고급 기능
+### 13.2 고급 기능
 1. **OHIF Viewer**: 의료 영상 뷰어 통합
 2. **3D Visualization**: 3D 종양 시각화
 3. **Multi-Modal Fusion**: 여러 영상 검사 융합 분석
 4. **Clinical Pathways**: 진료 프로토콜 자동화
 5. **Predictive Analytics**: 예후 예측 모델
 
-### 12.3 성능 최적화
+### 13.3 성능 최적화
 1. **Query Optimization**: select_related, prefetch_related 활용
 2. **Database Indexing**: 자주 조회하는 필드 인덱싱
 3. **Caching Strategy**: Redis 캐싱 전략 수립
@@ -807,25 +1233,25 @@ AI 분석
 
 ---
 
-## 13. 참고 자료
+## 14. 참고 자료
 
-### 13.1 기술 문서
+### 14.1 기술 문서
 - Django REST Framework: https://www.django-rest-framework.org/
 - Django Channels: https://channels.readthedocs.io/
 - MySQL 8.0 Reference: https://dev.mysql.com/doc/
 
-### 13.2 의료 표준
+### 14.2 의료 표준
 - HL7 FHIR: https://www.hl7.org/fhir/
 - DICOM Standard: https://www.dicomstandard.org/
 - ICD-10 (질병분류): https://www.who.int/classifications/icd/
 
-### 13.3 프로젝트 문서
+### 14.3 프로젝트 문서
 - ONBOARDING_CORE_ARCHITECTURE.md: 전체 아키텍처 참고
 - brain_tumor_dev README.md: 기존 시스템 구조
 
 ---
 
-## 14. 결론
+## 15. 결론
 
 본 기획서는 brain_tumor_dev 프로젝트에 CDSS 핵심 기능을 추가하는 로드맵을 제시합니다.
 
@@ -836,13 +1262,20 @@ AI 분석
 4. **품질 우선**: 코드 품질, 보안, 데이터 무결성 중시
 
 **성공 기준**:
-- [ ] 환자-진료-검사-AI-치료-경과 전체 워크플로우 동작
+- [ ] 환자-진료-검사-AI-치료-경과-OCS 전체 워크플로우 동작
+- [ ] OCS를 통한 부서 간 원활한 오더 통합 관리 및 협업
 - [ ] 역할별 권한 기반 접근 제어
 - [ ] 모든 중요 작업 감사 로그 기록
 - [ ] API 문서화 (Swagger/OpenAPI)
 - [ ] 단위 테스트 커버리지 80% 이상
 
 이 기획서를 기반으로 개발을 진행하며, 각 Phase 완료 후 검토 및 피드백을 통해 지속적으로 개선해 나갑니다.
+
+**OCS 통합으로 인한 주요 개선사항**:
+- 모든 오더(영상검사, 검사실, 치료, AI 분석)를 단일 시스템에서 통합 관리
+- 부서별 워크리스트 자동 생성으로 업무 효율성 향상
+- 워크플로우 기반 진행 상태 관리로 투명성 확보
+- 부서 간 실시간 코멘트 시스템으로 협업 강화
 
 
 
@@ -855,175 +1288,4 @@ AI 분석
 
 ---
 
-### 2.7 오더 통합 관리 (OCS - Order Communication System)
-**목적**: 모든 부서의 오더를 통합 관리하고 진행 상태 및 의견 공유
-
-**주요 기능**:
-- 오더 통합 조회 (영상검사, 검사실, 치료 등)
-- 부서별 오더 워크리스트
-- 오더별 진행 상태 실시간 추적
-- 부서 간 의견 교환 (텍스트 코멘트)
-- 오더 이력 관리
-
-**데이터 모델**:
-```python
-Order:
-  - id (PK)
-  - order_number (오더번호, Unique, 자동 생성)
-  - patient (FK to Patient)
-  - encounter (FK to Encounter)
-  - order_type (오더 유형: imaging/lab/treatment/consultation)
-  - order_category (세부 분류: CT/MRI/혈액검사/수술 등)
-  - priority (우선순위: routine/urgent/stat)
-  - status (상태: ordered/accepted/in-progress/completed/cancelled)
-  - ordered_by (FK to User, 오더 의사)
-  - ordered_at (오더 일시)
-  - target_department (목표 부서: radiology/lab/surgery/neurology)
-  - scheduled_datetime (예약 일시)
-  - completed_at (완료 일시)
-  - clinical_info (임상 정보, Text)
-  - special_instruction (특별 지시사항, Text)
-  
-  # 연결된 실제 오더 (Polymorphic)
-  - imaging_study (FK to ImagingStudy, nullable)
-  - treatment_plan (FK to TreatmentPlan, nullable)
-  # 추후 확장: lab_order, consultation_order 등
-  
-  - created_at, updated_at
-  - is_deleted (Soft Delete)
-
-OrderProgress:
-  - id (PK)
-  - order (FK to Order)
-  - status (진행 상태: accepted/in-progress/paused/completed/cancelled)
-  - progress_percentage (진행률: 0~100)
-  - performed_by (FK to User, 수행자)
-  - department (수행 부서)
-  - updated_at (상태 변경 일시)
-  - note (진행 메모, Text)
-  - created_at
-
-OrderComment:
-  - id (PK)
-  - order (FK to Order)
-  - comment_type (코멘트 유형: question/answer/note/instruction)
-  - content (내용, Text)
-  - author (FK to User, 작성자)
-  - department (작성자 소속 부서)
-  - parent_comment (FK to OrderComment, nullable, 답글 기능)
-  - is_read (읽음 여부, Boolean)
-  - created_at
-  - updated_at
-```
-
-**주요 API 엔드포인트**:
-```
-# 오더 관리
-GET    /api/ocs/orders/                      # 오더 목록 (필터: 부서, 상태, 우선순위)
-POST   /api/ocs/orders/                      # 오더 생성
-GET    /api/ocs/orders/{id}/                 # 오더 상세
-PATCH  /api/ocs/orders/{id}/status/          # 오더 상태 변경
-DELETE /api/ocs/orders/{id}/                 # 오더 취소
-
-# 오더 진행 상태
-GET    /api/ocs/orders/{id}/progress/        # 진행 상태 조회
-POST   /api/ocs/orders/{id}/progress/        # 진행 상태 업데이트
-GET    /api/ocs/orders/{id}/timeline/        # 오더 타임라인 (이력)
-
-# 오더 코멘트
-GET    /api/ocs/orders/{id}/comments/        # 코멘트 목록
-POST   /api/ocs/orders/{id}/comments/        # 코멘트 작성
-PUT    /api/ocs/orders/{id}/comments/{cid}/  # 코멘트 수정
-DELETE /api/ocs/orders/{id}/comments/{cid}/  # 코멘트 삭제
-PATCH  /api/ocs/orders/{id}/comments/{cid}/read/  # 읽음 처리
-
-# 부서별 워크리스트
-GET    /api/ocs/worklist/radiology/          # 영상의학과 워크리스트
-GET    /api/ocs/worklist/lab/                # 검사실 워크리스트
-GET    /api/ocs/worklist/surgery/            # 수술실 워크리스트
-GET    /api/ocs/worklist/my-tasks/           # 내 담당 오더 목록
-
-# 통계 및 대시보드
-GET    /api/ocs/statistics/                  # 오더 통계
-GET    /api/ocs/statistics/department/       # 부서별 통계
-GET    /api/ocs/pending-orders/              # 대기 중인 오더
-```
-
-**워크플로우 예시 (영상검사 오더)**:
-```
-1. 의사가 영상검사 오더 생성
-   POST /api/ocs/orders/
-   {
-     "order_type": "imaging",
-     "order_category": "MRI",
-     "target_department": "radiology",
-     "clinical_info": "두통, 구토 증상"
-   }
-   ↓
-2. 영상의학과에서 오더 수락
-   PATCH /api/ocs/orders/{id}/status/
-   {"status": "accepted"}
-   ↓
-3. 검사 예약
-   POST /api/ocs/orders/{id}/progress/
-   {
-     "status": "in-progress",
-     "progress_percentage": 30,
-     "note": "검사 예약 완료: 2026-01-08 14:00"
-   }
-   ↓
-4. 방사선사가 질문 코멘트
-   POST /api/ocs/orders/{id}/comments/
-   {
-     "comment_type": "question",
-     "content": "조영제 사용 가능한가요?"
-   }
-   ↓
-5. 의사가 답변
-   POST /api/ocs/orders/{id}/comments/
-   {
-     "comment_type": "answer",
-     "parent_comment": {comment_id},
-     "content": "네, 사용 가능합니다."
-   }
-   ↓
-6. 검사 수행
-   POST /api/ocs/orders/{id}/progress/
-   {
-     "status": "in-progress",
-     "progress_percentage": 70,
-     "note": "검사 진행 중"
-   }
-   ↓
-7. 검사 완료
-   PATCH /api/ocs/orders/{id}/status/
-   {"status": "completed"}
-   
-   POST /api/ocs/orders/{id}/progress/
-   {
-     "status": "completed",
-     "progress_percentage": 100,
-     "note": "검사 완료. 판독 대기 중"
-   }
-```
-
-**Django 앱 구조 추가**:
-```
-brain_tumor_back/
-├── apps/
-│   ├── ocs/                 # 신규: 오더 통합 관리
-│   │   ├── models.py        # Order, OrderProgress, OrderComment
-│   │   ├── serializers.py
-│   │   ├── services.py
-│   │   ├── views.py
-│   │   ├── urls.py
-│   │   └── tests.py
-```
-
-**주요 특징**:
-1. **부서 간 협업**: 의사-방사선사-검사실 간 실시간 의견 교환
-2. **진행 상태 투명성**: 환자와 의료진 모두 오더 진행 상태 확인 가능
-3. **우선순위 관리**: STAT(응급), Urgent(긴급), Routine(일반) 오더 구분
-4. **통합 워크리스트**: 각 부서별 업무 목록 자동 생성
-5. **이력 추적**: 모든 오더 변경 사항 타임라인으로 기록
 
