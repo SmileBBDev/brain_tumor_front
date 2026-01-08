@@ -2,18 +2,20 @@
  * 의사용 검사 오더 관리 페이지
  * - 오더 생성, 조회, 확정, 취소
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import Pagination from '@/layout/Pagination';
 import { getOCSList, createOCS } from '@/services/ocs.api';
+import { getPatients } from '@/services/patient.api';
 import type {
   OCSListItem,
   OCSSearchParams,
   OcsStatus,
   JobRole,
   Priority,
-  OCSCreateRequest,
+  OCSCreateData,
 } from '@/types/ocs';
+import type { Patient } from '@/types/patient';
 import {
   OCS_STATUS_LABELS,
   PRIORITY_LABELS,
@@ -30,6 +32,7 @@ export default function DoctorOrderPage() {
   const [ocsList, setOcsList] = useState<OCSListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // 리스트 새로고침 트리거
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<OcsStatus | ''>('');
@@ -42,47 +45,81 @@ export default function DoctorOrderPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Create form states
-  const [createForm, setCreateForm] = useState<Partial<OCSCreateRequest>>({
+  const [createForm, setCreateForm] = useState<Partial<OCSCreateData>>({
     job_role: 'RIS',
     job_type: '',
     priority: 'normal',
     patient_id: 0,
   });
 
-  if (!role || !['DOCTOR', 'SYSTEMMANAGER', 'ADMIN'].includes(role)) {
-    return <div className="page">접근 권한이 없습니다.</div>;
-  }
+  // Patient search states
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [patientSearchResults, setPatientSearchResults] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
-  const fetchOCSList = async () => {
-    setLoading(true);
-    try {
-      const params: OCSSearchParams = {
-        page,
-        page_size: pageSize,
-      };
-
-      if (statusFilter) params.ocs_status = statusFilter;
-      if (jobRoleFilter) params.job_role = jobRoleFilter;
-      if (priorityFilter) params.priority = priorityFilter;
-
-      // 의사인 경우 자신의 오더만
-      if (role === 'DOCTOR') {
-        params.doctor_id = user?.id;
-      }
-
-      const response = await getOCSList(params);
-      setOcsList(response.results);
-      setTotalCount(response.count);
-    } catch (error) {
-      console.error('Failed to fetch OCS list:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // OCS 목록 조회
   useEffect(() => {
+    const fetchOCSList = async () => {
+      setLoading(true);
+      try {
+        const params: OCSSearchParams = {
+          page,
+          page_size: pageSize,
+        };
+
+        if (statusFilter) params.ocs_status = statusFilter;
+        if (jobRoleFilter) params.job_role = jobRoleFilter;
+        if (priorityFilter) params.priority = priorityFilter;
+
+        // 의사인 경우 자신의 오더만
+        if (role === 'DOCTOR' && user?.id) {
+          params.doctor_id = user.id;
+        }
+
+        const response = await getOCSList(params);
+        setOcsList(response.results);
+        setTotalCount(response.count);
+      } catch (error) {
+        console.error('Failed to fetch OCS list:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchOCSList();
-  }, [page, statusFilter, jobRoleFilter, priorityFilter]);
+  }, [page, pageSize, statusFilter, jobRoleFilter, priorityFilter, role, user?.id, refreshKey]);
+
+  // 환자 검색
+  const searchPatients = useCallback(async (query: string) => {
+    if (!query || query.length < 1) {
+      setPatientSearchResults([]);
+      setShowPatientDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await getPatients({ q: query, page_size: 10 });
+      setPatientSearchResults(response.results);
+      setShowPatientDropdown(true);
+    } catch (error) {
+      console.error('Failed to search patients:', error);
+      setPatientSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // 검색어 변경 시 디바운스 적용
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchPatients(patientSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [patientSearchQuery, searchPatients]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -112,7 +149,37 @@ export default function DoctorOrderPage() {
   };
 
   const handleModalSuccess = () => {
-    fetchOCSList();
+    setRefreshKey((prev) => prev + 1); // 리스트 새로고침 트리거
+  };
+
+  // 환자 선택
+  const handlePatientSelect = (patient: Patient) => {
+    setSelectedPatient(patient);
+    setCreateForm({ ...createForm, patient_id: patient.id });
+    setPatientSearchQuery(`${patient.name} (${patient.patient_number})`);
+    setShowPatientDropdown(false);
+  };
+
+  // 환자 선택 해제
+  const handlePatientClear = () => {
+    setSelectedPatient(null);
+    setCreateForm({ ...createForm, patient_id: 0 });
+    setPatientSearchQuery('');
+    setPatientSearchResults([]);
+  };
+
+  // 오더 생성 모달 열기
+  const handleOpenCreateModal = () => {
+    setCreateForm({
+      job_role: 'RIS',
+      job_type: '',
+      priority: 'normal',
+      patient_id: 0,
+    });
+    setSelectedPatient(null);
+    setPatientSearchQuery('');
+    setPatientSearchResults([]);
+    setIsCreateModalOpen(true);
   };
 
   // 오더 생성
@@ -123,7 +190,7 @@ export default function DoctorOrderPage() {
     }
 
     try {
-      await createOCS(createForm as OCSCreateRequest);
+      await createOCS(createForm as OCSCreateData);
       alert('오더가 생성되었습니다.');
       setIsCreateModalOpen(false);
       setCreateForm({
@@ -132,7 +199,9 @@ export default function DoctorOrderPage() {
         priority: 'normal',
         patient_id: 0,
       });
-      fetchOCSList();
+      setSelectedPatient(null);
+      setPatientSearchQuery('');
+      setRefreshKey((prev) => prev + 1); // 리스트 새로고침 트리거
     } catch (error) {
       console.error('Failed to create OCS:', error);
       alert('오더 생성에 실패했습니다.');
@@ -149,9 +218,9 @@ export default function DoctorOrderPage() {
           </strong>
           <button
             className="btn btn-primary"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={handleOpenCreateModal}
           >
-            + 새 오더 생성
+            + 오더 생성
           </button>
         </div>
         <div className="filter-right">
@@ -217,28 +286,86 @@ export default function DoctorOrderPage() {
         />
       )}
 
-      {/* 오더 생성 모달 (간단 버전) */}
+      {/* 오더 생성 모달 */}
       {isCreateModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
+        <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>새 오더 생성</h3>
-              <button onClick={() => setIsCreateModalOpen(false)}>&times;</button>
+              <h3>오더 생성</h3>
+              <button className="close-btn" onClick={() => setIsCreateModalOpen(false)}>&times;</button>
             </div>
             <div className="modal-body">
+              {/* 환자 검색 */}
               <div className="form-group">
-                <label>환자 ID</label>
-                <input
-                  type="number"
-                  value={createForm.patient_id || ''}
-                  onChange={(e) =>
-                    setCreateForm({ ...createForm, patient_id: Number(e.target.value) })
-                  }
-                  placeholder="환자 ID 입력"
-                />
+                <label>환자 선택 *</label>
+                <div className="patient-search-container">
+                  <div className="search-input-wrapper">
+                    <input
+                      type="text"
+                      value={patientSearchQuery}
+                      onChange={(e) => {
+                        setPatientSearchQuery(e.target.value);
+                        if (selectedPatient) {
+                          setSelectedPatient(null);
+                          setCreateForm({ ...createForm, patient_id: 0 });
+                        }
+                      }}
+                      onFocus={() => {
+                        if (patientSearchResults.length > 0) {
+                          setShowPatientDropdown(true);
+                        }
+                      }}
+                      placeholder="환자명 또는 환자번호로 검색"
+                      className={selectedPatient ? 'selected' : ''}
+                    />
+                    {selectedPatient && (
+                      <button
+                        type="button"
+                        className="clear-btn"
+                        onClick={handlePatientClear}
+                      >
+                        &times;
+                      </button>
+                    )}
+                    {isSearching && <span className="searching-indicator">검색 중...</span>}
+                  </div>
+
+                  {/* 검색 결과 드롭다운 */}
+                  {showPatientDropdown && patientSearchResults.length > 0 && (
+                    <ul className="patient-dropdown">
+                      {patientSearchResults.map((patient) => (
+                        <li
+                          key={patient.id}
+                          onClick={() => handlePatientSelect(patient)}
+                          className="patient-item"
+                        >
+                          <span className="patient-name">{patient.name}</span>
+                          <span className="patient-info">
+                            {patient.patient_number} | {patient.gender === 'M' ? '남' : patient.gender === 'F' ? '여' : '기타'} | {patient.age}세
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {showPatientDropdown && patientSearchQuery && patientSearchResults.length === 0 && !isSearching && (
+                    <div className="no-results">검색 결과가 없습니다.</div>
+                  )}
+                </div>
+
+                {selectedPatient && (
+                  <div className="selected-patient-info">
+                    <strong>{selectedPatient.name}</strong>
+                    <span>{selectedPatient.patient_number}</span>
+                    <span>{selectedPatient.gender === 'M' ? '남' : selectedPatient.gender === 'F' ? '여' : '기타'}</span>
+                    <span>{selectedPatient.age}세</span>
+                    <span>{selectedPatient.phone}</span>
+                  </div>
+                )}
               </div>
+
               <div className="form-group">
-                <label>작업 역할</label>
+                <label>작업 역할 *</label>
                 <select
                   value={createForm.job_role}
                   onChange={(e) =>
@@ -253,7 +380,7 @@ export default function DoctorOrderPage() {
                 </select>
               </div>
               <div className="form-group">
-                <label>작업 유형</label>
+                <label>작업 유형 *</label>
                 <input
                   type="text"
                   value={createForm.job_type || ''}
@@ -280,16 +407,138 @@ export default function DoctorOrderPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>
+              <button className="btn secondary" onClick={() => setIsCreateModalOpen(false)}>
                 취소
               </button>
-              <button className="btn btn-primary" onClick={handleCreateOrder}>
+              <button
+                className="btn primary"
+                onClick={handleCreateOrder}
+                disabled={!createForm.patient_id || !createForm.job_type}
+              >
                 생성
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <style>{`
+        .patient-search-container {
+          position: relative;
+        }
+
+        .search-input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .search-input-wrapper input {
+          width: 100%;
+          padding: 8px 12px;
+          padding-right: 60px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 14px;
+        }
+
+        .search-input-wrapper input.selected {
+          background-color: #e8f5e9;
+          border-color: #4caf50;
+        }
+
+        .search-input-wrapper .clear-btn {
+          position: absolute;
+          right: 8px;
+          background: none;
+          border: none;
+          font-size: 18px;
+          cursor: pointer;
+          color: #999;
+          padding: 0 8px;
+        }
+
+        .search-input-wrapper .clear-btn:hover {
+          color: #333;
+        }
+
+        .searching-indicator {
+          position: absolute;
+          right: 40px;
+          font-size: 12px;
+          color: #666;
+        }
+
+        .patient-dropdown {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: white;
+          border: 1px solid #ddd;
+          border-top: none;
+          border-radius: 0 0 4px 4px;
+          max-height: 200px;
+          overflow-y: auto;
+          z-index: 1000;
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .patient-item {
+          padding: 10px 12px;
+          cursor: pointer;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #eee;
+        }
+
+        .patient-item:last-child {
+          border-bottom: none;
+        }
+
+        .patient-item:hover {
+          background-color: #f5f5f5;
+        }
+
+        .patient-name {
+          font-weight: 500;
+        }
+
+        .patient-info {
+          font-size: 12px;
+          color: #666;
+        }
+
+        .no-results {
+          padding: 12px;
+          text-align: center;
+          color: #666;
+          font-size: 14px;
+        }
+
+        .selected-patient-info {
+          margin-top: 8px;
+          padding: 10px;
+          background-color: #f8f9fa;
+          border-radius: 4px;
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          font-size: 13px;
+        }
+
+        .selected-patient-info strong {
+          color: #333;
+        }
+
+        .selected-patient-info span {
+          color: #666;
+        }
+      `}</style>
     </div>
   );
 }

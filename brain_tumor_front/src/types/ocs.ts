@@ -44,14 +44,13 @@ export const JOB_ROLE_LABELS: Record<JobRole, string> = {
 
 export interface UserMinimal {
   id: number;
-  username: string;
-  first_name: string;
-  last_name: string;
+  login_id: string;
+  name: string;
 }
 
 export interface PatientMinimal {
   id: number;
-  patient_id: string;
+  patient_number: string;
   name: string;
 }
 

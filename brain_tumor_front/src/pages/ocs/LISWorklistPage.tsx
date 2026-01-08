@@ -51,13 +51,14 @@ const getPriorityClass = (priority: string): string => {
 };
 
 export default function LISWorklistPage() {
-  const { role, user } = useAuth();
+  const { user } = useAuth();
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [ocsList, setOcsList] = useState<OCSListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<OcsStatus | ''>('');
@@ -69,37 +70,37 @@ export default function LISWorklistPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedOcsId, setSelectedOcsId] = useState<number | null>(null);
 
-  if (!role || !['LIS', 'SYSTEMMANAGER', 'ADMIN'].includes(role)) {
-    return <div className="page">접근 권한이 없습니다.</div>;
-  }
-
-  const fetchOCSList = async () => {
-    setLoading(true);
-    try {
-      const params: OCSSearchParams = {
-        page,
-        page_size: pageSize,
-        job_role: 'LIS', // LIS 오더만
-      };
-
-      if (statusFilter) params.ocs_status = statusFilter;
-      if (priorityFilter) params.priority = priorityFilter;
-      if (unassignedOnly) params.unassigned = true;
-      if (myWorkOnly && user) params.worker_id = user.id;
-
-      const response = await getOCSList(params);
-      setOcsList(response.results);
-      setTotalCount(response.count);
-    } catch (error) {
-      console.error('Failed to fetch OCS list:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // OCS 목록 조회
   useEffect(() => {
+    console.log('[LISWorklistPage] useEffect triggered, fetching OCS list...');
+    const fetchOCSList = async () => {
+      setLoading(true);
+      try {
+        const params: OCSSearchParams = {
+          page,
+          page_size: pageSize,
+          job_role: 'LIS', // LIS 오더만
+        };
+
+        if (statusFilter) params.ocs_status = statusFilter;
+        if (priorityFilter) params.priority = priorityFilter;
+        if (unassignedOnly) params.unassigned = true;
+        if (myWorkOnly && user) params.worker_id = user.id;
+
+        console.log('[LISWorklistPage] Fetching with params:', params);
+        const response = await getOCSList(params);
+        console.log('[LISWorklistPage] Response:', response);
+        setOcsList(response.results);
+        setTotalCount(response.count);
+      } catch (error) {
+        console.error('[LISWorklistPage] Failed to fetch OCS list:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchOCSList();
-  }, [page, statusFilter, priorityFilter, unassignedOnly, myWorkOnly]);
+  }, [page, pageSize, statusFilter, priorityFilter, unassignedOnly, myWorkOnly, user, refreshKey]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -119,7 +120,7 @@ export default function LISWorklistPage() {
     try {
       await acceptOCS(ocsId);
       alert('오더를 접수했습니다.');
-      fetchOCSList();
+      setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error('Failed to accept OCS:', error);
       alert('접수에 실패했습니다.');
@@ -132,7 +133,7 @@ export default function LISWorklistPage() {
     try {
       await startOCS(ocsId);
       alert('작업을 시작합니다.');
-      fetchOCSList();
+      setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error('Failed to start OCS:', error);
       alert('작업 시작에 실패했습니다.');
@@ -150,7 +151,7 @@ export default function LISWorklistPage() {
   };
 
   const handleModalSuccess = () => {
-    fetchOCSList();
+    setRefreshKey((prev) => prev + 1);
   };
 
   return (
@@ -228,7 +229,7 @@ export default function LISWorklistPage() {
               </tr>
             </thead>
             <tbody>
-              {ocsList.length === 0 ? (
+              {!ocsList || ocsList.length === 0 ? (
                 <tr>
                   <td colSpan={8} align="center">
                     데이터 없음
@@ -254,10 +255,7 @@ export default function LISWorklistPage() {
                     </td>
                     <td>{ocs.patient.name}</td>
                     <td>{ocs.job_type}</td>
-                    <td>
-                      {ocs.doctor.last_name}
-                      {ocs.doctor.first_name}
-                    </td>
+                    <td>{ocs.doctor.name}</td>
                     <td>{formatDate(ocs.created_at)}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {ocs.ocs_status === 'ORDERED' && (

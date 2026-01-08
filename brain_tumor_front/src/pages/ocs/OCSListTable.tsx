@@ -41,7 +41,7 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
-export default function OCSListTable({ role, ocsList, onRowClick }: Props) {
+export default function OCSListTable({ role, ocsList = [], onRowClick }: Props) {
   const isWorkerRole = ['RIS', 'LIS', 'TREATMENT'].includes(role);
   const isDoctor = role === 'DOCTOR';
   const isAdmin = ['SYSTEMMANAGER', 'ADMIN'].includes(role);
@@ -64,7 +64,7 @@ export default function OCSListTable({ role, ocsList, onRowClick }: Props) {
       </thead>
 
       <tbody>
-        {ocsList.length === 0 ? (
+        {!ocsList || ocsList.length === 0 ? (
           <tr>
             <td colSpan={isAdmin ? 10 : 8} align="center">
               데이터 없음
@@ -90,17 +90,10 @@ export default function OCSListTable({ role, ocsList, onRowClick }: Props) {
               </td>
               <td>{ocs.patient.name}</td>
               {!isDoctor && (
-                <td>
-                  {ocs.doctor.last_name}
-                  {ocs.doctor.first_name}
-                </td>
+                <td>{ocs.doctor.name}</td>
               )}
               {!isWorkerRole && (
-                <td>
-                  {ocs.worker
-                    ? `${ocs.worker.last_name}${ocs.worker.first_name}`
-                    : '-'}
-                </td>
+                <td>{ocs.worker ? ocs.worker.name : '-'}</td>
               )}
               <td>{ocs.job_role}</td>
               <td>{ocs.job_type}</td>

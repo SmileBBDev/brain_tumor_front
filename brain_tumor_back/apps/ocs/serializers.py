@@ -17,7 +17,7 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name']
+        fields = ['id', 'login_id', 'name']
 
 
 class PatientMinimalSerializer(serializers.ModelSerializer):
@@ -25,7 +25,7 @@ class PatientMinimalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Patient
-        fields = ['id', 'patient_id', 'name']
+        fields = ['id', 'patient_number', 'name']
 
 
 class OCSHistorySerializer(serializers.ModelSerializer):

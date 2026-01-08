@@ -214,22 +214,15 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                   </div>
                   <div className="info-row">
                     <label>환자:</label>
-                    <span>{ocs.patient.name} ({ocs.patient.patient_id})</span>
+                    <span>{ocs.patient.name} ({ocs.patient.patient_number})</span>
                   </div>
                   <div className="info-row">
                     <label>처방 의사:</label>
-                    <span>
-                      {ocs.doctor.last_name}
-                      {ocs.doctor.first_name}
-                    </span>
+                    <span>{ocs.doctor.name}</span>
                   </div>
                   <div className="info-row">
                     <label>작업자:</label>
-                    <span>
-                      {ocs.worker
-                        ? `${ocs.worker.last_name}${ocs.worker.first_name}`
-                        : '미배정'}
-                    </span>
+                    <span>{ocs.worker ? ocs.worker.name : '미배정'}</span>
                   </div>
                   <div className="info-row">
                     <label>작업 역할:</label>
@@ -322,7 +315,7 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                           <td>{h.action_display}</td>
                           <td>
                             {h.actor
-                              ? `${h.actor.last_name}${h.actor.first_name}`
+                              ? h.actor.name
                               : '-'}
                           </td>
                           <td>
