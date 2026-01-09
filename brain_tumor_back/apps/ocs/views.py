@@ -23,6 +23,7 @@ from .serializers import (
     OCSCancelSerializer,
     OCSHistorySerializer,
 )
+from .notifications import notify_ocs_status_changed, notify_ocs_created, notify_ocs_cancelled
 
 
 # =============================================================================
@@ -249,6 +250,9 @@ class OCSViewSet(viewsets.ModelViewSet):
             ip_address=self._get_client_ip(request)
         )
 
+        # WebSocket 알림
+        notify_ocs_status_changed(ocs, from_status, ocs.ocs_status, request.user)
+
         return Response(OCSDetailSerializer(ocs).data)
 
     @extend_schema(summary="작업 시작", description="ACCEPTED → IN_PROGRESS 상태로 변경합니다.")
@@ -276,6 +280,9 @@ class OCSViewSet(viewsets.ModelViewSet):
             to_status=ocs.ocs_status,
             ip_address=self._get_client_ip(request)
         )
+
+        # WebSocket 알림
+        notify_ocs_status_changed(ocs, from_status, ocs.ocs_status, request.user)
 
         return Response(OCSDetailSerializer(ocs).data)
 
@@ -343,6 +350,9 @@ class OCSViewSet(viewsets.ModelViewSet):
             ip_address=self._get_client_ip(request)
         )
 
+        # WebSocket 알림
+        notify_ocs_status_changed(ocs, from_status, ocs.ocs_status, request.user)
+
         return Response(OCSDetailSerializer(ocs).data)
 
     @extend_schema(summary="확정", description="RESULT_READY → CONFIRMED 상태로 변경합니다.")
@@ -380,6 +390,9 @@ class OCSViewSet(viewsets.ModelViewSet):
             to_status=ocs.ocs_status,
             ip_address=self._get_client_ip(request)
         )
+
+        # WebSocket 알림
+        notify_ocs_status_changed(ocs, from_status, ocs.ocs_status, request.user)
 
         return Response(OCSDetailSerializer(ocs).data)
 
@@ -437,6 +450,9 @@ class OCSViewSet(viewsets.ModelViewSet):
             reason=cancel_reason,
             ip_address=self._get_client_ip(request)
         )
+
+        # WebSocket 알림
+        notify_ocs_cancelled(ocs, request.user, cancel_reason)
 
         return Response(OCSDetailSerializer(ocs).data)
 

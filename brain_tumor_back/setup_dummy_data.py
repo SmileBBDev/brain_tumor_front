@@ -84,7 +84,10 @@ def load_menu_permission_seed():
         ('ORDER_CREATE', '오더 생성', '검사 오더 생성 화면'),
         ('OCS_ORDER', '검사 오더', '의사용 검사 오더 생성/관리'),
         ('OCS_RIS', '영상 워크리스트', 'RIS 작업자용 영상 오더 처리'),
+        ('OCS_RIS_DETAIL', '영상 검사 상세', 'RIS 영상 검사 상세 페이지'),
         ('OCS_LIS', '검사 워크리스트', 'LIS 작업자용 검사 오더 처리'),
+        ('OCS_LIS_DETAIL', '검사 결과 상세', 'LIS 검사 결과 상세 페이지'),
+        ('NURSE_RECEPTION', '진료 접수 현황', '간호사용 진료 접수 현황 페이지'),
         ('IMAGING', '영상', '영상 메뉴'),
         ('IMAGE_VIEWER', '영상 조회', '영상 조회 화면'),
         ('RIS_WORKLIST', '판독 Worklist', 'RIS 판독 Worklist 화면'),
@@ -150,18 +153,28 @@ def load_menu_permission_seed():
     Menu.objects.get_or_create(id=22, defaults={'code': 'PATIENT_CARE', 'path': '/patients/care', 'order': 2, 'is_active': True, 'parent': menu_patient})
 
     # OCS 메뉴
-    Menu.objects.get_or_create(id=23, defaults={'code': 'OCS_ORDER', 'path': '/ocs/order', 'icon': 'file-medical', 'order': 3, 'is_active': True, 'parent': menu_order})
-    Menu.objects.get_or_create(id=24, defaults={'code': 'OCS_RIS', 'path': '/ocs/ris', 'icon': 'x-ray', 'order': 4, 'is_active': True, 'parent': menu_order})
-    Menu.objects.get_or_create(id=25, defaults={'code': 'OCS_LIS', 'path': '/ocs/lis', 'icon': 'flask', 'order': 5, 'is_active': True, 'parent': menu_order})
+    menu_ocs_order, _ = Menu.objects.get_or_create(id=23, defaults={'code': 'OCS_ORDER', 'path': '/ocs/order', 'icon': 'file-medical', 'order': 3, 'is_active': True, 'parent': menu_order})
+    menu_ocs_ris, _ = Menu.objects.get_or_create(id=24, defaults={'code': 'OCS_RIS', 'path': '/ocs/ris', 'icon': 'x-ray', 'order': 4, 'is_active': True, 'parent': menu_order})
+    menu_ocs_lis, _ = Menu.objects.get_or_create(id=25, defaults={'code': 'OCS_LIS', 'path': '/ocs/lis', 'icon': 'flask', 'order': 5, 'is_active': True, 'parent': menu_order})
+
+    # OCS 상세 페이지 메뉴 (breadcrumb_only)
+    Menu.objects.get_or_create(id=26, defaults={'code': 'OCS_RIS_DETAIL', 'path': '/ocs/ris/:ocsId', 'icon': 'x-ray', 'breadcrumb_only': True, 'order': 1, 'is_active': True, 'parent': menu_ocs_ris})
+    print("  [DEBUG] OCS_RIS_DETAIL 메뉴 생성/확인 완료")
+    Menu.objects.get_or_create(id=27, defaults={'code': 'OCS_LIS_DETAIL', 'path': '/ocs/lis/:ocsId', 'icon': 'flask', 'breadcrumb_only': True, 'order': 1, 'is_active': True, 'parent': menu_ocs_lis})
+    print("  [DEBUG] OCS_LIS_DETAIL 메뉴 생성/확인 완료")
+
+    # 간호사 진료 접수 메뉴
+    Menu.objects.get_or_create(id=28, defaults={'code': 'NURSE_RECEPTION', 'path': '/nurse/reception', 'icon': 'clipboard-list', 'order': 30, 'is_active': True, 'parent': None})
+    print("  [DEBUG] NURSE_RECEPTION 메뉴 생성/확인 완료")
 
     print(f"  메뉴 생성: {Menu.objects.count()}개")
 
     # ========== 메뉴-권한 매핑 (MenuPermission) ==========
     from apps.menus.models import MenuPermission
 
-    # path가 있고 breadcrumb_only가 아닌 메뉴에 대해 동일 code의 권한 매핑
+    # path가 있는 모든 메뉴에 대해 동일 code의 권한 매핑 (breadcrumb_only 포함)
     menu_perm_count = 0
-    for menu in Menu.objects.filter(path__isnull=False, breadcrumb_only=False):
+    for menu in Menu.objects.filter(path__isnull=False):
         if menu.code in permission_map:
             _, created = MenuPermission.objects.get_or_create(
                 menu=menu,
@@ -169,6 +182,7 @@ def load_menu_permission_seed():
             )
             if created:
                 menu_perm_count += 1
+                print(f"    [DEBUG] MenuPermission 생성: {menu.code}")
 
     print(f"  메뉴-권한 매핑: {menu_perm_count}개")
 
@@ -195,6 +209,11 @@ def load_menu_permission_seed():
         (23, 'DEFAULT', '검사 오더'),
         (24, 'DEFAULT', '영상 워크리스트'),
         (25, 'DEFAULT', '검사 워크리스트'),
+        (26, 'DEFAULT', '영상 검사 상세'),
+        (27, 'DEFAULT', '검사 결과 상세'),
+        # 간호사
+        (28, 'DEFAULT', '진료 접수 현황'),
+        (28, 'NURSE', '진료 접수'),
         # IMAGING
         (4, 'DEFAULT', '영상'),
         (14, 'DEFAULT', '영상 조회'),
@@ -237,16 +256,18 @@ def load_menu_permission_seed():
         'ADMIN': [
             'DASHBOARD', 'PATIENT', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE',
             'ORDER', 'ORDER_LIST', 'ORDER_CREATE', 'OCS_ORDER',
+            'OCS_RIS', 'OCS_RIS_DETAIL', 'OCS_LIS', 'OCS_LIS_DETAIL',
             'IMAGING', 'IMAGE_VIEWER', 'RIS_WORKLIST',
             'LAB', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD',
-            'AI_SUMMARY',
+            'AI_SUMMARY', 'NURSE_RECEPTION',
             'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG'
         ],
         'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'OCS_ORDER', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'AI_SUMMARY'],
-        'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW'],
-        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS'],
-        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS'],
+        'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'NURSE_RECEPTION'],
+        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL'],
+        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL'],
     }
+    print("  [DEBUG] 역할별 권한 매핑 설정 시작...")
 
     for role_code, perm_codes in role_permissions.items():
         try:

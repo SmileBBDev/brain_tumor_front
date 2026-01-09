@@ -1,8 +1,11 @@
 /**
  * LIS 작업자용 검사 워크리스트 페이지
  * - 검사 오더 접수, 작업, 결과 제출
+ * - 상세 페이지로 이동하여 결과 입력
+ * - 실시간 OCS 상태 변경 알림
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import Pagination from '@/layout/Pagination';
 import { getOCSList, acceptOCS, startOCS } from '@/services/ocs.api';
@@ -13,7 +16,8 @@ import type {
   Priority,
 } from '@/types/ocs';
 import { OCS_STATUS_LABELS, PRIORITY_LABELS } from '@/types/ocs';
-import OCSDetailModal from './OCSDetailModal';
+import { useOCSNotification } from '@/hooks/useOCSNotification';
+import OCSNotificationToast from '@/components/OCSNotificationToast';
 
 // 날짜 포맷
 const formatDate = (dateStr: string): string => {
@@ -52,6 +56,7 @@ const getPriorityClass = (priority: string): string => {
 
 export default function LISWorklistPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -66,9 +71,20 @@ export default function LISWorklistPage() {
   const [unassignedOnly, setUnassignedOnly] = useState(false);
   const [myWorkOnly, setMyWorkOnly] = useState(false);
 
-  // Modal states
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedOcsId, setSelectedOcsId] = useState<number | null>(null);
+  // 목록 새로고침 함수
+  const refreshList = useCallback(() => {
+    setRefreshKey((prev) => prev + 1);
+  }, []);
+
+  // OCS 실시간 알림
+  const { notifications, removeNotification } = useOCSNotification({
+    autoRefresh: refreshList,
+  });
+
+  // 알림 클릭 시 상세 페이지로 이동
+  const handleNotificationClick = useCallback((notification: { ocsPk: number }) => {
+    navigate(`/ocs/lis/${notification.ocsPk}`);
+  }, [navigate]);
 
   // OCS 목록 조회
   useEffect(() => {
@@ -148,18 +164,9 @@ export default function LISWorklistPage() {
     }
   };
 
+  // 행 클릭 시 상세 페이지로 이동
   const handleRowClick = (ocs: OCSListItem) => {
-    setSelectedOcsId(ocs.id);
-    setIsDetailModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setIsDetailModalOpen(false);
-    setSelectedOcsId(null);
-  };
-
-  const handleModalSuccess = () => {
-    setRefreshKey((prev) => prev + 1);
+    navigate(`/ocs/lis/${ocs.id}`);
   };
 
   return (
@@ -309,15 +316,12 @@ export default function LISWorklistPage() {
         />
       </section>
 
-      {/* OCS 상세 모달 */}
-      {selectedOcsId && (
-        <OCSDetailModal
-          isOpen={isDetailModalOpen}
-          ocsId={selectedOcsId}
-          onClose={handleModalClose}
-          onSuccess={handleModalSuccess}
-        />
-      )}
+      {/* OCS 실시간 알림 Toast */}
+      <OCSNotificationToast
+        notifications={notifications}
+        onDismiss={removeNotification}
+        onClickNotification={handleNotificationClick}
+      />
     </div>
   );
 }

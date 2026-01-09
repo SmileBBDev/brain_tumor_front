@@ -3,8 +3,9 @@
  * - 모든 OCS 현황 조회
  * - 상태/역할/우선순위 필터링
  * - 환자명/환자번호/OCS ID 검색
+ * - 실시간 OCS 상태 변경 알림
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import Pagination from '@/layout/Pagination';
 import { getOCSList } from '@/services/ocs.api';
@@ -21,6 +22,8 @@ import {
   JOB_ROLE_LABELS,
 } from '@/types/ocs';
 import OCSDetailModal from '../ocs/OCSDetailModal';
+import { useOCSNotification } from '@/hooks/useOCSNotification';
+import OCSNotificationToast from '@/components/OCSNotificationToast';
 import './OrderListPage.css';
 
 // 날짜 포맷
@@ -67,6 +70,7 @@ export default function OrderListPage() {
   const [ocsList, setOcsList] = useState<OCSListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<OcsStatus | ''>('');
@@ -78,6 +82,22 @@ export default function OrderListPage() {
   // Modal states
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedOcsId, setSelectedOcsId] = useState<number | null>(null);
+
+  // 목록 새로고침 함수
+  const refreshList = useCallback(() => {
+    setRefreshKey((prev) => prev + 1);
+  }, []);
+
+  // OCS 실시간 알림
+  const { notifications, removeNotification } = useOCSNotification({
+    autoRefresh: refreshList,
+  });
+
+  // 알림 클릭 시 상세 모달 열기
+  const handleNotificationClick = useCallback((notification: { ocsPk: number }) => {
+    setSelectedOcsId(notification.ocsPk);
+    setIsDetailModalOpen(true);
+  }, []);
 
   // OCS 목록 조회
   useEffect(() => {
@@ -111,7 +131,7 @@ export default function OrderListPage() {
     };
 
     fetchOCSList();
-  }, [page, pageSize, statusFilter, jobRoleFilter, priorityFilter, searchQuery]);
+  }, [page, pageSize, statusFilter, jobRoleFilter, priorityFilter, searchQuery, refreshKey]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -298,9 +318,16 @@ export default function OrderListPage() {
           isOpen={isDetailModalOpen}
           ocsId={selectedOcsId}
           onClose={handleModalClose}
-          onSuccess={() => {}} // 읽기 전용이므로 빈 함수
+          onSuccess={refreshList}
         />
       )}
+
+      {/* OCS 실시간 알림 Toast */}
+      <OCSNotificationToast
+        notifications={notifications}
+        onDismiss={removeNotification}
+        onClickNotification={handleNotificationClick}
+      />
     </div>
   );
 }

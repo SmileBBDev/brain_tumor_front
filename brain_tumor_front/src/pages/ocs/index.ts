@@ -4,4 +4,5 @@ export { default as DoctorOrderPage } from './DoctorOrderPage';
 export { default as RISWorklistPage } from './RISWorklistPage';
 export { default as RISStudyDetailPage } from './RISStudyDetailPage';
 export { default as LISWorklistPage } from './LISWorklistPage';
+export { default as LISStudyDetailPage } from './LISStudyDetailPage';
 export { default as AIAnalysisPanel } from './components/AIAnalysisPanel';
