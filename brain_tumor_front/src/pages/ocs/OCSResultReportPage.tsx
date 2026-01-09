@@ -34,6 +34,15 @@ const formatDateOnly = (dateStr: string | null): string => {
   });
 };
 
+// 파일 크기 포맷
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 export default function OCSResultReportPage() {
   const { ocsId } = useParams();
   const navigate = useNavigate();
@@ -294,6 +303,64 @@ export default function OCSResultReportPage() {
             </div>
           )}
         </section>
+
+        {/* 첨부파일 섹션 */}
+        {ocs.attachments && ocs.attachments.files && ocs.attachments.files.length > 0 && (
+          <section className="report-section attachments-section">
+            <h2>첨부파일</h2>
+            <div className="attachments-list">
+              <table className="attachments-table">
+                <thead>
+                  <tr>
+                    <th>파일명</th>
+                    <th>유형</th>
+                    <th>크기</th>
+                    <th className="no-print">미리보기</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ocs.attachments.files.map((file, index) => (
+                    <tr key={index}>
+                      <td className="file-name">{file.name}</td>
+                      <td>{file.type}</td>
+                      <td>{formatFileSize(file.size)}</td>
+                      <td className="no-print">
+                        {file.preview === 'image' && (
+                          <span className="preview-badge image">이미지</span>
+                        )}
+                        {file.preview === 'table' && (
+                          <span className="preview-badge table">테이블</span>
+                        )}
+                        {file.preview === 'iframe' && (
+                          <span className="preview-badge iframe">문서</span>
+                        )}
+                        {file.dicom_viewer_url && (
+                          <a
+                            href={file.dicom_viewer_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="dicom-link"
+                          >
+                            DICOM 뷰어
+                          </a>
+                        )}
+                        {file.preview === 'download' && (
+                          <span className="preview-badge download">다운로드</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {ocs.attachments.total_size > 0 && (
+                <div className="attachments-summary">
+                  <span>총 {ocs.attachments.files.length}개 파일</span>
+                  <span>전체 크기: {formatFileSize(ocs.attachments.total_size)}</span>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* 확정 정보 */}
         <section className="report-section confirmation-section">

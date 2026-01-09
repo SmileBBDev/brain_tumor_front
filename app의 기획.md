@@ -150,26 +150,111 @@ ImagingStudy:
 
 ---
 
-### 2.4 AI 분석 관리 (AI Analysis Management)
-**목적**: AI 기반 뇌종양 분석 작업 관리
+### 2.4 AI 추론 관리 (AI Inference Management)
+**목적**: OCS 데이터를 입력으로 AI 모델 추론 요청 및 결과 관리
 
-**주요 기능**:
-- AI 분석 작업 생성 및 실행
-- 분석 상태 추적 (대기/실행중/완료/실패)
-- AI 분석 결과 저장 및 조회
-- 의사의 AI 결과 검토 및 승인/거부
-- 분석 결과 시각화 메타데이터 저장
+**✅ 설계 완료 (2026-01-09)**: 확장 가능한 모델 정의 구조
+
+**핵심 설계 원칙**:
+- **OCS 기반 입력**: AI 추론은 OCS(RIS/LIS)의 `worker_result` JSON을 입력 데이터로 사용
+- **Soft 모델 정의**: 모델 추가/변경이 용이하도록 JSON 기반 설정
+- **데이터 검증**: 추론 요청 전 필요 데이터 존재 여부 자동 확인
+
+**현재 모델 정의** (확장 가능):
+
+| 모델 코드 | 모델명 | 입력 데이터 | OCS 소스 |
+|----------|--------|------------|----------|
+| **M1** | MRI 4-Channel | T1, T2, T1C, FLAIR | `ocs_ris` |
+| **MG** | Genetic Analysis | RNA_seq | `ocs_lis` |
+| **MM** | Multimodal | MRI + 유전 + 단백질 | `ocs_ris` + `ocs_lis` |
+
+**모델 정의 구조** (JSON 기반 확장):
+```python
+# AIModel 테이블 또는 설정 파일
+AI_MODELS = {
+    "M1": {
+        "code": "M1",
+        "name": "MRI 4-Channel Analysis",
+        "description": "MRI 4채널(T1, T2, T1C, FLAIR) 기반 뇌종양 분석",
+        "ocs_sources": ["RIS"],
+        "required_keys": {
+            "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"]
+        },
+        "is_active": True
+    },
+    "MG": {
+        "code": "MG",
+        "name": "Genetic Analysis",
+        "description": "RNA 시퀀싱 기반 유전자 분석",
+        "ocs_sources": ["LIS"],
+        "required_keys": {
+            "LIS": ["RNA_seq"]  # job_type='GENETIC'인 OCS에서 조회
+        },
+        "is_active": True
+    },
+    "MM": {
+        "code": "MM",
+        "name": "Multimodal Analysis",
+        "description": "MRI + 유전 + 단백질 통합 분석",
+        "ocs_sources": ["RIS", "LIS"],
+        "required_keys": {
+            "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"],
+            "LIS": ["RNA_seq", "protein"]  # job_type='GENETIC', 'PROTEIN'인 OCS에서 조회
+        },
+        "is_active": True
+    }
+}
+```
+
+**추론 요청 워크플로우**:
+```
+1. AI 추론 요청 페이지 진입
+       ↓
+2. 환자 선택 → 해당 환자의 OCS 목록 조회
+       ↓
+3. 모델 선택 (M1/MG/MM/...)
+       ↓
+4. 선택한 모델의 required_keys 기반으로
+   환자의 OCS(RIS/LIS) worker_result 검색
+       ↓
+5. 필요 데이터 충족 여부 표시
+   ✅ T1: 있음 (ocs_0012)
+   ✅ T2: 있음 (ocs_0012)
+   ❌ T1C: 없음
+   ❌ FLAIR: 없음
+       ↓
+6. 모두 충족 시 → "추론 요청" 버튼 활성화
+   부족 시 → 부족 항목 안내
+       ↓
+7. 추론 요청 생성 → AI Worker에서 처리
+       ↓
+8. 결과 저장 및 의사 검토
+```
 
 **데이터 모델**:
 ```python
-AIAnalysisJob:
+# AIModel (모델 정의 - soft 구조)
+AIModel:
   - id (PK)
-  - imaging_study (FK to ImagingStudy)
+  - code (모델 코드: M1/MG/MM, UNIQUE)
+  - name (모델명)
+  - description (설명)
+  - ocs_sources (JSON: ["RIS"], ["LIS"], ["RIS", "LIS"])
+  - required_keys (JSON: 모델별 필요 데이터 키)
+  - version (모델 버전)
+  - is_active (활성화 여부)
+  - created_at, updated_at
+
+# AIInferenceRequest (추론 요청)
+AIInferenceRequest:
+  - id (PK)
+  - request_id (사용자 친화적 ID: ai_req_0001)
   - patient (FK to Patient)
+  - model (FK to AIModel)
+  - ocs_references (JSON: 사용된 OCS ID 목록)
+  - input_data (JSON: worker_result에서 추출한 입력 데이터)
+  - status (상태: PENDING/PROCESSING/COMPLETED/FAILED)
   - requested_by (FK to User)
-  - model_type (모델 종류: tumor_detection/classification/segmentation)
-  - model_version (모델 버전)
-  - status (상태: pending/running/completed/failed/reviewed)
   - priority (우선순위: low/normal/high/urgent)
   - requested_at (요청 일시)
   - started_at (시작 일시)
@@ -177,23 +262,60 @@ AIAnalysisJob:
   - error_message (에러 메시지)
   - created_at, updated_at
 
-AIAnalysisResult:
+# AIInferenceResult (추론 결과)
+AIInferenceResult:
   - id (PK)
-  - analysis_job (FK to AIAnalysisJob)
-  - tumor_detected (종양 검출 여부)
-  - tumor_type (종양 유형: glioma/meningioma/pituitary/no_tumor)
+  - inference_request (FK to AIInferenceRequest, OneToOne)
+  - result_data (JSON: 모델별 결과 데이터)
   - confidence_score (신뢰도: 0.0~1.0)
-  - tumor_location (종양 위치, JSON: x/y/z coordinates)
-  - tumor_volume (종양 부피, mm³)
-  - segmentation_mask_path (세그멘테이션 마스크 경로)
-  - visualization_path (시각화 이미지 경로)
-  - additional_findings (추가 소견, JSON)
+  - visualization_paths (JSON: 시각화 파일 경로들)
   - reviewed_by (FK to User, 검토 의사)
   - review_status (검토 상태: pending/approved/rejected)
   - review_comment (검토 의견)
   - reviewed_at (검토 일시)
   - created_at, updated_at
+
+# AIInferenceLog (추론 로그)
+AIInferenceLog:
+  - id (PK)
+  - inference_request (FK to AIInferenceRequest)
+  - action (동작: CREATED/STARTED/PROGRESS/COMPLETED/FAILED/REVIEWED)
+  - message (로그 메시지)
+  - details (JSON: 상세 정보)
+  - created_at
 ```
+
+**API 엔드포인트**:
+```
+# 모델 관리
+GET    /api/ai/models/                    # 활성화된 모델 목록
+GET    /api/ai/models/{code}/             # 모델 상세 (필요 데이터 포함)
+
+# 데이터 검증
+POST   /api/ai/validate/                  # 환자+모델 조합의 데이터 충족 여부 확인
+       Body: { patient_id, model_code }
+       Response: { valid: bool, available_keys: [], missing_keys: [] }
+
+# 추론 요청
+GET    /api/ai/requests/                  # 추론 요청 목록
+POST   /api/ai/requests/                  # 추론 요청 생성
+GET    /api/ai/requests/{id}/             # 요청 상세
+GET    /api/ai/requests/{id}/status/      # 요청 상태 조회
+
+# 추론 결과
+GET    /api/ai/results/                   # 결과 목록
+GET    /api/ai/results/{id}/              # 결과 상세
+POST   /api/ai/results/{id}/review/       # 의사 검토 (승인/거부)
+
+# 환자별 조회
+GET    /api/ai/patients/{id}/requests/    # 환자별 추론 요청 이력
+GET    /api/ai/patients/{id}/available-models/  # 환자가 사용 가능한 모델 목록
+```
+
+**Orthanc 앱 연동 (추후)**:
+- Orthanc 앱은 별도 작업자가 개발 중
+- 추후 통합 시 `dicom.*` 키는 Orthanc에서 데이터 조회
+- 현재는 OCS.worker_result에서 메타데이터만 사용
 
 ---
 
@@ -297,7 +419,7 @@ OCS:
   - worker (FK to User, 작업자)
   - encounter (FK to Encounter)
   - job_role (RIS/LIS/TREATMENT/CONSULT)
-  - job_type (MRI/CT/BLOOD/SURGERY 등)
+  - job_type (RIS: MRI/CT/PET/X-RAY, LIS: BLOOD/GENETIC/PROTEIN/URINE/CSF/BIOPSY, TREATMENT: SURGERY/RADIATION/CHEMOTHERAPY 등)
   - doctor_request (JSON) - 의사 요청 정보
   - worker_result (JSON) - 작업자 결과 정보 (job_role별 템플릿)
   - attachments (JSON) - 첨부파일 정보
@@ -331,10 +453,19 @@ OCSHistory:
   "work_notes": []
 }
 
-# LIS (검사실)
+# LIS (검사실) - job_type: BLOOD, GENETIC, PROTEIN, URINE, CSF, BIOPSY 등
 {
   "_template": "LIS",
-  "test_results": [], "summary": "", "interpretation": ""
+  "test_type": "",  # BLOOD, GENETIC, PROTEIN, URINE, CSF, BIOPSY
+  "test_results": [],
+  "summary": "",
+  "interpretation": "",
+  # 유전자 검사 (GENETIC)
+  "RNA_seq": null,  # RNA 시퀀싱 결과 (파일 경로 또는 데이터)
+  "gene_mutations": [],  # 유전자 변이 목록
+  # 단백질 검사 (PROTEIN)
+  "protein": null,  # 단백질 분석 결과
+  "protein_markers": []  # 단백질 마커 목록
 }
 
 # TREATMENT (치료)
@@ -1023,34 +1154,35 @@ AI 분석
 - [x] 판독 상태별 필터링, 환자별 히스토리 타임라인
 - [x] 더미 데이터 생성 스크립트 (검사 30건, 판독문 20건)
 
-### Phase 3: OCS 오더 통합 관리 🚧 **재설계 진행중 (2026-01-08 ~)**
+### Phase 3: OCS 오더 통합 관리 ✅ **완료 (2026-01-08 ~ 2026-01-09)**
 
-**⚠️ 설계 변경 (2026-01-08)**:
-- AI 추론 기능은 별도 `ai_inference` 앱으로 분리
-- RIS/LIS/Treatment/Consultation을 **별도 테이블**로 분리
-- READY는 **파생 상태** (조건식 기반 캐시)
+**설계 결정 (2026-01-08)**:
+- 단일 테이블 설계 (OCS + OCSHistory)
+- JSON 기반 worker_result로 job_role별 데이터 관리
+- AI 추론 기능은 별도 `ai_inference` 앱으로 분리 예정
 
-#### 백엔드 구현 (재설계 진행중)
-- [ ] ocs 앱 생성 및 모델 정의
-  - [ ] OCS (오더 기준점, request_id)
-  - [ ] RIS_REQUEST (영상검사, 별도 테이블)
-  - [ ] LIS_REQUEST (검사실, 별도 테이블)
-  - [ ] LIS_COMMENT (검사실 소견)
-  - [ ] TREATMENT_REQUEST (치료, 별도 테이블)
-  - [ ] TREATMENT_COMMENT (치료 소견)
-  - [ ] CONSULTATION_REQUEST (협진, 별도 테이블)
-  - [ ] CONSULTATION_COMMENT (협진 소견)
-- [ ] READY 상태 계산 로직 (파생 상태)
-- [ ] OCS 기본 CRUD API 구현
-- [ ] RIS/LIS/Treatment/Consultation 요청 API 구현
-- [ ] 워크리스트 API (부서별 필터링)
-- [ ] 더미 데이터 생성 스크립트
+#### 백엔드 구현 ✅
+- [x] ocs 앱 생성 및 모델 정의
+  - [x] OCS (단일 테이블, job_role로 구분)
+  - [x] OCSHistory (변경 이력)
+- [x] OCS 상태 워크플로우 (ORDERED → ACCEPTED → IN_PROGRESS → RESULT_READY → CONFIRMED)
+- [x] OCS 기본 CRUD API 구현
+- [x] 상태 변경 API (accept, start, save_result, submit_result, confirm, cancel)
+- [x] 워크리스트 API (job_role별 필터링)
+- [x] WebSocket 실시간 알림 (상태 변경 시 관련 사용자에게 알림)
+- [x] 더미 데이터 생성 스크립트 (RIS 30건, LIS 20건)
+- [x] LIS 기능 강화 (GENETIC, PROTEIN 검사 유형 지원)
 
-#### 프론트엔드 통합 (진행 예정)
-- [ ] 프론트엔드 `/ocs` 화면 연동
-- [ ] RIS 워크리스트 OCS API 통합
-- [ ] OCS 상세 화면 구현
-- [ ] OCS 생성 폼 구현
+#### 프론트엔드 통합 ✅
+- [x] 의사 오더 페이지 (DoctorOrderPage)
+- [x] RIS 워크리스트 (RISWorklistPage) - OCS API 통합
+- [x] RIS 상세/판독 페이지 (RISStudyDetailPage)
+- [x] RIS 대시보드 (RISDashboardPage) - 통계 및 지연 알림
+- [x] LIS 워크리스트 (LISWorklistPage)
+- [x] LIS 상세/결과 입력 페이지 (LISStudyDetailPage)
+- [x] LIS 처리 상태 페이지 (LISProcessStatusPage)
+- [x] 간호사 접수 페이지 (NurseReceptionPage)
+- [x] WebSocket 알림 토스트 (OCSNotificationToast)
 
 #### AI 추론 앱 (별도 Phase로 분리)
 - [ ] ai_inference 앱 생성 (Phase 4로 이동)

@@ -12,6 +12,11 @@ python setup_database.py
 python setup_dummy_data.py
 ```
 
+## python setup_dummy_data.py --reset
+이거 하는게 마음 편하다. 
+
+
+
 **끝!** 이제 서버를 실행하세요:
 
 ---
@@ -44,6 +49,13 @@ python setup_dummy_data.py
 - 영상검사 30건 + 판독문 20건
 - 중복 실행 안전
 
+**옵션:**
+```bash
+python setup_dummy_data.py          # 기존 데이터 유지, 부족분만 추가
+python setup_dummy_data.py --reset  # 기존 데이터 삭제 후 새로 생성
+python setup_dummy_data.py --force  # 목표 수량 이상이어도 강제 추가
+```
+
 ---
 
 ## 선택: SQL 시드 데이터
@@ -69,25 +81,10 @@ python manage.py shell
 
 ---
 
-## 트러블슈팅
-
-| 문제 | 해결 |
-|------|------|
-| 마이그레이션 순서 오류 | `setup_database.py` 사용 |
-| 환자 없음 오류 | `setup_dummy_data.py` 먼저 실행 |
-| 의사 없음 오류 | `setup_database.py` 먼저 실행 |
-
----
-
 ## 파일 위치
 
 ```
 brain_tumor_back/
 ├── setup_database.py     # 1단계: 마이그레이션 + 기본 데이터
-├── setup_dummy_data.py   # 2단계: 더미 데이터
-└── dummy_data/
-    ├── README.md         # 상세 문서
-    ├── create_dummy_patients.py
-    ├── create_dummy_encounters.py
-    └── create_dummy_imaging.py
+└── setup_dummy_data.py   # 2단계: 더미 데이터
 ```

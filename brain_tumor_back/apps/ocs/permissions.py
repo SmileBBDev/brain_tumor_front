@@ -62,9 +62,11 @@ class OCSPermission(permissions.BasePermission):
         if view.action in ['start', 'save_result', 'submit_result']:
             return obj.worker == user
 
-        # 확정은 처방 의사만
+        # 확정은 처방 의사 또는 LIS/RIS 담당자
         if view.action == 'confirm':
-            return obj.doctor == user
+            is_doctor = obj.doctor == user
+            is_lis_ris_worker = obj.worker == user and obj.job_role in ['LIS', 'RIS']
+            return is_doctor or is_lis_ris_worker
 
         # 취소는 의사 또는 작업자
         if view.action == 'cancel':

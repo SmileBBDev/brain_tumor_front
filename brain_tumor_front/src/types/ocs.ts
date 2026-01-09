@@ -88,11 +88,14 @@ export interface RISWorkerResult {
   _custom: Record<string, unknown>;
 }
 
-// LIS worker result
+// LIS worker result - 확장된 구조 (BLOOD, GENETIC, PROTEIN 등)
 export interface LISWorkerResult {
   _template: 'LIS';
   _version: string;
   _confirmed: boolean;
+  test_type?: string; // BLOOD, GENETIC, PROTEIN, URINE, CSF, BIOPSY
+
+  // 기본 검사 결과 (BLOOD, URINE, CSF 등)
   test_results: {
     code: string;
     name: string;
@@ -103,7 +106,51 @@ export interface LISWorkerResult {
   }[];
   summary: string;
   interpretation: string;
+
+  // 유전자 검사 (GENETIC)
+  RNA_seq?: string | null; // RNA 시퀀싱 결과 파일 경로 또는 데이터
+  gene_mutations?: GeneMutation[]; // 유전자 변이 목록
+  sequencing_data?: {
+    method?: string; // 시퀀싱 방법 (e.g., "NGS", "Sanger")
+    coverage?: number; // 커버리지 (%)
+    quality_score?: number; // 품질 점수
+    raw_data_path?: string; // 원본 데이터 경로
+  };
+
+  // 단백질 검사 (PROTEIN)
+  protein?: string | null; // 단백질 분석 결과
+  protein_markers?: ProteinMarker[]; // 단백질 마커 목록
+
+  // 조직 검사 (BIOPSY)
+  biopsy_result?: {
+    tissue_type?: string;
+    pathology_findings?: string;
+    grade?: string;
+    stage?: string;
+  };
+
   _custom: Record<string, unknown>;
+}
+
+// 유전자 변이 타입
+export interface GeneMutation {
+  gene_name: string; // 유전자명 (e.g., "TP53", "IDH1")
+  mutation_type: string; // 변이 유형 (e.g., "missense", "deletion")
+  position?: string; // 위치 정보
+  variant?: string; // 변이 정보 (e.g., "R132H")
+  allele_frequency?: number; // 대립유전자 빈도
+  clinical_significance?: 'pathogenic' | 'likely_pathogenic' | 'uncertain' | 'likely_benign' | 'benign';
+  is_actionable?: boolean; // 치료 가능 여부
+}
+
+// 단백질 마커 타입
+export interface ProteinMarker {
+  marker_name: string; // 마커명 (e.g., "EGFR", "Ki-67")
+  value: string; // 결과값
+  unit?: string; // 단위
+  reference_range?: string; // 참고 범위
+  interpretation?: string; // 해석 (e.g., "양성", "음성", "과발현")
+  is_abnormal?: boolean; // 비정상 여부
 }
 
 // Treatment worker result

@@ -1,8 +1,8 @@
 # Brain Tumor CDSS - 의료 영상 Viewer/Reading 확장 계획
 
 **작성일**: 2026-01-07
-**수정일**: 2026-01-08 (OCS 통합 진행중)
-**현재 Phase**: Phase 2 완료, Phase 3 OCS 통합 진행중 (에러 수정 필요)
+**수정일**: 2026-01-09
+**현재 Phase**: Phase 2 완료, Phase 3 OCS 통합 진행중
 
 ---
 
@@ -488,27 +488,31 @@ AI Analysis → Segmentation Mask (NIfTI)
 
 ## 9. 다음 단계
 
-### 9.1 즉시 (2026-01-09)
-1. **OCS 에러 수정 (최우선)**
-   - OCS 모델/Serializer/View 에러 디버깅
-   - OCS API 엔드포인트 테스트
-   - 마이그레이션 적용 및 데이터 확인
+### 9.1 완료 (2026-01-09) ✅
+1. **OCS 에러 수정 완료**
+   - OCS 모델/Serializer/View 정상 동작
+   - OCS API 엔드포인트 테스트 완료
+   - 마이그레이션 적용 및 더미 데이터 생성
 
-2. **Imaging-OCS 통합 테스트**
-   - ImagingStudy-OCS FK 연결 테스트
-   - OCS.worker_result JSON 매핑 확인
+2. **Imaging-OCS 통합 완료**
+   - ImagingStudy-OCS FK 연결 동작
+   - OCS.worker_result JSON 매핑 완료
+
+3. **LIS 기능 강화 완료**
+   - GENETIC, PROTEIN 검사 유형 지원
+   - gene_mutations, protein_markers 필드 추가
+
+4. **권한 수정 완료**
+   - LIS/RIS 담당자 confirm 권한 추가
 
 ### 9.2 단기
-1. **Phase 3 OCS 통합 완료**: 단일 테이블 JSON 구조 완성
-   - OCS, OCSHistory 테이블 (구현됨, 에러 수정 필요)
-   - job_role별 worker_result 템플릿 (RIS/LIS/TREATMENT/CONSULT)
-2. **Phase 4 ai_inference 앱**: AI 추론 기능 별도 앱으로 구현
-3. **Phase 2.5 구현**: 환자별 영상 히스토리 조회 페이지
-4. **Orthanc PACS 준비**: Phase 4-5를 위한 서버 구축 계획
+1. **Phase 4 ai_inference 앱**: AI 추론 기능 별도 앱으로 구현
+2. **Phase 2.5 구현**: 환자별 영상 히스토리 조회 페이지
+3. **Orthanc PACS 준비**: Phase 4-5를 위한 서버 구축 계획
 
 ---
 
-## 10. OCS 연동 계획 (Phase 3) - 구현 완료 (에러 수정 필요)
+## 10. OCS 연동 계획 (Phase 3) - ✅ 구현 완료 (2026-01-09)
 
 ### 10.1 실제 구현된 구조 (단일 테이블 JSON 방식)
 **OCS 단일 테이블 + ImagingStudy FK 연결**:
@@ -516,7 +520,7 @@ AI Analysis → Segmentation Mask (NIfTI)
 - ImagingStudy에 `ocs` FK 추가 (1:1 연결)
 - ImagingReport 모델 삭제 → OCS.worker_result JSON으로 통합
 
-### 10.2 현재 워크플로우 (구현됨)
+### 10.2 현재 워크플로우 ✅
 ```
 OCS 생성 (job_role='RIS') → ImagingStudy 생성 (ocs FK 연결)
     ↓
@@ -527,7 +531,7 @@ OCS 상태 변경 (ORDERED → ACCEPTED → IN_PROGRESS → RESULT_READY → CON
 판독 서명 시 OCS.worker_result._confirmed = true
 ```
 
-### 10.3 데이터 저장 구조 (구현됨)
+### 10.3 데이터 저장 구조 ✅
 | 데이터 | 저장소 | 필드/테이블 |
 |--------|--------|---------|
 | DICOM 메타데이터 | MySQL | imaging.ImagingStudy |
@@ -536,14 +540,17 @@ OCS 상태 변경 (ORDERED → ACCEPTED → IN_PROGRESS → RESULT_READY → CON
 | 종양 정보 | MySQL | OCS.worker_result.tumor (JSON) |
 | 작업 노트 | MySQL | OCS.worker_result.work_notes (JSON array) |
 
-### 10.4 ⚠️ 현재 이슈
-- OCS 모델/API에 에러 존재 - 2026-01-09 수정 필요
-- 마이그레이션 미적용 상태
+### 10.4 ✅ 이슈 해결됨 (2026-01-09)
+- OCS 모델/API 정상 동작
+- 마이그레이션 적용 완료
+- 더미 데이터 생성 완료 (RIS 30건, LIS 20건)
+- LIS GENETIC/PROTEIN 검사 유형 지원 추가
+- LIS/RIS 담당자 confirm 권한 추가
 
-**상세 설계**: [OCS–AI Inference Architecture Speci.md](../OCS–AI Inference Architecture Speci.md) 참조 (v3.0 다중 테이블 설계 - 실제 구현과 다름)
+**상세 설계**: [OCS–AI Inference Architecture Speci.md](../OCS–AI Inference Architecture Speci.md) 참조
 
 ---
 
 **작성자**: Claude
-**문서 버전**: 1.1
-**마지막 업데이트**: 2026-01-08
+**문서 버전**: 1.2
+**마지막 업데이트**: 2026-01-09

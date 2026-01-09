@@ -61,7 +61,19 @@ def check_prerequisites():
 
 
 def load_menu_permission_seed():
-    """메뉴/권한 시드 데이터 로드"""
+    """
+    메뉴/권한 시드 데이터 로드
+
+    메뉴 그룹 구조 (Option A - 역할 기반 분리):
+    ├── DASHBOARD
+    ├── PATIENT: PATIENT_LIST, PATIENT_DETAIL, PATIENT_CARE
+    ├── ORDER: ORDER_LIST, ORDER_CREATE, OCS_ORDER
+    ├── IMAGING: IMAGE_VIEWER, RIS_WORKLIST, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD
+    ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
+    ├── AI_SUMMARY
+    ├── NURSE_RECEPTION
+    └── ADMIN: ADMIN_USER, ADMIN_USER_DETAIL, ADMIN_ROLE, ADMIN_MENU_PERMISSION, ADMIN_AUDIT_LOG, ADMIN_SYSTEM_MONITOR
+    """
     print("\n[1단계] 메뉴/권한 시드 데이터 로드...")
 
     from apps.menus.models import Menu
@@ -128,11 +140,23 @@ def load_menu_permission_seed():
     print(f"  권한 생성: {changes['Permission']['created']}개")
 
     # ========== 메뉴 데이터 ==========
-    # 메뉴 생성 헬퍼 함수
+    # 메뉴 생성 헬퍼 함수 (기존 레코드도 parent_id 업데이트)
     def create_menu(menu_id, **kwargs):
         menu, created = Menu.objects.get_or_create(id=menu_id, defaults=kwargs)
         if created:
             changes['Menu']['created'] += 1
+        else:
+            # 기존 레코드의 parent_id가 다르면 업데이트
+            update_fields = []
+            if 'parent' in kwargs and menu.parent != kwargs['parent']:
+                menu.parent = kwargs['parent']
+                update_fields.append('parent')
+            if 'parent_id' in kwargs and menu.parent_id != kwargs['parent_id']:
+                menu.parent_id = kwargs['parent_id']
+                update_fields.append('parent_id')
+            if update_fields:
+                menu.save(update_fields=update_fields)
+                print(f"    [UPDATE] {menu.code}: parent_id → {menu.parent_id}")
         return menu, created
 
     # 최상위 메뉴
@@ -154,7 +178,8 @@ def load_menu_permission_seed():
 
     # Imaging 하위
     create_menu(14, code='IMAGE_VIEWER', path='/imaging', icon='image', order=1, is_active=True, parent=menu_imaging)
-    create_menu(15, code='RIS_WORKLIST', path='/ris/worklist', icon='x-ray', order=2, is_active=True, parent=menu_imaging)
+    # RIS_WORKLIST 비활성화 - OCS_RIS와 중복되므로 사용하지 않음
+    create_menu(15, code='RIS_WORKLIST', path='/ris/worklist', icon='x-ray', order=2, is_active=False, parent=menu_imaging)
 
     # Lab 하위
     create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', breadcrumb_only=True, order=2, is_active=True, parent=menu_lab)
@@ -169,10 +194,15 @@ def load_menu_permission_seed():
     create_menu(21, code='PATIENT_DETAIL', path='/patients/:patientId', breadcrumb_only=True, order=1, is_active=True, parent_id=20)
     create_menu(22, code='PATIENT_CARE', path='/patients/care', order=2, is_active=True, parent=menu_patient)
 
-    # OCS 메뉴
+    # OCS 메뉴 (역할 기반 그룹 분리)
+    # OCS_ORDER: ORDER 그룹 (의사용 오더)
     menu_ocs_order, _ = create_menu(23, code='OCS_ORDER', path='/ocs/order', icon='file-medical', order=3, is_active=True, parent=menu_order)
-    menu_ocs_ris, _ = create_menu(24, code='OCS_RIS', path='/ocs/ris', icon='x-ray', order=4, is_active=True, parent=menu_order)
-    menu_ocs_lis, _ = create_menu(25, code='OCS_LIS', path='/ocs/lis', icon='flask', order=5, is_active=True, parent=menu_order)
+
+    # OCS_RIS: IMAGING 그룹 (영상과용)
+    menu_ocs_ris, _ = create_menu(24, code='OCS_RIS', path='/ocs/ris', icon='x-ray', order=3, is_active=True, parent=menu_imaging)
+
+    # OCS_LIS: LAB 그룹 (검사과용)
+    menu_ocs_lis, _ = create_menu(25, code='OCS_LIS', path='/ocs/lis', icon='flask', order=3, is_active=True, parent=menu_lab)
 
     # OCS 상세 페이지 메뉴 (breadcrumb_only)
     create_menu(26, code='OCS_RIS_DETAIL', path='/ocs/ris/:ocsId', icon='x-ray', breadcrumb_only=True, order=1, is_active=True, parent=menu_ocs_ris)
@@ -181,11 +211,11 @@ def load_menu_permission_seed():
     # 간호사 진료 접수 메뉴
     create_menu(28, code='NURSE_RECEPTION', path='/nurse/reception', icon='clipboard-list', order=30, is_active=True, parent=None)
 
-    # RIS Dashboard 메뉴
-    create_menu(30, code='RIS_DASHBOARD', path='/ocs/ris/dashboard', icon='chart-bar', order=7, is_active=True, parent=menu_order)
+    # RIS Dashboard 메뉴 (IMAGING 그룹)
+    create_menu(30, code='RIS_DASHBOARD', path='/ocs/ris/dashboard', icon='chart-bar', order=4, is_active=True, parent=menu_imaging)
 
-    # LIS Process Status 메뉴
-    create_menu(31, code='LIS_PROCESS_STATUS', path='/ocs/lis/process-status', icon='tasks', order=8, is_active=True, parent=menu_order)
+    # LIS Process Status 메뉴 (LAB 그룹)
+    create_menu(31, code='LIS_PROCESS_STATUS', path='/ocs/lis/process-status', icon='tasks', order=4, is_active=True, parent=menu_lab)
 
     print(f"  메뉴 생성: {changes['Menu']['created']}개 (전체: {Menu.objects.count()}개)")
 
@@ -225,10 +255,11 @@ def load_menu_permission_seed():
         (6, 'DEFAULT', '검사 오더'),
         (6, 'DOCTOR', '검사 오더'),
         (6, 'NURSE', '검사 현황'),
-        (19, 'DEFAULT', '오더 목록'),
+        (19, 'DEFAULT', '검사 현황'),  # 간호사/관리자용 - 전체 조회
         (18, 'DEFAULT', '오더 생성'),
         # OCS
-        (23, 'DEFAULT', '검사 오더'),
+        (23, 'DEFAULT', '내 검사 오더'),  # 의사용 - 본인 오더만
+        (23, 'DOCTOR', '내 검사 오더'),
         (24, 'DEFAULT', '영상 워크리스트'),
         (25, 'DEFAULT', '검사 워크리스트'),
         (26, 'DEFAULT', '영상 검사 상세'),
@@ -240,11 +271,11 @@ def load_menu_permission_seed():
         (29, 'DEFAULT', '검사 결과 Alert'),
         (29, 'LIS', '결과 Alert'),
         # RIS Dashboard
-        (30, 'DEFAULT', '판독 현황 대시보드'),
-        (30, 'RIS', '판독 현황'),
+        (30, 'DEFAULT', '영상 판독 상세'),
+        (30, 'RIS', '영상 판독 상세'),
         # LIS Process Status
-        (31, 'DEFAULT', '결과 처리 상태'),
-        (31, 'LIS', '처리 상태'),
+        (31, 'DEFAULT', 'LIS 검사 상세'),
+        (31, 'LIS', 'LIS 검사 상세'),
         # IMAGING
         (4, 'DEFAULT', '영상'),
         (14, 'DEFAULT', '영상 조회'),
@@ -253,8 +284,8 @@ def load_menu_permission_seed():
         (2, 'DEFAULT', 'AI 분석 요약'),
         # LAB
         (5, 'DEFAULT', '검사'),
-        (17, 'DEFAULT', '검사 결과 조회'),
-        (16, 'DEFAULT', '검사 결과 업로드'),
+        (17, 'DEFAULT', '검사 조회'),  # 검사 결과 조회 → 검사 조회
+        (16, 'DEFAULT', '검사 결과 업로드'),  # breadcrumb_only - OCS에서 이동
         # ADMIN
         (1, 'DEFAULT', '관리자'),
         (12, 'DEFAULT', '사용자 관리'),
@@ -760,6 +791,87 @@ def create_dummy_lis_orders(num_orders=20, force=False):
     return True
 
 
+def create_ai_models():
+    """AI 모델 시드 데이터 생성"""
+    print(f"\n[6단계] AI 모델 데이터 생성...")
+
+    from apps.ai_inference.models import AIModel
+
+    # 기존 데이터 확인
+    existing_count = AIModel.objects.count()
+    if existing_count >= 3:
+        print(f"[SKIP] 이미 {existing_count}개의 AI 모델이 존재합니다.")
+        return True
+
+    ai_models_data = [
+        {
+            "code": "M1",
+            "name": "MRI 4-Channel Analysis",
+            "description": "MRI 4채널(T1, T2, T1C, FLAIR) 기반 뇌종양 분석 모델",
+            "ocs_sources": ["RIS"],
+            "required_keys": {
+                "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"]
+            },
+            "version": "1.0.0",
+            "is_active": True,
+            "config": {
+                "timeout_seconds": 300,
+                "batch_size": 1,
+                "gpu_required": True
+            }
+        },
+        {
+            "code": "MG",
+            "name": "Genetic Analysis",
+            "description": "RNA 시퀀싱 기반 유전자 분석 모델 (MGMT 메틸화, IDH 변이 등)",
+            "ocs_sources": ["LIS"],
+            "required_keys": {
+                "LIS": ["RNA_seq"]  # job_type='GENETIC'인 OCS에서 조회
+            },
+            "version": "1.0.0",
+            "is_active": True,
+            "config": {
+                "timeout_seconds": 600,
+                "batch_size": 1,
+                "gpu_required": False
+            }
+        },
+        {
+            "code": "MM",
+            "name": "Multimodal Analysis",
+            "description": "MRI + 유전 + 단백질 통합 분석 모델 (종합 예후 예측)",
+            "ocs_sources": ["RIS", "LIS"],
+            "required_keys": {
+                "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"],
+                "LIS": ["RNA_seq", "protein"]  # job_type='GENETIC', 'PROTEIN'인 OCS에서 조회
+            },
+            "version": "1.0.0",
+            "is_active": True,
+            "config": {
+                "timeout_seconds": 900,
+                "batch_size": 1,
+                "gpu_required": True
+            }
+        }
+    ]
+
+    created_count = 0
+    for model_data in ai_models_data:
+        model, created = AIModel.objects.get_or_create(
+            code=model_data["code"],
+            defaults=model_data
+        )
+        if created:
+            created_count += 1
+            print(f"  생성: {model.code} - {model.name}")
+        else:
+            print(f"  스킵: {model.code} (이미 존재)")
+
+    print(f"[OK] AI 모델 생성: {created_count}개")
+    print(f"  현재 전체 AI 모델: {AIModel.objects.count()}개")
+    return True
+
+
 def print_summary():
     """더미 데이터 요약"""
     print("\n" + "="*60)
@@ -772,6 +884,7 @@ def print_summary():
     from apps.ocs.models import OCS
     from apps.menus.models import Menu, MenuLabel, MenuPermission
     from apps.accounts.models import Permission
+    from apps.ai_inference.models import AIModel
 
     print(f"\n[통계]")
     print(f"  - 메뉴: {Menu.objects.count()}개")
@@ -783,6 +896,7 @@ def print_summary():
     print(f"  - OCS (RIS): {OCS.objects.filter(job_role='RIS').count()}건")
     print(f"  - OCS (LIS): {OCS.objects.filter(job_role='LIS').count()}건")
     print(f"  - 영상 검사: {ImagingStudy.objects.count()}건")
+    print(f"  - AI 모델: {AIModel.objects.count()}개")
 
     print(f"\n[다음 단계]")
     print(f"  서버 실행:")
@@ -872,6 +986,9 @@ def main():
 
     # 검사 오더 생성 (LIS)
     create_dummy_lis_orders(20, force=force)
+
+    # AI 모델 시드 데이터 생성
+    create_ai_models()
 
     # 요약 출력
     print_summary()

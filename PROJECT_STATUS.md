@@ -1,6 +1,6 @@
 # 프로젝트 현황 (Project Status)
 
-**최종 업데이트**: 2026-01-08
+**최종 업데이트**: 2026-01-09
 **현재 버전**: Phase 3 OCS 통합 진행중
 
 ---
@@ -12,10 +12,10 @@
 | **인증/권한 시스템** | ✅ 완료 | 100% | JWT, Role 기반, WebSocket 실시간 업데이트 |
 | **환자 관리** | ✅ 완료 | 100% | CRUD, 검색, 페이지네이션 |
 | **진료 관리** | ✅ 완료 | 100% | CRUD, 고급 필터링, 통계 |
-| **OCS (오더 통합 관리)** | 🚧 진행중 | 70% | 단일 테이블 설계 완료, 에러 수정 필요 |
+| **OCS (오더 통합 관리)** | 🚧 진행중 | 75% | 단일 테이블 설계 완료, 에러 수정 필요 |
 | **영상 관리 (Imaging)** | 🚧 OCS 통합 진행중 | 80% | OCS 통합 구조 완료, OCS 에러 해결 후 테스트 필요 |
-| **검사실 (LIS)** | 📋 계획 | 0% | OCS job_role='LIS'로 관리 예정 |
-| **AI 추론** | 📋 계획 | 0% | 별도 ai_inference 앱으로 분리 예정 |
+| **검사실 (LIS)** | 🚧 진행중 | 50% | OCS job_role='LIS'로 관리, GENETIC/PROTEIN 추가 |
+| **AI 추론** | 🚧 모델 정의 완료 | 30% | ai_inference 앱 생성, 모델 3개(M1/MG/MM) 정의 |
 | **관리자** | 🚧 부분 구현 | 60% | 사용자/권한/감사로그 일부 구현 |
 
 ---
@@ -256,18 +256,61 @@ ImagingStudy (DICOM 메타데이터)
 ---
 
 ### 2. AI 추론 (ai_inference)
-**상태**: 미구현
+**상태**: 🚧 모델 정의 완료
 **우선순위**: 중
 
-#### 계획된 기능
-- 별도 ai_inference 앱으로 분리
-- AI_REQUEST, AI_JOB, AI_JOB_LOG 모델
-- OCS와 FK 연결 가능
-- Redis Queue + Worker 기본 구현
+#### 완료된 기능 (2026-01-09)
+- ✅ `apps/ai_inference/` 앱 생성
+- ✅ AIModel 모델: M1(MRI), MG(Genetic), MM(Multimodal) 정의
+- ✅ AIInferenceRequest 모델: 추론 요청 관리
+- ✅ AIInferenceResult 모델: 추론 결과 및 검토
+- ✅ AIInferenceLog 모델: 추론 과정 로깅
+- ✅ 마이그레이션 적용 완료
+- ✅ 시드 데이터 추가 (`setup_dummy_data.py`)
+
+#### 남은 작업
+- [ ] AI API Views/Serializers 구현
+- [ ] AI URL 라우팅 설정
+- [ ] AI 추론 요청 프론트엔드 페이지
+- [ ] OCS 데이터 검증 로직 (required_keys 확인)
+- [ ] Redis Queue + Worker 기본 구현 (추후)
 
 ---
 
 ## 🔧 최근 변경 사항 (Changelog)
+
+### 2026-01-09
+#### AI Inference 앱 구현
+- ✅ **AI Inference 앱 생성**
+  - `apps/ai_inference/` 앱 생성
+  - AIModel 모델: 확장 가능한 AI 모델 정의 (M1, MG, MM)
+  - AIInferenceRequest 모델: 추론 요청 관리
+  - AIInferenceResult 모델: 추론 결과 및 의사 검토
+  - AIInferenceLog 모델: 추론 과정 로깅
+
+- ✅ **AI 모델 시드 데이터 추가**
+  - `setup_dummy_data.py`에 `create_ai_models()` 함수 추가
+  - M1: MRI 4-Channel Analysis (T1, T2, T1C, FLAIR)
+  - MG: Genetic Analysis (RNA_seq)
+  - MM: Multimodal Analysis (MRI + 유전 + 단백질)
+
+- ✅ **LIS job_type 확장**
+  - `apps/ocs/models.py` job_type 도움말에 GENETIC, PROTEIN 추가
+  - `app의 기획.md` LIS worker_result 템플릿에 RNA_seq, gene_mutations, protein, protein_markers 추가
+
+#### 결과 보고서 첨부파일 표시
+- ✅ `OCSResultReportPage.tsx`에 첨부파일 섹션 추가
+- ✅ `OCSResultReportPage.css`에 첨부파일 스타일 추가
+
+#### LIS Alert 페이지 삭제
+- ❌ **LISAlertPage 삭제**
+  - `brain_tumor_front/src/pages/ocs/LISAlertPage.tsx` 파일 삭제
+  - `routeMap.tsx`에서 LIS_ALERT 매핑 제거
+  - `pages/ocs/index.ts`에서 export 제거
+  - `setup_dummy_data.py`에서 LIS_ALERT 메뉴/권한 생성 코드 제거
+  - 사유: 불필요한 기능으로 판단
+
+---
 
 ### 2026-01-08
 #### OCS-Imaging 통합 완료
@@ -479,4 +522,4 @@ brain_tumor_front/
 ---
 
 **작성자**: Claude
-**최종 업데이트**: 2026-01-08
+**최종 업데이트**: 2026-01-09

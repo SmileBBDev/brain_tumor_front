@@ -97,16 +97,21 @@ class OCS(models.Model):
     # =========================================================================
     # 작업 구분
     # =========================================================================
+    # job_role: RIS, LIS, TREATMENT, CONSULT
     job_role = models.CharField(
         max_length=20,
         verbose_name='작업 역할',
         help_text='RIS, LIS, TREATMENT, CONSULT 등'
     )
 
+    # job_type 예시:
+    # - RIS: MRI, CT, PET, X-RAY
+    # - LIS: BLOOD, GENETIC, PROTEIN, URINE, CSF, BIOPSY
+    # - TREATMENT: SURGERY, RADIATION, CHEMOTHERAPY
     job_type = models.CharField(
         max_length=50,
         verbose_name='작업 유형',
-        help_text='MRI, CT, BLOOD, SURGERY 등 (자유 입력)'
+        help_text='RIS: MRI/CT/PET/X-RAY, LIS: BLOOD/GENETIC/PROTEIN/URINE/CSF/BIOPSY, TREATMENT: SURGERY/RADIATION/CHEMOTHERAPY'
     )
 
     # =========================================================================

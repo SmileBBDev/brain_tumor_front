@@ -596,3 +596,276 @@
   padding: 6px 12px;
   font-size: 12px;
 }
+
+/* =============================================================================
+   검사 카테고리 배지
+   ============================================================================= */
+.test-category-badge {
+  margin-bottom: 16px;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.category-badge.category-blood {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.category-badge.category-genetic {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.category-badge.category-protein {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.category-badge.category-other {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+/* =============================================================================
+   유전자 검사 탭
+   ============================================================================= */
+.genetic-tab .section-card {
+  margin-bottom: 24px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.genetic-tab .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.genetic-tab .section-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+.genetic-tab .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.genetic-tab .form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+.genetic-tab .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.genetic-tab .form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.genetic-tab .form-group input,
+.genetic-tab .form-group select {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.genetic-tab .form-group input:focus,
+.genetic-tab .form-group select:focus {
+  border-color: #7b1fa2;
+  outline: none;
+}
+
+/* 유전자 변이 테이블 */
+.genetic-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.genetic-table th,
+.genetic-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.genetic-table th {
+  background: #f8f9fa;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.genetic-table td {
+  font-size: 14px;
+}
+
+.genetic-table td.empty {
+  text-align: center;
+  color: #95a5a6;
+  padding: 40px;
+}
+
+.genetic-table input,
+.genetic-table select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.genetic-table input[type="checkbox"] {
+  width: auto;
+}
+
+.genetic-table .row-pathogenic {
+  background: #fce4ec;
+}
+
+/* 임상적 의의 배지 */
+.significance {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.significance-pathogenic {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.significance-likely_pathogenic {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.significance-uncertain {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.significance-likely_benign {
+  background: #d4edda;
+  color: #155724;
+}
+
+.significance-benign {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+/* =============================================================================
+   단백질 검사 탭
+   ============================================================================= */
+.protein-tab .section-card {
+  margin-bottom: 24px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.protein-tab .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.protein-tab .section-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+.protein-tab .form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.protein-tab .form-group textarea:focus {
+  border-color: #2e7d32;
+  outline: none;
+}
+
+.protein-tab .readonly-text {
+  padding: 12px;
+  background: white;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 60px;
+}
+
+/* 단백질 마커 테이블 */
+.protein-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.protein-table th,
+.protein-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.protein-table th {
+  background: #f8f9fa;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.protein-table td {
+  font-size: 14px;
+}
+
+.protein-table td.empty {
+  text-align: center;
+  color: #95a5a6;
+  padding: 40px;
+}
+
+.protein-table input,
+.protein-table select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.protein-table input[type="checkbox"] {
+  width: auto;
+}
+
+.protein-table .row-abnormal {
+  background: #fff3cd;
+}

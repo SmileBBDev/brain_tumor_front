@@ -230,7 +230,9 @@ export const MODALITY_OPTIONS = [
 // LIS 검사 항목 옵션
 // =============================================================================
 
+// LIS 검사 유형 (job_type)
 export const LIS_TEST_TYPES = [
+  // 혈액 검사 (BLOOD)
   'CBC',
   'BMP',
   'CMP',
@@ -238,8 +240,44 @@ export const LIS_TEST_TYPES = [
   'Thyroid Panel',
   'Liver Function',
   'Renal Function',
-  'Urinalysis',
   'Tumor Markers',
   'Coagulation',
   'RFT',
+  // 유전자 검사 (GENETIC)
+  'GENETIC',
+  'RNA_SEQ',
+  'DNA_SEQ',
+  'GENE_PANEL',
+  // 단백질 검사 (PROTEIN)
+  'PROTEIN',
+  'PROTEIN_PANEL',
+  'BIOMARKER',
+  // 기타 검사
+  'URINE',
+  'CSF',
+  'BIOPSY',
 ];
+
+// LIS 검사 카테고리
+export const LIS_TEST_CATEGORIES: Record<string, string[]> = {
+  BLOOD: ['CBC', 'BMP', 'CMP', 'Lipid Panel', 'Thyroid Panel', 'Liver Function', 'Renal Function', 'Tumor Markers', 'Coagulation', 'RFT'],
+  GENETIC: ['GENETIC', 'RNA_SEQ', 'DNA_SEQ', 'GENE_PANEL'],
+  PROTEIN: ['PROTEIN', 'PROTEIN_PANEL', 'BIOMARKER'],
+  OTHER: ['URINE', 'CSF', 'BIOPSY'],
+};
+
+// 검사 유형에 따른 카테고리 반환
+export const getLISCategory = (jobType: string): string => {
+  for (const [category, types] of Object.entries(LIS_TEST_CATEGORIES)) {
+    if (types.includes(jobType)) return category;
+  }
+  return 'BLOOD'; // 기본값
+};
+
+// 검사 카테고리 한글 라벨
+export const LIS_CATEGORY_LABELS: Record<string, string> = {
+  BLOOD: '혈액 검사',
+  GENETIC: '유전자 검사',
+  PROTEIN: '단백질 검사',
+  OTHER: '기타 검사',
+};

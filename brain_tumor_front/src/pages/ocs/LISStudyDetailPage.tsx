@@ -4,16 +4,18 @@
  * - 결과 검증 및 보고 확정
  * - 의학적 해석(Interpretation) 입력
  * - 파일 업로드 기능
+ * - GENETIC/PROTEIN 검사 지원
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { getOCS, startOCS, saveOCSResult, confirmOCS } from '@/services/ocs.api';
-import type { OCSDetail } from '@/types/ocs';
+import type { OCSDetail, GeneMutation, ProteinMarker } from '@/types/ocs';
+import { getLISCategory, LIS_CATEGORY_LABELS } from '@/utils/ocs.utils';
 import './LISStudyDetailPage.css';
 
-// 탭 타입
-type TabType = 'info' | 'result' | 'interpretation' | 'history';
+// 탭 타입 - genetic, protein 탭 추가
+type TabType = 'info' | 'result' | 'genetic' | 'protein' | 'interpretation' | 'history';
 
 // 검사 결과 항목 타입
 interface LabResultItem {
@@ -32,6 +34,15 @@ interface UploadedFile {
   uploadedAt: string;
   dataUrl?: string; // Base64로 저장 (실제로는 서버 업로드 필요)
 }
+
+// 임상적 의의 라벨
+const CLINICAL_SIGNIFICANCE_LABELS: Record<string, string> = {
+  pathogenic: '병원성',
+  likely_pathogenic: '병원성 추정',
+  uncertain: '불확실',
+  likely_benign: '양성 추정',
+  benign: '양성',
+};
 
 // 날짜 포맷
 const formatDate = (dateStr: string | null): string => {
@@ -73,9 +84,22 @@ export default function LISStudyDetailPage() {
   const [interpretation, setInterpretation] = useState('');
   const [notes, setNotes] = useState('');
 
+  // 유전자 검사 (GENETIC)
+  const [geneMutations, setGeneMutations] = useState<GeneMutation[]>([]);
+  const [rnaSeqPath, setRnaSeqPath] = useState('');
+  const [sequencingMethod, setSequencingMethod] = useState('');
+  const [sequencingCoverage, setSequencingCoverage] = useState<number | ''>('');
+
+  // 단백질 검사 (PROTEIN)
+  const [proteinMarkers, setProteinMarkers] = useState<ProteinMarker[]>([]);
+  const [proteinSummary, setProteinSummary] = useState('');
+
   // 파일 업로드
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 검사 카테고리 확인
+  const testCategory = ocs ? getLISCategory(ocs.job_type) : 'BLOOD';
 
   // 데이터 로드
   const fetchOCSDetail = useCallback(async () => {
@@ -89,6 +113,7 @@ export default function LISStudyDetailPage() {
       // 기존 결과가 있으면 폼에 로드
       if (data.worker_result) {
         const result = data.worker_result as Record<string, unknown>;
+        // 기본 검사 결과
         if (result.labResults) {
           setLabResults(result.labResults as LabResultItem[]);
         }
@@ -100,6 +125,25 @@ export default function LISStudyDetailPage() {
         }
         if (result.files) {
           setUploadedFiles(result.files as UploadedFile[]);
+        }
+        // 유전자 검사 결과
+        if (result.gene_mutations) {
+          setGeneMutations(result.gene_mutations as GeneMutation[]);
+        }
+        if (result.RNA_seq) {
+          setRnaSeqPath(result.RNA_seq as string);
+        }
+        if (result.sequencing_data) {
+          const seqData = result.sequencing_data as Record<string, unknown>;
+          if (seqData.method) setSequencingMethod(seqData.method as string);
+          if (seqData.coverage) setSequencingCoverage(seqData.coverage as number);
+        }
+        // 단백질 검사 결과
+        if (result.protein_markers) {
+          setProteinMarkers(result.protein_markers as ProteinMarker[]);
+        }
+        if (result.protein) {
+          setProteinSummary(result.protein as string);
         }
       }
     } catch (error) {
@@ -151,6 +195,60 @@ export default function LISStudyDetailPage() {
     setLabResults(labResults.filter((_, i) => i !== index));
   };
 
+  // 유전자 변이 추가
+  const handleAddGeneMutation = () => {
+    setGeneMutations([
+      ...geneMutations,
+      {
+        gene_name: '',
+        mutation_type: '',
+        position: '',
+        variant: '',
+        clinical_significance: 'uncertain',
+        is_actionable: false,
+      },
+    ]);
+  };
+
+  // 유전자 변이 변경
+  const handleGeneMutationChange = (index: number, field: keyof GeneMutation, value: unknown) => {
+    const updated = [...geneMutations];
+    updated[index] = { ...updated[index], [field]: value };
+    setGeneMutations(updated);
+  };
+
+  // 유전자 변이 삭제
+  const handleRemoveGeneMutation = (index: number) => {
+    setGeneMutations(geneMutations.filter((_, i) => i !== index));
+  };
+
+  // 단백질 마커 추가
+  const handleAddProteinMarker = () => {
+    setProteinMarkers([
+      ...proteinMarkers,
+      {
+        marker_name: '',
+        value: '',
+        unit: '',
+        reference_range: '',
+        interpretation: '',
+        is_abnormal: false,
+      },
+    ]);
+  };
+
+  // 단백질 마커 변경
+  const handleProteinMarkerChange = (index: number, field: keyof ProteinMarker, value: unknown) => {
+    const updated = [...proteinMarkers];
+    updated[index] = { ...updated[index], [field]: value };
+    setProteinMarkers(updated);
+  };
+
+  // 단백질 마커 삭제
+  const handleRemoveProteinMarker = (index: number) => {
+    setProteinMarkers(proteinMarkers.filter((_, i) => i !== index));
+  };
+
   // 파일 업로드 핸들러
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -189,6 +287,37 @@ export default function LISStudyDetailPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  // worker_result 데이터 생성
+  const buildWorkerResult = () => {
+    const result: Record<string, unknown> = {
+      _template: 'LIS',
+      _version: '1.0',
+      test_type: testCategory,
+      labResults,
+      interpretation,
+      notes,
+      files: uploadedFiles,
+    };
+
+    // 유전자 검사 데이터
+    if (testCategory === 'GENETIC') {
+      result.gene_mutations = geneMutations;
+      result.RNA_seq = rnaSeqPath || null;
+      result.sequencing_data = {
+        method: sequencingMethod,
+        coverage: sequencingCoverage || null,
+      };
+    }
+
+    // 단백질 검사 데이터
+    if (testCategory === 'PROTEIN') {
+      result.protein_markers = proteinMarkers;
+      result.protein = proteinSummary || null;
+    }
+
+    return result;
+  };
+
   // 임시 저장
   const handleSave = async () => {
     if (!ocs) return;
@@ -197,10 +326,7 @@ export default function LISStudyDetailPage() {
     try {
       await saveOCSResult(ocs.id, {
         worker_result: {
-          labResults,
-          interpretation,
-          notes,
-          files: uploadedFiles,
+          ...buildWorkerResult(),
           _savedAt: new Date().toISOString(),
         },
       });
@@ -218,16 +344,27 @@ export default function LISStudyDetailPage() {
   const handleSubmit = async () => {
     if (!ocs) return;
 
-    // 검증
-    if (labResults.length === 0) {
-      alert('검사 결과를 입력해주세요.');
-      return;
-    }
-
-    const hasCritical = labResults.some((r) => r.flag === 'critical');
-    if (hasCritical && !interpretation) {
-      alert('Critical 결과가 있습니다. 해석(Interpretation)을 입력해주세요.');
-      return;
+    // 카테고리별 검증
+    if (testCategory === 'BLOOD' || testCategory === 'OTHER') {
+      if (labResults.length === 0) {
+        alert('검사 결과를 입력해주세요.');
+        return;
+      }
+      const hasCritical = labResults.some((r) => r.flag === 'critical');
+      if (hasCritical && !interpretation) {
+        alert('Critical 결과가 있습니다. 해석(Interpretation)을 입력해주세요.');
+        return;
+      }
+    } else if (testCategory === 'GENETIC') {
+      if (geneMutations.length === 0 && !rnaSeqPath) {
+        alert('유전자 검사 결과를 입력해주세요.');
+        return;
+      }
+    } else if (testCategory === 'PROTEIN') {
+      if (proteinMarkers.length === 0) {
+        alert('단백질 마커 결과를 입력해주세요.');
+        return;
+      }
     }
 
     if (!confirm('결과를 제출하시겠습니까? 제출 후에는 수정이 제한됩니다.')) {
@@ -239,10 +376,8 @@ export default function LISStudyDetailPage() {
       // LIS는 결과 제출 시 바로 확정 처리
       await confirmOCS(ocs.id, {
         worker_result: {
-          labResults,
-          interpretation,
-          notes,
-          files: uploadedFiles,
+          ...buildWorkerResult(),
+          _confirmed: true,
           _verifiedAt: new Date().toISOString(),
           _verifiedBy: user?.name,
         },
@@ -332,22 +467,63 @@ export default function LISStudyDetailPage() {
       </section>
 
       {/* 결과 요약 */}
-      {labResults.length > 0 && (
+      {(labResults.length > 0 || geneMutations.length > 0 || proteinMarkers.length > 0) && (
         <section className="result-summary">
-          <div className="summary-card">
-            <span className="count">{labResults.length}</span>
-            <span className="label">전체 항목</span>
-          </div>
-          <div className="summary-card abnormal">
-            <span className="count">{abnormalCount}</span>
-            <span className="label">이상 항목</span>
-          </div>
-          <div className="summary-card critical">
-            <span className="count">{criticalCount}</span>
-            <span className="label">Critical</span>
-          </div>
+          {(testCategory === 'BLOOD' || testCategory === 'OTHER') && (
+            <>
+              <div className="summary-card">
+                <span className="count">{labResults.length}</span>
+                <span className="label">전체 항목</span>
+              </div>
+              <div className="summary-card abnormal">
+                <span className="count">{abnormalCount}</span>
+                <span className="label">이상 항목</span>
+              </div>
+              <div className="summary-card critical">
+                <span className="count">{criticalCount}</span>
+                <span className="label">Critical</span>
+              </div>
+            </>
+          )}
+          {testCategory === 'GENETIC' && (
+            <>
+              <div className="summary-card">
+                <span className="count">{geneMutations.length}</span>
+                <span className="label">유전자 변이</span>
+              </div>
+              <div className="summary-card abnormal">
+                <span className="count">
+                  {geneMutations.filter((m) => m.clinical_significance === 'pathogenic' || m.clinical_significance === 'likely_pathogenic').length}
+                </span>
+                <span className="label">병원성</span>
+              </div>
+              <div className="summary-card critical">
+                <span className="count">{geneMutations.filter((m) => m.is_actionable).length}</span>
+                <span className="label">치료 가능</span>
+              </div>
+            </>
+          )}
+          {testCategory === 'PROTEIN' && (
+            <>
+              <div className="summary-card">
+                <span className="count">{proteinMarkers.length}</span>
+                <span className="label">단백질 마커</span>
+              </div>
+              <div className="summary-card abnormal">
+                <span className="count">{proteinMarkers.filter((m) => m.is_abnormal).length}</span>
+                <span className="label">이상 소견</span>
+              </div>
+            </>
+          )}
         </section>
       )}
+
+      {/* 검사 유형 표시 */}
+      <div className="test-category-badge">
+        <span className={`category-badge category-${testCategory.toLowerCase()}`}>
+          {LIS_CATEGORY_LABELS[testCategory] || testCategory}
+        </span>
+      </div>
 
       {/* 탭 메뉴 */}
       <nav className="tab-nav">
@@ -357,12 +533,30 @@ export default function LISStudyDetailPage() {
         >
           검사 정보
         </button>
-        <button
-          className={activeTab === 'result' ? 'active' : ''}
-          onClick={() => setActiveTab('result')}
-        >
-          검사 결과
-        </button>
+        {(testCategory === 'BLOOD' || testCategory === 'OTHER') && (
+          <button
+            className={activeTab === 'result' ? 'active' : ''}
+            onClick={() => setActiveTab('result')}
+          >
+            검사 결과
+          </button>
+        )}
+        {testCategory === 'GENETIC' && (
+          <button
+            className={activeTab === 'genetic' ? 'active' : ''}
+            onClick={() => setActiveTab('genetic')}
+          >
+            유전자 분석
+          </button>
+        )}
+        {testCategory === 'PROTEIN' && (
+          <button
+            className={activeTab === 'protein' ? 'active' : ''}
+            onClick={() => setActiveTab('protein')}
+          >
+            단백질 분석
+          </button>
+        )}
         <button
           className={activeTab === 'interpretation' ? 'active' : ''}
           onClick={() => setActiveTab('interpretation')}
@@ -585,6 +779,349 @@ export default function LISStudyDetailPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* 유전자 검사 탭 */}
+        {activeTab === 'genetic' && (
+          <div className="genetic-tab">
+            {/* RNA 시퀀싱 정보 */}
+            <div className="section-card">
+              <div className="section-header">
+                <h4>RNA 시퀀싱 정보</h4>
+              </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>시퀀싱 방법</label>
+                  {canEdit ? (
+                    <select
+                      value={sequencingMethod}
+                      onChange={(e) => setSequencingMethod(e.target.value)}
+                    >
+                      <option value="">선택하세요</option>
+                      <option value="NGS">NGS (Next-Generation Sequencing)</option>
+                      <option value="Sanger">Sanger Sequencing</option>
+                      <option value="WGS">Whole Genome Sequencing</option>
+                      <option value="WES">Whole Exome Sequencing</option>
+                      <option value="RNA-seq">RNA Sequencing</option>
+                    </select>
+                  ) : (
+                    <span>{sequencingMethod || '-'}</span>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label>커버리지 (%)</label>
+                  {canEdit ? (
+                    <input
+                      type="number"
+                      value={sequencingCoverage}
+                      onChange={(e) => setSequencingCoverage(e.target.value ? parseFloat(e.target.value) : '')}
+                      placeholder="예: 99.5"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                    />
+                  ) : (
+                    <span>{sequencingCoverage ? `${sequencingCoverage}%` : '-'}</span>
+                  )}
+                </div>
+                <div className="form-group full-width">
+                  <label>RNA 시퀀싱 데이터 경로</label>
+                  {canEdit ? (
+                    <input
+                      type="text"
+                      value={rnaSeqPath}
+                      onChange={(e) => setRnaSeqPath(e.target.value)}
+                      placeholder="파일 경로 또는 URL 입력"
+                    />
+                  ) : (
+                    <span>{rnaSeqPath || '-'}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 유전자 변이 목록 */}
+            <div className="section-card">
+              <div className="section-header">
+                <h4>유전자 변이 분석</h4>
+                {canEdit && (
+                  <button className="btn btn-sm btn-primary" onClick={handleAddGeneMutation}>
+                    + 변이 추가
+                  </button>
+                )}
+              </div>
+              <table className="genetic-table">
+                <thead>
+                  <tr>
+                    <th>유전자</th>
+                    <th>변이 유형</th>
+                    <th>변이 정보</th>
+                    <th>위치</th>
+                    <th>임상적 의의</th>
+                    <th>치료 가능</th>
+                    {canEdit && <th>삭제</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {geneMutations.length === 0 ? (
+                    <tr>
+                      <td colSpan={canEdit ? 7 : 6} className="empty">
+                        유전자 변이 데이터가 없습니다.
+                        {canEdit && ' "변이 추가" 버튼을 클릭하여 결과를 입력하세요.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    geneMutations.map((mutation, index) => (
+                      <tr key={index} className={mutation.clinical_significance === 'pathogenic' || mutation.clinical_significance === 'likely_pathogenic' ? 'row-pathogenic' : ''}>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={mutation.gene_name}
+                              onChange={(e) => handleGeneMutationChange(index, 'gene_name', e.target.value)}
+                              placeholder="예: TP53"
+                            />
+                          ) : (
+                            mutation.gene_name
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <select
+                              value={mutation.mutation_type}
+                              onChange={(e) => handleGeneMutationChange(index, 'mutation_type', e.target.value)}
+                            >
+                              <option value="">선택</option>
+                              <option value="missense">Missense</option>
+                              <option value="nonsense">Nonsense</option>
+                              <option value="frameshift">Frameshift</option>
+                              <option value="deletion">Deletion</option>
+                              <option value="insertion">Insertion</option>
+                              <option value="duplication">Duplication</option>
+                              <option value="splice_site">Splice Site</option>
+                            </select>
+                          ) : (
+                            mutation.mutation_type
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={mutation.variant || ''}
+                              onChange={(e) => handleGeneMutationChange(index, 'variant', e.target.value)}
+                              placeholder="예: R132H"
+                            />
+                          ) : (
+                            mutation.variant || '-'
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={mutation.position || ''}
+                              onChange={(e) => handleGeneMutationChange(index, 'position', e.target.value)}
+                              placeholder="예: chr17:7577538"
+                            />
+                          ) : (
+                            mutation.position || '-'
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <select
+                              value={mutation.clinical_significance}
+                              onChange={(e) => handleGeneMutationChange(index, 'clinical_significance', e.target.value)}
+                            >
+                              <option value="pathogenic">병원성</option>
+                              <option value="likely_pathogenic">병원성 추정</option>
+                              <option value="uncertain">불확실</option>
+                              <option value="likely_benign">양성 추정</option>
+                              <option value="benign">양성</option>
+                            </select>
+                          ) : (
+                            <span className={`significance significance-${mutation.clinical_significance}`}>
+                              {CLINICAL_SIGNIFICANCE_LABELS[mutation.clinical_significance || 'uncertain']}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="checkbox"
+                              checked={mutation.is_actionable || false}
+                              onChange={(e) => handleGeneMutationChange(index, 'is_actionable', e.target.checked)}
+                            />
+                          ) : (
+                            mutation.is_actionable ? '예' : '아니오'
+                          )}
+                        </td>
+                        {canEdit && (
+                          <td>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleRemoveGeneMutation(index)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 단백질 검사 탭 */}
+        {activeTab === 'protein' && (
+          <div className="protein-tab">
+            <div className="section-card">
+              <div className="section-header">
+                <h4>단백질 분석 요약</h4>
+              </div>
+              <div className="form-group">
+                {canEdit ? (
+                  <textarea
+                    value={proteinSummary}
+                    onChange={(e) => setProteinSummary(e.target.value)}
+                    placeholder="단백질 분석 결과 요약을 입력하세요..."
+                    rows={3}
+                  />
+                ) : (
+                  <div className="readonly-text">{proteinSummary || '요약 없음'}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="section-card">
+              <div className="section-header">
+                <h4>단백질 마커 분석</h4>
+                {canEdit && (
+                  <button className="btn btn-sm btn-primary" onClick={handleAddProteinMarker}>
+                    + 마커 추가
+                  </button>
+                )}
+              </div>
+              <table className="protein-table">
+                <thead>
+                  <tr>
+                    <th>마커명</th>
+                    <th>결과값</th>
+                    <th>단위</th>
+                    <th>참고 범위</th>
+                    <th>해석</th>
+                    <th>이상 여부</th>
+                    {canEdit && <th>삭제</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {proteinMarkers.length === 0 ? (
+                    <tr>
+                      <td colSpan={canEdit ? 7 : 6} className="empty">
+                        단백질 마커 데이터가 없습니다.
+                        {canEdit && ' "마커 추가" 버튼을 클릭하여 결과를 입력하세요.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    proteinMarkers.map((marker, index) => (
+                      <tr key={index} className={marker.is_abnormal ? 'row-abnormal' : ''}>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={marker.marker_name}
+                              onChange={(e) => handleProteinMarkerChange(index, 'marker_name', e.target.value)}
+                              placeholder="예: EGFR"
+                            />
+                          ) : (
+                            marker.marker_name
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={marker.value}
+                              onChange={(e) => handleProteinMarkerChange(index, 'value', e.target.value)}
+                              placeholder="결과값"
+                            />
+                          ) : (
+                            marker.value
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={marker.unit || ''}
+                              onChange={(e) => handleProteinMarkerChange(index, 'unit', e.target.value)}
+                              placeholder="단위"
+                            />
+                          ) : (
+                            marker.unit || '-'
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="text"
+                              value={marker.reference_range || ''}
+                              onChange={(e) => handleProteinMarkerChange(index, 'reference_range', e.target.value)}
+                              placeholder="참고 범위"
+                            />
+                          ) : (
+                            marker.reference_range || '-'
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <select
+                              value={marker.interpretation || ''}
+                              onChange={(e) => handleProteinMarkerChange(index, 'interpretation', e.target.value)}
+                            >
+                              <option value="">선택</option>
+                              <option value="양성">양성 (Positive)</option>
+                              <option value="음성">음성 (Negative)</option>
+                              <option value="과발현">과발현 (Overexpressed)</option>
+                              <option value="저발현">저발현 (Underexpressed)</option>
+                              <option value="정상">정상 (Normal)</option>
+                            </select>
+                          ) : (
+                            marker.interpretation || '-'
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              type="checkbox"
+                              checked={marker.is_abnormal || false}
+                              onChange={(e) => handleProteinMarkerChange(index, 'is_abnormal', e.target.checked)}
+                            />
+                          ) : (
+                            marker.is_abnormal ? <span className="flag flag-abnormal">이상</span> : <span className="flag flag-normal">정상</span>
+                          )}
+                        </td>
+                        {canEdit && (
+                          <td>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleRemoveProteinMarker(index)}
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

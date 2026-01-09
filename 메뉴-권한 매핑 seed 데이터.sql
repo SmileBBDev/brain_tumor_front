@@ -411,18 +411,18 @@ INSERT INTO brain_tumor.menus_menulabel (`role`,`text`,menu_id) VALUES
 -- =============================================================================
 -- OCS (Order Communication System) 역할별 메뉴 추가
 -- =============================================================================
--- OCS_ORDER: 의사용 검사 오더 생성/관리
--- OCS_RIS: RIS 작업자용 영상 워크리스트
--- OCS_LIS: LIS 작업자용 검사 워크리스트
+-- OCS_ORDER: 의사용 검사 오더 생성/관리 → ORDER 그룹 (parent_id=6)
+-- OCS_RIS: RIS 작업자용 영상 워크리스트 → IMAGING 그룹 (parent_id=4)
+-- OCS_LIS: LIS 작업자용 검사 워크리스트 → LAB 그룹 (parent_id=5)
 -- =============================================================================
 
--- 1. 메뉴 추가 (ORDER 그룹 하위, parent_id=6)
+-- 1. 메뉴 추가 (역할 기반 그룹 분리)
 INSERT INTO menus_menu
 (id, code, path, icon, group_label, breadcrumb_only, `order`, is_active, parent_id)
 VALUES
 (23, 'OCS_ORDER', '/ocs/order', 'file-medical', NULL, 0, 3, 1, 6),
-(24, 'OCS_RIS', '/ocs/ris', 'x-ray', NULL, 0, 4, 1, 6),
-(25, 'OCS_LIS', '/ocs/lis', 'flask', NULL, 0, 5, 1, 6);
+(24, 'OCS_RIS', '/ocs/ris', 'x-ray', NULL, 0, 3, 1, 4),
+(25, 'OCS_LIS', '/ocs/lis', 'flask', NULL, 0, 3, 1, 5);
 
 -- 2. 권한 추가
 INSERT INTO accounts_permission (code, name, description)
@@ -468,4 +468,18 @@ INSERT INTO brain_tumor.menus_menulabel (`role`,`text`,menu_id) VALUES
 	('DEFAULT', '검사 오더', 23),
 	('DEFAULT', '영상 워크리스트', 24),
 	('DEFAULT', '검사 워크리스트', 25);
+
+
+-- =============================================================================
+-- 기존 DB 마이그레이션 (OCS 메뉴 그룹 재배치)
+-- =============================================================================
+-- 이미 데이터가 있는 경우, 아래 쿼리로 parent_id만 변경하면 됩니다.
+-- OCS_RIS, RIS_DASHBOARD → IMAGING 그룹 (parent_id=4)
+-- OCS_LIS, LIS_PROCESS_STATUS → LAB 그룹 (parent_id=5)
+-- =============================================================================
+
+-- UPDATE menus_menu SET parent_id = 4 WHERE code = 'OCS_RIS';
+-- UPDATE menus_menu SET parent_id = 4 WHERE code = 'RIS_DASHBOARD';
+-- UPDATE menus_menu SET parent_id = 5 WHERE code = 'OCS_LIS';
+-- UPDATE menus_menu SET parent_id = 5 WHERE code = 'LIS_PROCESS_STATUS';
 
