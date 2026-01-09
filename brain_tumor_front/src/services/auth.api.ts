@@ -11,9 +11,8 @@ export const fetchMenu = () =>
     api.get('/auth/menu/');
 
 // 비밀번호 변경 api
-export const changePassword = async(old_password : string, new_password : string ) => {
-    return api.post('/auth/change-password/', {old_password, new_password});
-}
+export const changePassword = async(old_password : string, new_password : string ) => 
+    {return api.post('/auth/change-password/', {old_password, new_password});}
 
 // vite.config.ts 타야 하는 로직
 // export const changePassword = async(
