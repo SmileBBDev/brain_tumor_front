@@ -93,7 +93,7 @@ export default function AppHeader({ onToggleSidebar }: AppHeaderProps) {
       </div>
 
       {/* 우측 : 사용자 정보 */}
-      <div className="header-right">
+      <div className="headerRight">
         <div className="user-info">
             <span className="role">{user?.role.name}</span>
             <span className="divider">|</span>
