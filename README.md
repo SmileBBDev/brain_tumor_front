@@ -133,22 +133,7 @@ daphne -b 127.0.0.1 -p 8000 config.asgi:application
 - 메뉴, 사용자 데이터 생성 가능
 
 **더미 데이터 생성 스크립트**
-- 📁 위치: `brain_tumor_back/dummy_data/`
-- 📖 자세한 사용법: [dummy_data/README.md](brain_tumor_back/dummy_data/README.md) 참조
 
-**빠른 시작:**
-```bash
-cd brain_tumor_back
-
-# 1. 환자 데이터 (30명)
-python manage.py shell -c "exec(open('dummy_data/create_dummy_patients.py', encoding='utf-8').read())"
-
-# 2. 진료 데이터 (20건)
-python manage.py shell -c "exec(open('dummy_data/create_dummy_encounters.py', encoding='utf-8').read())"
-
-# 3. 영상 검사 데이터 (30건 검사, 20건 판독문)
-python manage.py shell -c "from dummy_data.create_dummy_imaging import create_dummy_imaging_studies; create_dummy_imaging_studies(30, 20)"
-```
 
 <br/>
 <br/>
