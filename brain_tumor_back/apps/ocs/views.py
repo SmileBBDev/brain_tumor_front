@@ -481,3 +481,287 @@ class OCSViewSet(viewsets.ModelViewSet):
         history = ocs.history.all()
         serializer = OCSHistorySerializer(history, many=True)
         return Response(serializer.data)
+
+    # =========================================================================
+    # 파일 업로드 API (LIS 외부 기관 데이터)
+    # =========================================================================
+
+    @extend_schema(
+        summary="LIS 파일 업로드",
+        description="외부 LIS/검사 장비의 Raw 데이터 파일을 업로드합니다. CSV, HL7, JSON, XML 형식을 지원합니다."
+    )
+    @action(detail=True, methods=['post'], url_path='upload_lis_file')
+    def upload_lis_file(self, request, pk=None):
+        """
+        LIS 파일 업로드
+        - 외부 기관 검사 결과 파일 업로드
+        - attachments 필드에 파일 정보 및 외부 기관 메타데이터 저장
+        """
+        ocs = self.get_object()
+
+        # LIS job_role 검증
+        if ocs.job_role != 'LIS':
+            return Response(
+                {'error': 'LIS 오더에만 파일을 업로드할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 파일 검증
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'error': '파일이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 파일 확장자 검증
+        allowed_extensions = ['.csv', '.hl7', '.json', '.xml']
+        file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
+        if file_ext not in allowed_extensions:
+            return Response(
+                {'error': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 파일 크기 검증 (10MB)
+        max_size = 10 * 1024 * 1024
+        if uploaded_file.size > max_size:
+            return Response(
+                {'error': '파일 크기가 10MB를 초과합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 외부 기관 정보 파싱 (선택적)
+        external_source = {
+            "institution": {
+                "name": request.data.get('institution_name') or None,
+                "code": request.data.get('institution_code') or None,
+                "contact": request.data.get('institution_contact') or None,
+                "address": request.data.get('institution_address') or None,
+            },
+            "execution": {
+                "performed_date": request.data.get('performed_date') or None,
+                "performed_by": request.data.get('performed_by') or None,
+                "specimen_collected_date": request.data.get('specimen_collected_date') or None,
+                "specimen_type": request.data.get('specimen_type') or None,
+            },
+            "quality": {
+                "lab_certification_number": request.data.get('lab_certification_number') or None,
+                "qc_status": request.data.get('qc_status') or None,
+                "is_verified": request.data.get('is_verified', 'false').lower() == 'true',
+            },
+        }
+
+        # TODO: 실제 파일 저장 로직 (S3, 로컬 등)
+        # 현재는 파일 정보만 기록
+        file_info = {
+            "name": uploaded_file.name,
+            "size": uploaded_file.size,
+            "content_type": uploaded_file.content_type,
+            "uploaded_at": timezone.now().isoformat(),
+            "uploaded_by": request.user.id,
+        }
+
+        # attachments 업데이트
+        attachments = ocs.attachments or {}
+        if not isinstance(attachments, dict):
+            attachments = {}
+
+        # files 배열에 추가
+        if 'files' not in attachments:
+            attachments['files'] = []
+        attachments['files'].append(file_info)
+
+        # 외부 기관 정보 저장
+        attachments['external_source'] = external_source
+        attachments['total_size'] = sum(f.get('size', 0) for f in attachments.get('files', []))
+        attachments['last_modified'] = timezone.now().isoformat()
+
+        ocs.attachments = attachments
+        ocs.save(update_fields=['attachments', 'updated_at'])
+
+        # 이력 기록
+        OCSHistory.objects.create(
+            ocs=ocs,
+            action=OCSHistory.Action.RESULT_SAVED,
+            actor=request.user,
+            reason=f'LIS 파일 업로드: {uploaded_file.name}',
+            ip_address=self._get_client_ip(request)
+        )
+
+        return Response({
+            'message': '파일이 성공적으로 업로드되었습니다.',
+            'file': file_info,
+            'external_source': external_source,
+            'ocs': OCSDetailSerializer(ocs).data
+        })
+
+    # =========================================================================
+    # 외부 기관 LIS 데이터 생성 API
+    # =========================================================================
+
+    @extend_schema(
+        summary="외부 기관 LIS 데이터 생성",
+        description="외부 기관에서 수신한 검사 결과를 새 OCS로 등록합니다. OCS ID는 extr_0001 형식으로 자동 생성됩니다."
+    )
+    @action(detail=False, methods=['post'], url_path='create_external_lis')
+    @transaction.atomic
+    def create_external_lis(self, request):
+        """
+        외부 기관 LIS 데이터 생성
+        - 외부 기관 검사 결과를 새 OCS로 등록
+        - OCS ID: extr_0001 형식
+        - 파일 업로드 + 외부 기관 메타데이터 저장
+        """
+        from apps.patients.models import Patient
+
+        # 필수 파라미터 검증
+        patient_id = request.data.get('patient_id')
+        if not patient_id:
+            return Response(
+                {'error': 'patient_id가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            patient = Patient.objects.get(id=patient_id, is_deleted=False)
+        except Patient.DoesNotExist:
+            return Response(
+                {'error': '환자를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 파일 검증
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'error': '파일이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 파일 확장자 검증
+        allowed_extensions = ['.csv', '.hl7', '.json', '.xml']
+        file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
+        if file_ext not in allowed_extensions:
+            return Response(
+                {'error': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 파일 크기 검증 (10MB)
+        max_size = 10 * 1024 * 1024
+        if uploaded_file.size > max_size:
+            return Response(
+                {'error': '파일 크기가 10MB를 초과합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 외부용 OCS ID 생성 (extr_0001 형식)
+        external_ocs_id = self._generate_external_ocs_id()
+
+        # job_type 결정 (기본값 또는 파라미터)
+        job_type = request.data.get('job_type', 'EXTERNAL')
+
+        # 외부 기관 정보 파싱
+        external_source = {
+            "institution": {
+                "name": request.data.get('institution_name') or None,
+                "code": request.data.get('institution_code') or None,
+                "contact": request.data.get('institution_contact') or None,
+                "address": request.data.get('institution_address') or None,
+            },
+            "execution": {
+                "performed_date": request.data.get('performed_date') or None,
+                "performed_by": request.data.get('performed_by') or None,
+                "specimen_collected_date": request.data.get('specimen_collected_date') or None,
+                "specimen_type": request.data.get('specimen_type') or None,
+            },
+            "quality": {
+                "lab_certification_number": request.data.get('lab_certification_number') or None,
+                "qc_status": request.data.get('qc_status') or None,
+                "is_verified": request.data.get('is_verified', 'false').lower() == 'true',
+            },
+        }
+
+        # 파일 정보
+        file_info = {
+            "name": uploaded_file.name,
+            "size": uploaded_file.size,
+            "content_type": uploaded_file.content_type,
+            "uploaded_at": timezone.now().isoformat(),
+            "uploaded_by": request.user.id,
+        }
+
+        # attachments 구성
+        attachments = {
+            "files": [file_info],
+            "external_source": external_source,
+            "total_size": uploaded_file.size,
+            "last_modified": timezone.now().isoformat(),
+            "_custom": {}
+        }
+
+        # OCS 생성
+        ocs = OCS.objects.create(
+            ocs_id=external_ocs_id,
+            patient=patient,
+            doctor=request.user,  # 업로드한 사용자를 doctor로 설정
+            worker=request.user,  # 외부 데이터는 업로드한 사용자가 작업자
+            job_role='LIS',
+            job_type=job_type,
+            ocs_status=OCS.OcsStatus.RESULT_READY,  # 외부 데이터는 바로 결과 대기 상태
+            priority=request.data.get('priority', OCS.Priority.NORMAL),
+            attachments=attachments,
+            worker_result={
+                "_template": "LIS",
+                "_version": "1.0",
+                "_confirmed": False,
+                "_external": True,  # 외부 데이터 표시
+                "test_results": [],
+                "summary": request.data.get('summary', ''),
+                "interpretation": request.data.get('interpretation', ''),
+                "_custom": {}
+            },
+            doctor_request={
+                "_template": "external",
+                "_version": "1.0",
+                "source": "external_upload",
+                "original_filename": uploaded_file.name,
+                "_custom": {}
+            },
+            accepted_at=timezone.now(),
+            in_progress_at=timezone.now(),
+            result_ready_at=timezone.now(),
+        )
+
+        # 이력 기록
+        OCSHistory.objects.create(
+            ocs=ocs,
+            action=OCSHistory.Action.CREATED,
+            actor=request.user,
+            to_status=OCS.OcsStatus.RESULT_READY,
+            reason=f'외부 기관 LIS 데이터 업로드: {uploaded_file.name}',
+            ip_address=self._get_client_ip(request)
+        )
+
+        return Response({
+            'message': '외부 기관 검사 결과가 등록되었습니다.',
+            'ocs_id': external_ocs_id,
+            'file': file_info,
+            'external_source': external_source,
+            'ocs': OCSDetailSerializer(ocs).data
+        }, status=status.HTTP_201_CREATED)
+
+    def _generate_external_ocs_id(self):
+        """외부 데이터용 OCS ID 생성 (extr_0001 형식)"""
+        last_external = OCS.objects.filter(
+            ocs_id__startswith='extr_'
+        ).order_by('-ocs_id').first()
+
+        if last_external and last_external.ocs_id:
+            try:
+                last_num = int(last_external.ocs_id.split('_')[1])
+                return f"extr_{last_num + 1:04d}"
+            except (ValueError, IndexError):
+                pass
+        return "extr_0001"

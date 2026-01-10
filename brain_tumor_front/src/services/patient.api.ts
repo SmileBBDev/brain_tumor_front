@@ -55,3 +55,35 @@ export const getPatientStatistics = async (): Promise<PatientStatistics> => {
   const response = await api.get<PatientStatistics>('/patients/statistics/');
   return response.data;
 };
+
+// =============================================================================
+// 외부 환자 등록 API
+// =============================================================================
+
+// 외부 환자 생성 요청 타입
+export interface CreateExternalPatientRequest {
+  name: string;
+  birth_date: string;  // YYYY-MM-DD
+  gender: 'M' | 'F' | 'O';
+  phone?: string;
+  address?: string;
+  institution_name?: string;
+  external_patient_id?: string;
+}
+
+// 외부 환자 생성 응답 타입
+export interface CreateExternalPatientResponse {
+  message: string;
+  patient: Patient;
+}
+
+// 외부 환자 등록 (EXTR_XXXX 형식)
+export const createExternalPatient = async (
+  data: CreateExternalPatientRequest
+): Promise<CreateExternalPatientResponse> => {
+  const response = await api.post<CreateExternalPatientResponse>(
+    '/patients/create_external/',
+    data
+  );
+  return response.data;
+};

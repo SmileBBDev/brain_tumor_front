@@ -149,6 +149,141 @@ export const getOCSHistory = async (ocsId: number): Promise<OCSHistory[]> => {
 };
 
 // =============================================================================
+// LIS 파일 업로드 API
+// =============================================================================
+
+// 외부 기관 정보 타입
+export interface LISExternalSourceData {
+  // 기관 정보
+  institution_name?: string;
+  institution_code?: string;
+  institution_contact?: string;
+  institution_address?: string;
+  // 검사 수행 정보
+  performed_date?: string;
+  performed_by?: string;
+  specimen_collected_date?: string;
+  specimen_type?: string;
+  // 품질/인증 정보
+  lab_certification_number?: string;
+  qc_status?: string;
+  is_verified?: string;
+}
+
+// LIS 파일 업로드 응답 타입
+export interface LISUploadResponse {
+  message: string;
+  file: {
+    name: string;
+    size: number;
+    content_type: string;
+    uploaded_at: string;
+    uploaded_by: number;
+  };
+  external_source: {
+    institution: {
+      name: string | null;
+      code: string | null;
+      contact: string | null;
+      address: string | null;
+    };
+    execution: {
+      performed_date: string | null;
+      performed_by: string | null;
+      specimen_collected_date: string | null;
+      specimen_type: string | null;
+    };
+    quality: {
+      lab_certification_number: string | null;
+      qc_status: string | null;
+      is_verified: boolean;
+    };
+  };
+  ocs: OCSDetail;
+}
+
+// LIS 파일 업로드 (기존 OCS에 파일 추가)
+export const uploadLISFile = async (
+  ocsId: number,
+  file: File,
+  externalData?: LISExternalSourceData
+): Promise<LISUploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // 외부 기관 정보 추가
+  if (externalData) {
+    Object.entries(externalData).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        formData.append(key, value);
+      }
+    });
+  }
+
+  const response = await api.post<LISUploadResponse>(
+    `/ocs/${ocsId}/upload_lis_file/`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+// 외부 기관 LIS 데이터 생성 요청 타입
+export interface CreateExternalLISRequest extends LISExternalSourceData {
+  patient_id: number;
+  job_type?: string;
+  priority?: 'urgent' | 'normal';
+  summary?: string;
+  interpretation?: string;
+}
+
+// 외부 기관 LIS 데이터 생성 응답 타입
+export interface CreateExternalLISResponse {
+  message: string;
+  ocs_id: string;  // extr_0001 형식
+  file: {
+    name: string;
+    size: number;
+    content_type: string;
+    uploaded_at: string;
+    uploaded_by: number;
+  };
+  external_source: LISUploadResponse['external_source'];
+  ocs: OCSDetail;
+}
+
+// 외부 기관 LIS 데이터 생성 (새 OCS 생성 + 파일 업로드)
+export const createExternalLIS = async (
+  file: File,
+  data: CreateExternalLISRequest
+): Promise<CreateExternalLISResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // 모든 데이터 추가
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') {
+      formData.append(key, String(value));
+    }
+  });
+
+  const response = await api.post<CreateExternalLISResponse>(
+    '/ocs/create_external_lis/',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+// =============================================================================
 // localStorage 유틸리티
 // =============================================================================
 

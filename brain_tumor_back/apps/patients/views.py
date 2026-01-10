@@ -166,3 +166,107 @@ def patient_statistics(request):
     """
     stats = PatientService.get_patient_statistics()
     return Response(stats)
+
+
+def _generate_external_patient_number():
+    """외부 환자용 환자번호 생성 (EXTR_0001 형식)"""
+    last_external = Patient.objects.filter(
+        patient_number__startswith='EXTR_'
+    ).order_by('-patient_number').first()
+
+    if last_external and last_external.patient_number:
+        try:
+            last_num = int(last_external.patient_number.split('_')[1])
+            return f"EXTR_{last_num + 1:04d}"
+        except (ValueError, IndexError):
+            pass
+    return "EXTR_0001"
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_external_patient(request):
+    """
+    외부 기관 환자 등록
+
+    외부 검사 결과를 업로드할 때 환자가 시스템에 등록되지 않은 경우
+    간소화된 정보로 환자를 등록합니다.
+
+    Required fields:
+        - name: 환자명
+        - birth_date: 생년월일 (YYYY-MM-DD)
+        - gender: 성별 (M/F/O)
+
+    Optional fields:
+        - phone: 전화번호
+        - institution_name: 외부 기관명
+        - external_patient_id: 외부 기관의 환자 ID
+    """
+    # 필수 필드 검증
+    name = request.data.get('name')
+    birth_date = request.data.get('birth_date')
+    gender = request.data.get('gender')
+
+    if not all([name, birth_date, gender]):
+        return Response(
+            {'error': '필수 정보가 누락되었습니다. (이름, 생년월일, 성별)'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 성별 검증
+    if gender not in ['M', 'F', 'O']:
+        return Response(
+            {'error': '성별은 M, F, O 중 하나여야 합니다.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 생년월일 형식 검증
+    from datetime import datetime
+    try:
+        birth_date_parsed = datetime.strptime(birth_date, '%Y-%m-%d').date()
+    except ValueError:
+        return Response(
+            {'error': '생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 외부 환자번호 생성
+    patient_number = _generate_external_patient_number()
+
+    # 외부 기관 정보 (메타데이터로 저장)
+    external_info = {}
+    if request.data.get('institution_name'):
+        external_info['institution_name'] = request.data.get('institution_name')
+    if request.data.get('external_patient_id'):
+        external_info['external_patient_id'] = request.data.get('external_patient_id')
+
+    # SSN 생성 (외부 환자는 가상의 SSN 사용)
+    # 형식: EXTR_{환자번호}_{타임스탬프}
+    import time
+    virtual_ssn = f"EXTR_{patient_number}_{int(time.time())}"
+
+    try:
+        patient = Patient.objects.create(
+            patient_number=patient_number,
+            name=name,
+            birth_date=birth_date_parsed,
+            gender=gender,
+            phone=request.data.get('phone', '000-0000-0000'),  # 기본값
+            ssn=virtual_ssn,
+            address=request.data.get('address', ''),
+            status='active',
+            registered_by=request.user,
+            # 외부 환자 관련 메타 정보는 chronic_diseases JSON 필드 활용
+            chronic_diseases=external_info if external_info else [],
+        )
+
+        return Response({
+            'message': '외부 환자가 등록되었습니다.',
+            'patient': PatientDetailSerializer(patient).data
+        }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        return Response(
+            {'error': f'환자 등록 중 오류가 발생했습니다: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

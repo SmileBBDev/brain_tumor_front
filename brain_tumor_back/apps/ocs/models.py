@@ -361,6 +361,26 @@ class OCS(models.Model):
             "zip_url": None,
             "total_size": 0,
             "last_modified": None,
+            # 외부 기관 데이터 (LIS 업로드 시 사용)
+            "external_source": {
+                "institution": {
+                    "name": None,           # 기관명
+                    "code": None,           # 기관코드
+                    "contact": None,        # 연락처
+                    "address": None,        # 주소
+                },
+                "execution": {
+                    "performed_date": None,         # 검사 수행일
+                    "performed_by": None,           # 검사자명
+                    "specimen_collected_date": None,# 검체 채취일
+                    "specimen_type": None,          # 검체 종류
+                },
+                "quality": {
+                    "lab_certification_number": None,  # 검사실 인증번호
+                    "qc_status": None,                 # QC 상태
+                    "is_verified": False,              # 검증 여부
+                },
+            },
             "_custom": {}
         }
 
