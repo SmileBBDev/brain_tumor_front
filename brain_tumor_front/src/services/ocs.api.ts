@@ -284,6 +284,141 @@ export const createExternalLIS = async (
 };
 
 // =============================================================================
+// RIS 파일 업로드 API
+// =============================================================================
+
+// RIS 외부 기관 정보 타입
+export interface RISExternalSourceData {
+  // 기관 정보
+  institution_name?: string;
+  institution_code?: string;
+  institution_contact?: string;
+  institution_address?: string;
+  // 촬영 수행 정보
+  performed_date?: string;
+  performed_by?: string;
+  modality?: string;
+  body_part?: string;
+  // 품질/인증 정보
+  equipment_certification_number?: string;
+  qc_status?: string;
+  is_verified?: string;
+}
+
+// RIS 파일 업로드 응답 타입
+export interface RISUploadResponse {
+  message: string;
+  file: {
+    name: string;
+    size: number;
+    content_type: string;
+    uploaded_at: string;
+    uploaded_by: number;
+  };
+  external_source: {
+    institution: {
+      name: string | null;
+      code: string | null;
+      contact: string | null;
+      address: string | null;
+    };
+    execution: {
+      performed_date: string | null;
+      performed_by: string | null;
+      modality: string | null;
+      body_part: string | null;
+    };
+    quality: {
+      equipment_certification_number: string | null;
+      qc_status: string | null;
+      is_verified: boolean;
+    };
+  };
+  ocs: OCSDetail;
+}
+
+// RIS 파일 업로드 (기존 OCS에 파일 추가)
+export const uploadRISFile = async (
+  ocsId: number,
+  file: File,
+  externalData?: RISExternalSourceData
+): Promise<RISUploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // 외부 기관 정보 추가
+  if (externalData) {
+    Object.entries(externalData).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        formData.append(key, value);
+      }
+    });
+  }
+
+  const response = await api.post<RISUploadResponse>(
+    `/ocs/${ocsId}/upload_ris_file/`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+// 외부 기관 RIS 데이터 생성 요청 타입
+export interface CreateExternalRISRequest extends RISExternalSourceData {
+  patient_id: number;
+  job_type?: string;
+  priority?: 'urgent' | 'normal';
+  summary?: string;
+  interpretation?: string;
+}
+
+// 외부 기관 RIS 데이터 생성 응답 타입
+export interface CreateExternalRISResponse {
+  message: string;
+  ocs_id: string;  // risx_0001 형식
+  file: {
+    name: string;
+    size: number;
+    content_type: string;
+    uploaded_at: string;
+    uploaded_by: number;
+  };
+  external_source: RISUploadResponse['external_source'];
+  ocs: OCSDetail;
+}
+
+// 외부 기관 RIS 데이터 생성 (새 OCS 생성 + 파일 업로드)
+export const createExternalRIS = async (
+  file: File,
+  data: CreateExternalRISRequest
+): Promise<CreateExternalRISResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // 모든 데이터 추가
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') {
+      formData.append(key, String(value));
+    }
+  });
+
+  const response = await api.post<CreateExternalRISResponse>(
+    '/ocs/create_external_ris/',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+// =============================================================================
 // localStorage 유틸리티
 // =============================================================================
 

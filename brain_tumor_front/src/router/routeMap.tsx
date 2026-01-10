@@ -10,7 +10,7 @@ import AISummaryPage from '@/pages/ai/AISummaryPage';
 import RISWorklistPage from '@/pages/ris/RISWorklistPage';
 import OrderListPage from '@/pages/orders/OrderListPage';
 import OrderCreatePage from '@/pages/orders/OrderCreate';
-import { DoctorOrderPage, RISWorklistPage as OCSRISWorklistPage, RISStudyDetailPage, LISWorklistPage, LISStudyDetailPage, RISDashboardPage, LISUploadPage, LISProcessStatusPage } from '@/pages/ocs';
+import { DoctorOrderPage, RISWorklistPage as OCSRISWorklistPage, RISStudyDetailPage, LISWorklistPage, LISStudyDetailPage, RISDashboardPage, LISUploadPage, LISProcessStatusPage, RISUploadPage } from '@/pages/ocs';
 import { NurseReceptionPage } from '@/pages/nurse';
 import { AIRequestListPage, AIRequestCreatePage, AIRequestDetailPage } from '@/pages/ai-inference';
 import { ComingSoonPage } from '@/pages/common/CommingSoon';
@@ -30,7 +30,7 @@ import { LabListPage } from '@/pages/lab';
  * ├── DASHBOARD
  * ├── PATIENT: PATIENT_LIST, PATIENT_DETAIL, PATIENT_CARE
  * ├── ORDER: ORDER_LIST, ORDER_CREATE, OCS_ORDER
- * ├── IMAGING: IMAGE_VIEWER, RIS_WORKLIST, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD
+ * ├── IMAGING: IMAGE_VIEWER, RIS_WORKLIST, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD, RIS_RESULT_UPLOAD
  * ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
  * ├── AI_SUMMARY
  * ├── NURSE_RECEPTION
@@ -57,6 +57,7 @@ export const routeMap: Record<string, ComponentType> = {
   OCS_RIS: OCSRISWorklistPage,
   OCS_RIS_DETAIL: RISStudyDetailPage,
   RIS_DASHBOARD: RISDashboardPage,
+  RIS_RESULT_UPLOAD: RISUploadPage,
 
   // === LAB 그룹 ===
   LAB_RESULT_VIEW: LabListPage,

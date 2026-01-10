@@ -262,7 +262,7 @@ def load_menu_permission_seed():
     ├── DASHBOARD
     ├── PATIENT: PATIENT_LIST, PATIENT_DETAIL, PATIENT_CARE
     ├── ORDER: ORDER_LIST, ORDER_CREATE, OCS_ORDER
-    ├── IMAGING: IMAGE_VIEWER, RIS_WORKLIST, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD
+    ├── IMAGING: IMAGE_VIEWER, RIS_WORKLIST, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD, RIS_RESULT_UPLOAD
     ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
     ├── AI_SUMMARY
     ├── NURSE_RECEPTION
@@ -301,6 +301,7 @@ def load_menu_permission_seed():
         ('OCS_RIS', '영상 워크리스트', 'RIS 작업자용 영상 오더 처리'),
         ('OCS_RIS_DETAIL', '영상 검사 상세', 'RIS 영상 검사 상세 페이지'),
         ('RIS_DASHBOARD', '판독 현황 대시보드', 'RIS 전체 판독 현황 대시보드'),
+        ('RIS_RESULT_UPLOAD', '영상 결과 업로드', '외부 영상 결과 업로드 화면'),
         ('OCS_LIS', '검사 워크리스트', 'LIS 작업자용 검사 오더 처리'),
         ('OCS_LIS_DETAIL', '검사 결과 상세', 'LIS 검사 결과 상세 페이지'),
         ('LIS_PROCESS_STATUS', '결과 처리 상태', 'LIS 업로드 데이터 처리 상태 모니터링'),
@@ -418,6 +419,9 @@ def load_menu_permission_seed():
     # RIS Dashboard 메뉴 (IMAGING 그룹)
     create_menu(30, code='RIS_DASHBOARD', path='/ocs/ris/dashboard', icon='chart-bar', order=4, is_active=True, parent=menu_imaging)
 
+    # RIS Result Upload 메뉴 (IMAGING 그룹)
+    create_menu(32, code='RIS_RESULT_UPLOAD', path='/ris/upload', breadcrumb_only=True, order=5, is_active=True, parent=menu_imaging)
+
     # LIS Process Status 메뉴 (LAB 그룹)
     create_menu(31, code='LIS_PROCESS_STATUS', path='/ocs/lis/process-status', icon='tasks', order=4, is_active=True, parent=menu_lab)
 
@@ -482,6 +486,9 @@ def load_menu_permission_seed():
         # RIS Dashboard
         (30, 'DEFAULT', '영상 판독 상세'),
         (30, 'RIS', '영상 판독 상세'),
+        # RIS Result Upload
+        (32, 'DEFAULT', '영상 결과 업로드'),
+        (32, 'RIS', '영상 결과 업로드'),
         # LIS Process Status
         (31, 'DEFAULT', 'LIS 검사 상세'),
         (31, 'LIS', 'LIS 검사 상세'),
@@ -534,7 +541,7 @@ def load_menu_permission_seed():
         ],
         'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'OCS_ORDER', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY'],
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'NURSE_RECEPTION'],
-        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD'],
+        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD'],
         'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS'],
     }
 
