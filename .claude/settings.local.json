@@ -19,7 +19,9 @@
       "Bash(do python manage.py startapp $app apps/$app)",
       "Bash(grep:*)",
       "Bash(python manage.py check:*)",
-      "Bash(powershell -Command \"Stop-Process -Id 28556 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 28556 -Force\")",
+      "Bash(pip install:*)",
+      "Bash(npm audit)"
     ]
   }
 }

@@ -19,8 +19,13 @@ environ.Env.read_env(os.path.join(BASE_DIR, 'dbconn.env'))  # 여기서 파일�
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"] 
+# ALLOWED_HOSTS = ["127.0.0.1", "localhost"] 
 # ALLOWED_HOSTS = [] # 운영 시 실제 도메인 입력
+
+# 추후 실제 배포시 (수정필요)
+DEBUG = True
+ALLOWED_HOSTS = ["*"]
+
 
 # Application definition
 INSTALLED_APPS = [
@@ -49,7 +54,7 @@ INSTALLED_APPS = [
     "apps.ai_inference",    # AI 추론 관리
     "apps.treatment",       # 치료 관리
     "apps.followup",        # 경과 추적
-
+    "orthancproxy",         # Orthanc 프록시
 ]
 
 MIDDLEWARE = [
@@ -186,7 +191,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
-
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ]
 }
 
 SPECTACULAR_SETTINGS = {
@@ -218,3 +225,8 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = f"BrainTumor System <{EMAIL_HOST_USER}>"
+
+# Docker로 띄운 Orthanc (docker-compose에서 8042:8042 라고 가정)
+ORTHANC_BASE_URL = "http://localhost:8042"
+DATA_UPLOAD_MAX_NUMBER_FILES = None
+ORTHANC_DEBUG_LOG = True

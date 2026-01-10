@@ -46,9 +46,8 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
+    
+    # Orthanc 프록시
+    path("api/orthanc/", include("orthancproxy.urls")),
 
-    # path("api/emr/", include("apps.emr.urls")),
-    # path("api/ris/", include("apps.ris.urls")),
-    # path("api/lis/", include("apps.lis.urls")),
-    # path("api/fhir/", include("apps.fhir.urls")),
 ]
