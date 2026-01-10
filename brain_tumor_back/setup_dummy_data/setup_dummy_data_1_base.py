@@ -387,7 +387,6 @@ def load_menu_permission_seed():
     create_menu(15, code='RIS_WORKLIST', path='/ris/worklist', icon='x-ray', order=2, is_active=False, parent=menu_imaging)
 
     # Lab 하위
-    create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', breadcrumb_only=True, order=2, is_active=True, parent=menu_lab)
     create_menu(17, code='LAB_RESULT_VIEW', path='/lab', icon='book', order=1, is_active=True, parent=menu_lab)
 
     # Order 하위
@@ -424,6 +423,9 @@ def load_menu_permission_seed():
 
     # LIS Process Status 메뉴 (LAB 그룹)
     create_menu(31, code='LIS_PROCESS_STATUS', path='/ocs/lis/process-status', icon='tasks', order=4, is_active=True, parent=menu_lab)
+
+    # LIS Result Upload 메뉴 (LAB 그룹)
+    create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', breadcrumb_only=True, order=5, is_active=True, parent=menu_lab)
 
     print(f"  메뉴 생성: {changes['Menu']['created']}개 (전체: {Menu.objects.count()}개)")
     if menu_updates:
