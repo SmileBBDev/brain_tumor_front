@@ -20,6 +20,7 @@ import AuditLog from '@/pages/admin/AuditLog';
 import SystemMonitorPage from '@/pages/admin/SystemMonitorPage';
 import UserDetailPage from '@/pages/admin/usersManagement/UserDetailPage';
 import RoleControlPage from '@/pages/admin/roleManagement/RoleControlPage';
+import { LabListPage } from '@/pages/lab';
 
 
 /**
@@ -58,7 +59,7 @@ export const routeMap: Record<string, ComponentType> = {
   RIS_DASHBOARD: RISDashboardPage,
 
   // === LAB 그룹 ===
-  LAB_RESULT_VIEW: () => <ComingSoonPage title="검사 결과 조회" />,
+  LAB_RESULT_VIEW: LabListPage,
   LAB_RESULT_UPLOAD: LISUploadPage,
   OCS_LIS: LISWorklistPage,
   OCS_LIS_DETAIL: LISStudyDetailPage,

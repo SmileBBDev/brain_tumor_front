@@ -532,7 +532,7 @@ def load_menu_permission_seed():
             'AI_SUMMARY', 'NURSE_RECEPTION',
             'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG'
         ],
-        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'OCS_ORDER', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'AI_SUMMARY'],
+        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'OCS_ORDER', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY'],
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'NURSE_RECEPTION'],
         'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD'],
         'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS'],
@@ -1199,11 +1199,21 @@ def main():
     parser = argparse.ArgumentParser(description='Brain Tumor CDSS 기본 더미 데이터 생성')
     parser.add_argument('--reset', action='store_true', help='기존 데이터 삭제 후 새로 생성')
     parser.add_argument('--force', action='store_true', help='목표 수량 이상이어도 강제 추가')
+    parser.add_argument('--menu', action='store_true', help='메뉴/권한만 업데이트 (네비게이션 바 반영)')
     args = parser.parse_args()
 
     print("="*60)
     print("Brain Tumor CDSS - 기본 더미 데이터 생성 (1/2)")
     print("="*60)
+
+    # --menu 옵션: 메뉴/권한만 업데이트
+    if args.menu:
+        print("\n[메뉴/권한 업데이트 모드]")
+        load_menu_permission_seed()
+        print("\n" + "="*60)
+        print("메뉴/권한 업데이트 완료!")
+        print("="*60)
+        return
 
     # --reset 옵션: 기존 데이터 삭제
     if args.reset:

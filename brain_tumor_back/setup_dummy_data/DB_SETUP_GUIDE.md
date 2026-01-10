@@ -121,6 +121,9 @@ python -m setup_dummy_data --base
 
 # 추가 데이터만 생성
 python -m setup_dummy_data --add
+
+# 메뉴/권한만 업데이트 (네비게이션 바 반영) ⭐
+python -m setup_dummy_data --menu
 ```
 
 ### 개별 실행

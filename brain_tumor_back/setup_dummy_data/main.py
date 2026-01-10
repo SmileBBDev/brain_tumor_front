@@ -12,6 +12,7 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
     python -m setup_dummy_data --force  # 목표 수량 이상이어도 강제 추가
     python -m setup_dummy_data --base   # 기본 데이터만 생성
     python -m setup_dummy_data --add    # 추가 데이터만 생성
+    python -m setup_dummy_data --menu   # 메뉴/권한만 업데이트 (네비게이션 바 반영)
 
 선행 조건:
     python setup_database.py  (마이그레이션 및 기본 데이터)
@@ -123,11 +124,21 @@ def main():
     parser.add_argument('--force', action='store_true', help='목표 수량 이상이어도 강제 추가')
     parser.add_argument('--base', action='store_true', help='기본 데이터만 생성 (1_base)')
     parser.add_argument('--add', action='store_true', help='추가 데이터만 생성 (2_add)')
+    parser.add_argument('--menu', action='store_true', help='메뉴/권한만 업데이트 (네비게이션 바 반영)')
     args = parser.parse_args()
 
     print("="*60)
     print("Brain Tumor CDSS - 더미 데이터 생성 (통합)")
     print("="*60)
+
+    # --menu 옵션: 메뉴/권한만 업데이트
+    if args.menu:
+        run_script(
+            'setup_dummy_data_1_base.py',
+            ['--menu'],
+            '메뉴/권한 업데이트'
+        )
+        return
 
     # 실행할 스크립트 결정
     run_base = not args.add  # --add만 지정하면 base 스킵
