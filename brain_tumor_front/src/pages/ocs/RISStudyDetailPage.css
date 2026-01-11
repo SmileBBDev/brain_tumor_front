@@ -242,6 +242,24 @@
   color: #666;
 }
 
+/* Orthanc 정보 섹션 */
+.orthanc-info {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+  border: 1px solid #90caf9;
+}
+
+.orthanc-info h3 {
+  color: #1565c0;
+}
+
+/* 모노스페이스 폰트 */
+.mono {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #1976d2;
+  word-break: break-all;
+}
+
 /* 리포트 패널 */
 .report-panel {
   display: grid;

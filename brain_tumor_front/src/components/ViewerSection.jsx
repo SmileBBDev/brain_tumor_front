@@ -1671,10 +1671,13 @@ const DEFAULT_COLORS = [
 ];
 
 export default function ViewerSection({
+  studyInstanceUID,
   baseSeriesId,
   baseSeriesName,
   overlaySeriesId,
   overlaySeriesName,
+  externalPlaying = false, // 외부에서 제어하는 Play 상태 (All Play)
+  externalResetKey = 0, // 외부에서 제어하는 리셋 키 (Set 버튼)
 }) {
   const elementRef = useRef(null);
   const enabledRef = useRef(false);
@@ -1690,6 +1693,10 @@ export default function ViewerSection({
   // labelCfg: key는 실제 픽셀값, name은 표시용 L1/L2... (순번)
   const [labelCfg, setLabelCfg] = useState({});
   const [labelScanning, setLabelScanning] = useState(false);
+
+  // Play 기능
+  const [isPlaying, setIsPlaying] = useState(false);
+  const playIntervalRef = useRef(null);
 
   const overlayMap = useMemo(() => {
     const m = new Map();
@@ -2077,6 +2084,58 @@ export default function ViewerSection({
 
   const maxIndex = Math.max(baseInstances.length - 1, 0);
 
+  // Play/Stop 토글
+  const togglePlay = () => {
+    setIsPlaying((prev) => !prev);
+  };
+
+  // Play 기능: 200ms 간격으로 슬라이스 자동 이동
+  useEffect(() => {
+    if (isPlaying && baseInstances.length > 1) {
+      playIntervalRef.current = setInterval(() => {
+        setSliceIndex((prev) => {
+          // 끝에 도달하면 처음으로 돌아감 (loop)
+          if (prev >= maxIndex) {
+            return 0;
+          }
+          return prev + 1;
+        });
+      }, 200);
+    } else {
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+    };
+  }, [isPlaying, baseInstances.length, maxIndex]);
+
+  // Series 변경 시 Play 중지
+  useEffect(() => {
+    setIsPlaying(false);
+  }, [baseSeriesId]);
+
+  // 외부 Play 상태 동기화 (All Play 기능)
+  useEffect(() => {
+    setIsPlaying(externalPlaying);
+  }, [externalPlaying]);
+
+  // 외부 리셋 키 동기화 (Set 버튼: 인스턴스=0)
+  const prevResetKeyRef = useRef(externalResetKey);
+  useEffect(() => {
+    // 초기 렌더링이 아닌 경우에만 리셋
+    if (prevResetKeyRef.current !== externalResetKey) {
+      prevResetKeyRef.current = externalResetKey;
+      setSliceIndex(0);
+    }
+  }, [externalResetKey]);
+
   const setCfg = (lab, patch) => {
     setLabelCfg((prev) => ({
       ...prev,
@@ -2126,6 +2185,15 @@ export default function ViewerSection({
             disabled={!baseInstances.length}
           >
             Next
+          </button>
+
+          <button
+            className={`btn btnPlay ${isPlaying ? "playing" : ""}`}
+            onClick={togglePlay}
+            disabled={!baseInstances.length || baseInstances.length <= 1}
+            title={isPlaying ? "Stop (200ms)" : "Play (200ms)"}
+          >
+            {isPlaying ? "Stop" : "Play"}
           </button>
 
           {overlaySeriesId ? (
@@ -2196,8 +2264,22 @@ export default function ViewerSection({
 
         {metaModel ? (
           <div className="metaOverlay">
-            <span className="metaKey metaGreen">Instance</span>
-            <span className="metaVal metaGreen">#{metaModel.instNo}</span>
+            {studyInstanceUID && (
+              <div className="metaRow">
+                <span className="metaKey metaGreen">Study</span>
+                <span className="metaVal metaGreen">{studyInstanceUID}</span>
+              </div>
+            )}
+            {baseSeriesName && (
+              <div className="metaRow">
+                <span className="metaKey metaGreen">Series</span>
+                <span className="metaVal metaGreen">{baseSeriesName}</span>
+              </div>
+            )}
+            <div className="metaRow">
+              <span className="metaKey metaGreen">Instance</span>
+              <span className="metaVal metaGreen">#{metaModel.instNo}</span>
+            </div>
           </div>
         ) : null}
       </div>

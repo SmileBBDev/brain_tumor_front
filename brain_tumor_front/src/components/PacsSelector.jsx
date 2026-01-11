@@ -1,31 +1,50 @@
 // src/components/PacsSelector.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import "./PacsSelector.css";
 import { getPatients, getStudies, getSeries } from "../api/orthancApi";
 
 const asText = (v) => (v == null ? "" : String(v));
 
-export default function PacsSelector({ onChange, ocsInfo }) {
+export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
   const [patients, setPatients] = useState([]);
   const [studies, setStudies] = useState([]);
   const [seriesList, setSeriesList] = useState([]);
 
-  const [patientId, setPatientId] = useState("");
-  const [studyId, setStudyId] = useState("");
+  const [patientId, setPatientId] = useState(initialSelection?.patientId || "");
+  const [studyId, setStudyId] = useState(initialSelection?.studyId || "");
 
-  const [baseSeriesId, setBaseSeriesId] = useState("");
-  const [baseSeriesName, setBaseSeriesName] = useState(""); // ✅ 추가
+  const [baseSeriesId, setBaseSeriesId] = useState(initialSelection?.baseSeriesId || "");
+  const [baseSeriesName, setBaseSeriesName] = useState(initialSelection?.baseSeriesName || "");
 
-  const [overlaySeriesId, setOverlaySeriesId] = useState("");
-  const [overlaySeriesName, setOverlaySeriesName] = useState(""); // ✅ 추가
+  const [overlaySeriesId, setOverlaySeriesId] = useState(initialSelection?.overlaySeriesId || "");
+  const [overlaySeriesName, setOverlaySeriesName] = useState(initialSelection?.overlaySeriesName || "");
 
   const [busy, setBusy] = useState(false);
+  const initializedRef = useRef(false);
 
+  // 환자 목록 로드 + initialSelection 복원
   useEffect(() => {
     (async () => {
       try {
         const p = await getPatients();
         setPatients(p);
+
+        // initialSelection이 있으면 데이터 복원
+        if (initialSelection?.patientId && !initializedRef.current) {
+          initializedRef.current = true;
+
+          // Study 로드
+          if (initialSelection.patientId) {
+            const st = await getStudies(initialSelection.patientId);
+            setStudies(st);
+
+            // Series 로드
+            if (initialSelection.studyId) {
+              const se = await getSeries(initialSelection.studyId);
+              setSeriesList(se);
+            }
+          }
+        }
       } catch (err) {
         console.error("Failed to load patients:", err);
         setPatients([]);
@@ -47,10 +66,18 @@ export default function PacsSelector({ onChange, ocsInfo }) {
     return asText(s?.description || s?.seriesInstanceUID || "");
   };
 
+  // 현재 선택된 studyInstanceUID 가져오기
+  const currentStudyInstanceUID = useMemo(() => {
+    if (!studyId) return "";
+    const study = studies.find((s) => s.orthancId === studyId);
+    return study?.studyInstanceUID || "";
+  }, [studyId, studies]);
+
   const emit = (patch = {}) => {
     const next = {
       patientId,
       studyId,
+      studyInstanceUID: currentStudyInstanceUID,
       baseSeriesId,
       baseSeriesName,
       overlaySeriesId,
@@ -104,9 +131,14 @@ export default function PacsSelector({ onChange, ocsInfo }) {
     setOverlaySeriesName("");
     setSeriesList([]);
 
+    // 선택된 study의 studyInstanceUID 가져오기
+    const selectedStudy = studies.find((s) => s.orthancId === sid);
+    const studyUid = selectedStudy?.studyInstanceUID || "";
+
     onChange?.({
       patientId,
       studyId: sid,
+      studyInstanceUID: studyUid,
       baseSeriesId: "",
       baseSeriesName: "",
       overlaySeriesId: "",
@@ -200,15 +232,31 @@ export default function PacsSelector({ onChange, ocsInfo }) {
             <option value="">-- 선택 --</option>
             {studies.map((s) => (
               <option key={s.orthancId} value={s.orthancId}>
-                {asText(s.description || s.studyInstanceUID)}
+                {asText(s.studyInstanceUID || s.orthancId)}
               </option>
             ))}
           </select>
           {studyId && (
-            <div className="idDisplay">
-              <span className="idLabel">Orthanc ID:</span>
-              <span className="idValue">{studyId}</span>
-            </div>
+            <>
+              <div className="studyInfoBox">
+                <div className="studyInfoRow">
+                  <span className="studyInfoLabel">Study UID</span>
+                  <span className="studyInfoValue mono">
+                    {studies.find((s) => s.orthancId === studyId)?.studyInstanceUID || "-"}
+                  </span>
+                </div>
+                <div className="studyInfoRow">
+                  <span className="studyInfoLabel">Description</span>
+                  <span className="studyInfoValue">
+                    {studies.find((s) => s.orthancId === studyId)?.description || "(없음)"}
+                  </span>
+                </div>
+                <div className="studyInfoRow">
+                  <span className="studyInfoLabel">Orthanc ID</span>
+                  <span className="studyInfoValue mono">{studyId}</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
 

@@ -97,6 +97,14 @@ export default function LISStudyDetailPage() {
   // 파일 업로드
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
+  // CSV 업로드 정보
+  const [csvUploadInfo, setCsvUploadInfo] = useState<{
+    fileName: string;
+    uploadedAt: string;
+    rowCount: number;
+  } | null>(null);
 
   // 검사 카테고리 확인
   const testCategory = ocs ? getLISCategory(ocs.job_type) : 'BLOOD';
@@ -125,6 +133,10 @@ export default function LISStudyDetailPage() {
         }
         if (result.files) {
           setUploadedFiles(result.files as UploadedFile[]);
+        }
+        // CSV 업로드 정보
+        if (result.csvUploadInfo) {
+          setCsvUploadInfo(result.csvUploadInfo as typeof csvUploadInfo);
         }
         // 유전자 검사 결과
         if (result.gene_mutations) {
@@ -280,6 +292,151 @@ export default function LISStudyDetailPage() {
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
+  // CSV 파일 업로드 및 파싱 핸들러
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // CSV 파일 확인
+    if (!file.name.endsWith('.csv')) {
+      alert('CSV 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsedResults = parseCSV(text);
+
+        if (parsedResults.length === 0) {
+          alert('CSV 파일에서 유효한 데이터를 찾을 수 없습니다.');
+          return;
+        }
+
+        // 기존 결과에 추가할지 대체할지 확인
+        if (labResults.length > 0) {
+          if (confirm(`기존 ${labResults.length}개 항목이 있습니다. 새 CSV 데이터로 대체하시겠습니까?\n취소를 누르면 기존 데이터에 추가합니다.`)) {
+            setLabResults(parsedResults);
+          } else {
+            setLabResults([...labResults, ...parsedResults]);
+          }
+        } else {
+          setLabResults(parsedResults);
+        }
+
+        // CSV 업로드 정보 저장
+        setCsvUploadInfo({
+          fileName: file.name,
+          uploadedAt: new Date().toISOString(),
+          rowCount: parsedResults.length,
+        });
+
+        alert(`CSV 파일에서 ${parsedResults.length}개 항목을 불러왔습니다.`);
+      } catch (error) {
+        console.error('CSV 파싱 오류:', error);
+        alert('CSV 파일 파싱에 실패했습니다. 형식을 확인해주세요.');
+      }
+    };
+
+    reader.readAsText(file, 'UTF-8');
+
+    // 입력 초기화
+    if (csvInputRef.current) {
+      csvInputRef.current.value = '';
+    }
+  };
+
+  // CSV 파싱 함수
+  // 예상 CSV 형식: testName,value,unit,refRange,flag
+  // 또는: 검사항목,결과값,단위,참고범위,판정
+  const parseCSV = (text: string): LabResultItem[] => {
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return []; // 헤더 + 최소 1개 데이터
+
+    // 헤더 파싱 (첫 번째 행)
+    const headerLine = lines[0];
+    const headers = parseCSVLine(headerLine).map((h) => h.toLowerCase().trim());
+
+    // 컬럼 인덱스 찾기 (영문/한글 모두 지원)
+    const findIndex = (names: string[]) =>
+      headers.findIndex((h) => names.some((n) => h.includes(n)));
+
+    const testNameIdx = findIndex(['testname', 'test_name', '검사항목', '항목명', '검사명', 'name', 'item']);
+    const valueIdx = findIndex(['value', '결과값', '결과', '값', 'result']);
+    const unitIdx = findIndex(['unit', '단위']);
+    const refRangeIdx = findIndex(['refrange', 'ref_range', 'reference', '참고범위', '참고치', '기준']);
+    const flagIdx = findIndex(['flag', '판정', '상태', 'status', 'abnormal']);
+
+    // 필수 컬럼 확인
+    if (testNameIdx === -1 || valueIdx === -1) {
+      throw new Error('필수 컬럼(검사항목, 결과값)을 찾을 수 없습니다.');
+    }
+
+    // 데이터 파싱
+    const results: LabResultItem[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const values = parseCSVLine(line);
+      const testName = values[testNameIdx]?.trim() || '';
+      const value = values[valueIdx]?.trim() || '';
+
+      if (!testName || !value) continue;
+
+      // flag 값 파싱
+      let flag: 'normal' | 'abnormal' | 'critical' = 'normal';
+      if (flagIdx !== -1) {
+        const flagValue = values[flagIdx]?.trim().toLowerCase() || '';
+        if (flagValue.includes('critical') || flagValue.includes('위험') || flagValue === 'c') {
+          flag = 'critical';
+        } else if (flagValue.includes('abnormal') || flagValue.includes('이상') || flagValue === 'h' || flagValue === 'l' || flagValue === 'a') {
+          flag = 'abnormal';
+        }
+      }
+
+      results.push({
+        testName,
+        value,
+        unit: unitIdx !== -1 ? values[unitIdx]?.trim() || '' : '',
+        refRange: refRangeIdx !== -1 ? values[refRangeIdx]?.trim() || '' : '',
+        flag,
+      });
+    }
+
+    return results;
+  };
+
+  // CSV 라인 파싱 (쉼표, 따옴표 처리)
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++; // Skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+
+    return result;
+  };
+
   // 파일 크기 포맷
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
@@ -297,6 +454,7 @@ export default function LISStudyDetailPage() {
       interpretation,
       notes,
       files: uploadedFiles,
+      csvUploadInfo: csvUploadInfo || null,
     };
 
     // 유전자 검사 데이터
@@ -669,13 +827,49 @@ export default function LISStudyDetailPage() {
               )}
             </div>
 
+            {/* CSV 업로드 섹션 */}
+            <div className="csv-upload-section">
+              <div className="section-header">
+                <h4>CSV 데이터 가져오기</h4>
+                {canEdit && (
+                  <>
+                    <input
+                      ref={csvInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVUpload}
+                      style={{ display: 'none' }}
+                      id="csv-upload"
+                    />
+                    <label htmlFor="csv-upload" className="btn btn-sm btn-success">
+                      CSV 업로드
+                    </label>
+                  </>
+                )}
+              </div>
+              <div className="csv-help">
+                <p>CSV 형식: 검사항목, 결과값, 단위, 참고범위, 판정</p>
+                <p className="csv-example">예: WBC,7500,/uL,4000-10000,정상</p>
+              </div>
+              {csvUploadInfo && (
+                <div className="csv-info">
+                  <span className="csv-icon">📊</span>
+                  <span className="csv-filename">{csvUploadInfo.fileName}</span>
+                  <span className="csv-count">{csvUploadInfo.rowCount}개 항목</span>
+                  <span className="csv-date">{formatDate(csvUploadInfo.uploadedAt)}</span>
+                </div>
+              )}
+            </div>
+
             <div className="result-header">
               <h4>검사 결과 입력</h4>
-              {canEdit && (
-                <button className="btn btn-sm btn-primary" onClick={handleAddResult}>
-                  + 항목 추가
-                </button>
-              )}
+              <div className="result-actions">
+                {canEdit && (
+                  <button className="btn btn-sm btn-primary" onClick={handleAddResult}>
+                    + 항목 추가
+                  </button>
+                )}
+              </div>
             </div>
 
             <table className="result-table">

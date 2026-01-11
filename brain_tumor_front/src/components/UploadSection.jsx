@@ -16,6 +16,7 @@ export default function UploadSection({ onUploaded, ocsInfo }) {
   const [seriesPaths, setSeriesPaths] = useState([]);
   const [folderName, setFolderName] = useState(""); // Patient ID (MySQL patient_number)
   const [studyDescription, setStudyDescription] = useState(""); // Study Description
+  const [descWarning, setDescWarning] = useState(""); // Study Description 한글 경고
   const [studyInstanceUID, setStudyInstanceUID] = useState(""); // 자동 생성 UID
   const [uploadStatus, setUploadStatus] = useState(null);
 
@@ -171,13 +172,28 @@ export default function UploadSection({ onUploaded, ocsInfo }) {
         <div className="field">
           <label className="label">Study Description (영문만 입력)</label>
           <input
-            className="input"
+            className={`input ${descWarning ? "input-warning" : ""}`}
             type="text"
             value={studyDescription}
-            onChange={(e) => setStudyDescription(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setStudyDescription(val);
+              // 한글(가-힣) 또는 비-ASCII 문자 감지
+              const hasNonAscii = /[^\x00-\x7F]/.test(val);
+              if (hasNonAscii) {
+                setDescWarning("한글/특수문자는 저장 시 제거됩니다. 영문만 입력하세요.");
+              } else {
+                setDescWarning("");
+              }
+            }}
             placeholder='ex) Brain MRI, CT Scan (English only)'
             disabled={isUploading}
           />
+          {descWarning && (
+            <div className="metaRow warning">
+              <span>{descWarning}</span>
+            </div>
+          )}
           <div className="metaRow subtle">
             <span>Orthanc 저장용 - 영문/숫자만 사용</span>
             <span>{studyDescription ? `입력: ${studyDescription}` : "미입력"}</span>

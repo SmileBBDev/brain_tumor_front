@@ -218,3 +218,14 @@
   color: rgba(255, 200, 100, 0.80);
   font-style: italic;
 }
+
+/* 입력 경고 스타일 (한글 입력 시) */
+.input.input-warning {
+  border-color: rgba(255, 180, 80, 0.6);
+  background: rgba(255, 180, 80, 0.08);
+}
+
+.metaRow.warning {
+  color: rgba(255, 180, 80, 0.95);
+  font-weight: 600;
+}

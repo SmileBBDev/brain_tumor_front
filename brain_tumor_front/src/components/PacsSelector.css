@@ -89,3 +89,55 @@
   white-space: nowrap;
   max-width: 200px;
 }
+
+/* Study 정보 박스 */
+.studyInfoBox {
+  background: rgba(60, 80, 120, 0.15);
+  border: 1px solid rgba(100, 170, 255, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.studyInfoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 4px 0;
+  font-size: 12px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.studyInfoRow:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.studyInfoLabel {
+  color: rgba(255, 255, 255, 0.55);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.studyInfoValue {
+  color: rgba(255, 255, 255, 0.90);
+  text-align: right;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studyInfoValue.mono {
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: rgba(100, 200, 255, 0.85);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

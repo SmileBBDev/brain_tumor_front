@@ -869,3 +869,94 @@
 .protein-table .row-abnormal {
   background: #fff3cd;
 }
+
+/* =============================================================================
+   CSV 업로드 섹션
+   ============================================================================= */
+.csv-upload-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+  border-radius: 8px;
+  border: 1px solid #81c784;
+}
+
+.csv-upload-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.csv-upload-section .section-header h4 {
+  margin: 0;
+  font-size: 14px;
+  color: #2e7d32;
+}
+
+.csv-upload-section label.btn {
+  cursor: pointer;
+}
+
+.csv-help {
+  margin-bottom: 12px;
+}
+
+.csv-help p {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  color: #558b2f;
+}
+
+.csv-help .csv-example {
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: #33691e;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.csv-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #a5d6a7;
+  border-radius: 6px;
+}
+
+.csv-icon {
+  font-size: 20px;
+}
+
+.csv-filename {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2e7d32;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-count {
+  font-size: 13px;
+  color: #43a047;
+  font-weight: 500;
+  padding: 2px 8px;
+  background: #c8e6c9;
+  border-radius: 4px;
+}
+
+.csv-date {
+  font-size: 12px;
+  color: #7f8c8d;
+}
+
+/* result-actions */
+.result-actions {
+  display: flex;
+  gap: 8px;
+}

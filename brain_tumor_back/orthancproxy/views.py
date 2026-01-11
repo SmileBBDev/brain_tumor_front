@@ -399,8 +399,22 @@ def upload_patient(request):
     def_date = now.strftime("%Y%m%d")
     def_time = now.strftime("%H%M%S")
 
-    # ✅ study_description 비어있으면 기존 기본값 사용
+    # ✅ 한글 인코딩 문제 방지: ASCII 문자만 사용
+    # PatientName, StudyDescription에 한글이 있으면 Orthanc에서 "??"로 표시됨
+    def to_ascii_safe(text, default="Unknown"):
+        """한글/특수문자를 제거하고 ASCII만 반환"""
+        if not text:
+            return default
+        # ASCII 문자만 유지
+        result = ''.join(c if ord(c) < 128 else '' for c in str(text)).strip()
+        return result if result else default
+
+    # study_description 비어있으면 기존 기본값 사용
     final_study_desc = study_description if study_description else "AutoUploaded Study"
+
+    # ASCII로 변환 (한글 제거)
+    safe_patient_name = to_ascii_safe(patient_name, patient_id or "Unknown")
+    safe_study_desc = to_ascii_safe(final_study_desc, "AutoUploaded Study")
 
     for idx, (f, sp) in enumerate(zip(files, series_paths), start=1):
         try:
@@ -408,14 +422,14 @@ def upload_patient(request):
 
             # Patient
             ds.PatientID = patient_id
-            ds.PatientName = patient_name  # 실제 환자 이름 사용
+            ds.PatientName = safe_patient_name  # ASCII만 사용
 
             # Study (통합)
             ds.StudyInstanceUID = study_uid
             ds.StudyID = study_id
 
-            # ✅ StudyDescription 반영 (항상 동일하게 통일)
-            ds.StudyDescription = final_study_desc
+            # ✅ StudyDescription도 ASCII만 사용
+            ds.StudyDescription = safe_study_desc
 
             # Study date/time 기본
             if not getattr(ds, "StudyDate", None):

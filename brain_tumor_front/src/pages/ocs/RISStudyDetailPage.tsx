@@ -284,27 +284,47 @@ export default function RISStudyDetailPage() {
   };
 
   // DICOM 업로드 완료 시 worker_result에 Orthanc 정보 저장
+  // 현재 폼 상태(findings, impression 등)를 보존하면서 orthanc 정보만 업데이트
   const handleUploadComplete = async (result: UploadResult) => {
     if (!ocsDetail) return;
 
     try {
-      const currentResult = ocsDetail.worker_result as RISWorkerResult;
+      const currentResult = (ocsDetail.worker_result as RISWorkerResult) || {};
+
+      // 현재 폼 상태와 기존 저장된 데이터를 병합
       const updatedResult = {
-        ...currentResult,
         _template: 'RIS',
         _version: '1.0',
+        _confirmed: currentResult._confirmed || false,
+        // 현재 폼 상태 우선 사용 (사용자가 입력 중일 수 있음)
+        findings: findings || currentResult.findings || '',
+        impression: impression || currentResult.impression || '',
+        recommendation: recommendation || currentResult.recommendation || '',
+        imageResults: imageResults.length > 0 ? imageResults : (currentResult as any).imageResults || [],
+        files: uploadedFiles.length > 0 ? uploadedFiles : (currentResult as any).files || [],
+        // 기존 dicom 정보 보존
+        dicom: currentResult.dicom || {
+          study_uid: '',
+          series: [],
+          accession_number: '',
+          series_count: 0,
+          instance_count: 0,
+        },
+        // Orthanc 업로드 정보 업데이트
         orthanc: {
           patient_id: result.patientId,
           study_id: result.studyId,
           study_uid: result.studyUid,
           series: result.orthancSeriesIds.map((id) => ({
             orthanc_id: id,
-            series_uid: '',  // 나중에 API에서 조회 가능
-            description: '',
+            series_uid: '',
+            description: result.studyDescription || '',
             instances_count: 0,
           })),
           uploaded_at: new Date().toISOString(),
         },
+        _custom: currentResult._custom || {},
+        _savedAt: new Date().toISOString(),
       };
 
       await saveOCSResult(ocsDetail.id, { worker_result: updatedResult });
@@ -487,8 +507,46 @@ export default function RISStudyDetailPage() {
               </div>
             </div>
 
-            {/* DICOM 정보 */}
-            {workerResult?.dicom && (
+            {/* Orthanc 업로드 정보 (DicomViewerPopup에서 업로드한 정보) */}
+            {(workerResult as any)?.orthanc && (
+              <div className="panel-section orthanc-info">
+                <h3>Orthanc 영상 정보</h3>
+                <div className="info-grid">
+                  <div className="info-row">
+                    <label>Patient ID</label>
+                    <span className="mono">{(workerResult as any).orthanc.patient_id || '-'}</span>
+                  </div>
+                  <div className="info-row">
+                    <label>Study UID</label>
+                    <span className="mono">{(workerResult as any).orthanc.study_uid || '-'}</span>
+                  </div>
+                  <div className="info-row">
+                    <label>Study ID (Orthanc)</label>
+                    <span className="mono">{(workerResult as any).orthanc.study_id || '-'}</span>
+                  </div>
+                  <div className="info-row">
+                    <label>업로드 일시</label>
+                    <span>{formatDate((workerResult as any).orthanc.uploaded_at)}</span>
+                  </div>
+                  {(workerResult as any).orthanc.series?.length > 0 && (
+                    <div className="info-row series-row">
+                      <label>Series ({(workerResult as any).orthanc.series.length}개)</label>
+                      <div className="series-list">
+                        {(workerResult as any).orthanc.series.map((s: any, idx: number) => (
+                          <div key={idx} className="series-item">
+                            <span className="mono">{s.orthanc_id}</span>
+                            {s.description && <span className="desc">{s.description}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* DICOM 정보 (기존 dicom 필드) */}
+            {workerResult?.dicom && workerResult.dicom.study_uid && (
               <div className="panel-section dicom-info">
                 <h3>DICOM 정보</h3>
                 <div className="info-grid">
