@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/pages/auth/AuthProvider';
 import { getOCSList } from '@/services/ocs.api';
 import type { OCSListItem, OCSSearchParams, OcsStatus } from '@/types/ocs';
-import { OCS_STATUS_LABELS } from '@/types/ocs';
+// OCS_STATUS_LABELS removed - not used in this file
 import LabListTable from './LabListTable';
 import Pagination from '@/layout/Pagination';
 import '@/assets/style/encounterListView.css';
@@ -10,20 +10,8 @@ import '@/assets/style/encounterListView.css';
 // 검사 유형 정의
 type LabTestType = 'BLOOD' | 'GENETIC' | 'PROTEIN' | 'URINE' | 'CSF' | 'BIOPSY' | '';
 
-const LAB_TEST_TYPE_LABELS: Record<string, string> = {
-  BLOOD: '혈액 검사',
-  GENETIC: '유전자 검사',
-  PROTEIN: '단백질 검사',
-  URINE: '소변 검사',
-  CSF: '뇌척수액 검사',
-  BIOPSY: '조직 검사',
-};
-
 export default function LabListPage() {
   const { role } = useAuth();
-  const isDoctor = role === 'DOCTOR';
-  const isLIS = role === 'LIS';
-  const isSystemManager = role === 'SYSTEMMANAGER';
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -199,7 +187,7 @@ export default function LabListPage() {
         ) : (
           <>
             <LabListTable
-              role={role}
+              role={role || ''}
               labOrders={labOrders}
               onRefresh={fetchLabOrders}
             />

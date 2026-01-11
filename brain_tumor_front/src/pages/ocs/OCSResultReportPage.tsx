@@ -112,7 +112,6 @@ export default function OCSResultReportPage() {
   const recommendation = (workerResult as any).recommendation || '';
 
   // 확정 정보
-  const verifiedAt = (workerResult as any)._verifiedAt || ocs.confirmed_at;
   const verifiedBy = (workerResult as any)._verifiedBy || ocs.worker?.name;
 
   return (

@@ -16,22 +16,22 @@ type Props = {
   role: string;
 };
 
-// 경과 유형 라벨
+// 경과 유형 라벨 (백엔드와 일치)
 const FOLLOWUP_TYPE_LABELS: Record<string, string> = {
-  routine: '정기 검진',
-  imaging: '영상 검사',
-  lab: '검사실 검사',
-  symptom: '증상 변화',
-  emergency: '응급',
+  routine: '정기 추적',
+  symptom_based: '증상 기반',
+  post_treatment: '치료 후 추적',
+  emergency: '응급 내원',
 };
 
-// 임상 상태 라벨
+// 임상 상태 라벨 (백엔드와 일치)
 const CLINICAL_STATUS_LABELS: Record<string, string> = {
   stable: '안정',
   improved: '호전',
   deteriorated: '악화',
   recurrence: '재발',
-  unknown: '미정',
+  progression: '진행',
+  remission: '관해',
 };
 
 // 임상 상태 색상
@@ -40,7 +40,8 @@ const CLINICAL_STATUS_COLORS: Record<string, string> = {
   improved: 'status-improved',
   deteriorated: 'status-deteriorated',
   recurrence: 'status-recurrence',
-  unknown: 'status-unknown',
+  progression: 'status-deteriorated',
+  remission: 'status-improved',
 };
 
 export default function FollowUpTab({ role }: Props) {
@@ -78,7 +79,7 @@ export default function FollowUpTab({ role }: Props) {
   // 경과 기록 생성
   const handleCreate = async (data: FollowUpCreateData) => {
     try {
-      await createFollowUp({ ...data, patient_id: Number(patientId) });
+      await createFollowUp({ ...data, patient: Number(patientId) });
       setShowCreateModal(false);
       fetchFollowUps();
     } catch (err) {
@@ -149,10 +150,10 @@ export default function FollowUpTab({ role }: Props) {
                   <div className="record-date">{formatDate(record.followup_date)}</div>
                   <div className="record-badges">
                     <span className="type-badge">
-                      {FOLLOWUP_TYPE_LABELS[record.followup_type] || record.followup_type}
+                      {FOLLOWUP_TYPE_LABELS[record.followup_type] || record.followup_type_display || record.followup_type}
                     </span>
                     <span className={`status-badge ${CLINICAL_STATUS_COLORS[record.clinical_status]}`}>
-                      {CLINICAL_STATUS_LABELS[record.clinical_status] || record.clinical_status}
+                      {CLINICAL_STATUS_LABELS[record.clinical_status] || record.clinical_status_display || record.clinical_status}
                     </span>
                   </div>
                 </div>
@@ -166,20 +167,24 @@ export default function FollowUpTab({ role }: Props) {
                     {record.ecog_score !== null && (
                       <span className="vital-item">ECOG: {record.ecog_score}</span>
                     )}
-                    {record.weight !== null && (
-                      <span className="vital-item">체중: {record.weight}kg</span>
+                    {record.weight_kg !== null && (
+                      <span className="vital-item">체중: {record.weight_kg}kg</span>
                     )}
-                    {record.blood_pressure_systolic !== null && record.blood_pressure_diastolic !== null && (
-                      <span className="vital-item">
-                        BP: {record.blood_pressure_systolic}/{record.blood_pressure_diastolic}
-                      </span>
+                    {record.vitals && Object.keys(record.vitals).length > 0 && (
+                      <>
+                        {record.vitals.bp_systolic && record.vitals.bp_diastolic && (
+                          <span className="vital-item">
+                            BP: {String(record.vitals.bp_systolic)}/{String(record.vitals.bp_diastolic)}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
 
-                  {record.symptoms && (
+                  {record.symptoms && record.symptoms.length > 0 && (
                     <div className="info-row">
                       <span className="label">증상:</span>
-                      <span>{record.symptoms}</span>
+                      <span>{Array.isArray(record.symptoms) ? record.symptoms.join(', ') : record.symptoms}</span>
                     </div>
                   )}
 
@@ -192,22 +197,10 @@ export default function FollowUpTab({ role }: Props) {
                 {/* 확장된 상세 정보 */}
                 {selectedRecord?.id === record.id && (
                   <div className="record-detail">
-                    {record.physical_exam && (
+                    {record.note && (
                       <div className="detail-section">
-                        <h5>신체 검진</h5>
-                        <p>{record.physical_exam}</p>
-                      </div>
-                    )}
-                    {record.assessment && (
-                      <div className="detail-section">
-                        <h5>평가</h5>
-                        <p>{record.assessment}</p>
-                      </div>
-                    )}
-                    {record.plan && (
-                      <div className="detail-section">
-                        <h5>계획</h5>
-                        <p>{record.plan}</p>
+                        <h5>경과 기록</h5>
+                        <p>{record.note}</p>
                       </div>
                     )}
                     {record.next_followup_date && (
@@ -262,15 +255,17 @@ function CreateFollowUpModal({
     followup_date: new Date().toISOString().split('T')[0],
     followup_type: 'routine',
     clinical_status: 'stable',
-    symptoms: '',
-    assessment: '',
-    plan: '',
+    note: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.followup_date) {
       alert('경과 기록 날짜를 입력해주세요.');
+      return;
+    }
+    if (!formData.clinical_status) {
+      alert('임상 상태를 선택해주세요.');
       return;
     }
     onCreate(formData as FollowUpCreateData);
@@ -285,7 +280,7 @@ function CreateFollowUpModal({
             <div className="form-group">
               <label>날짜 *</label>
               <input
-                type="date"
+                type="datetime-local"
                 value={formData.followup_date}
                 onChange={(e) => setFormData({ ...formData, followup_date: e.target.value })}
                 required
@@ -307,10 +302,11 @@ function CreateFollowUpModal({
           </div>
 
           <div className="form-group">
-            <label>임상 상태</label>
+            <label>임상 상태 *</label>
             <select
               value={formData.clinical_status}
               onChange={(e) => setFormData({ ...formData, clinical_status: e.target.value })}
+              required
             >
               {Object.entries(CLINICAL_STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -346,62 +342,23 @@ function CreateFollowUpModal({
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>체중 (kg)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={formData.weight || ''}
-                onChange={(e) => setFormData({ ...formData, weight: e.target.value ? Number(e.target.value) : undefined })}
-              />
-            </div>
-            <div className="form-group">
-              <label>혈압 (수축기/이완기)</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="number"
-                  value={formData.blood_pressure_systolic || ''}
-                  onChange={(e) => setFormData({ ...formData, blood_pressure_systolic: e.target.value ? Number(e.target.value) : undefined })}
-                  placeholder="수축기"
-                />
-                <input
-                  type="number"
-                  value={formData.blood_pressure_diastolic || ''}
-                  onChange={(e) => setFormData({ ...formData, blood_pressure_diastolic: e.target.value ? Number(e.target.value) : undefined })}
-                  placeholder="이완기"
-                />
-              </div>
-            </div>
-          </div>
-
           <div className="form-group">
-            <label>증상</label>
-            <textarea
-              value={formData.symptoms}
-              onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
-              placeholder="현재 증상"
-              rows={2}
+            <label>체중 (kg)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={formData.weight_kg || ''}
+              onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value ? Number(e.target.value) : undefined })}
             />
           </div>
 
           <div className="form-group">
-            <label>평가</label>
+            <label>경과 기록</label>
             <textarea
-              value={formData.assessment}
-              onChange={(e) => setFormData({ ...formData, assessment: e.target.value })}
-              placeholder="임상 평가"
-              rows={2}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>계획</label>
-            <textarea
-              value={formData.plan}
-              onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-              placeholder="향후 계획"
-              rows={2}
+              value={formData.note || ''}
+              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+              placeholder="경과 내용을 기록하세요"
+              rows={3}
             />
           </div>
 

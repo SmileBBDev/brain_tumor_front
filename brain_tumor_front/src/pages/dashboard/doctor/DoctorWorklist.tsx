@@ -49,7 +49,7 @@ function WorklistRow({
     <tr className="clickable">
       <td>{name}</td>
       <td>
-        <span className={`badge ${status === '진료중' ? 'in-progress' : ''}`}>
+        <span className={`badge ${status === '진료중' ? 'in_progress' : ''}`}>
           {status}
         </span>
       </td>

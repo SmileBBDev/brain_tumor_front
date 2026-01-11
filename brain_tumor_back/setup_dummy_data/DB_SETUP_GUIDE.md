@@ -42,11 +42,16 @@ python -m setup_dummy_data 실행 시 순서:
    │   ├─ [9단계] OCS(LIS) 20건
    │   └─ [10단계] AI 모델 3개
    │
-   └─► setup_dummy_data_2_add.py 호출
+   ├─► setup_dummy_data_2_add.py 호출
+   │   │
+   │   ├─ [1단계] 치료 계획 15건 + 세션
+   │   ├─ [2단계] 경과 추적 25건
+   │   └─ [3단계] AI 요청 10건
+   │
+   └─► setup_dummy_data_3_prescriptions.py 호출
        │
-       ├─ [1단계] 치료 계획 15건 + 세션
-       ├─ [2단계] 경과 추적 25건
-       └─ [3단계] AI 요청 10건
+       ├─ [0단계] 선행 조건 확인 (사용자, 환자 존재)
+       └─ [1단계] 처방전 20건 + 처방 항목 ~60건
 
 2. 최종 통계 출력
 결론: 빈 DB에서 시작해도 모든 것이 자동으로 셋업됩니다.
@@ -83,11 +88,12 @@ python -m setup_dummy_data 실행 시 순서:
 brain_tumor_back/
 └── setup_dummy_data/
     ├── __init__.py
-    ├── __main__.py              # python -m setup_dummy_data 진입점
-    ├── main.py                  # 통합 래퍼 (1_base + 2_add 순차 실행)
-    ├── setup_dummy_data_1_base.py  # 기본 데이터
-    ├── setup_dummy_data_2_add.py   # 추가 데이터
-    └── DB_SETUP_GUIDE.md        # 이 파일
+    ├── __main__.py                     # python -m setup_dummy_data 진입점
+    ├── main.py                         # 통합 래퍼 (1_base + 2_add + 3_prescriptions 순차 실행)
+    ├── setup_dummy_data_1_base.py      # 기본 데이터
+    ├── setup_dummy_data_2_add.py       # 추가 데이터 (치료/경과/AI)
+    ├── setup_dummy_data_3_prescriptions.py  # 처방 데이터
+    └── DB_SETUP_GUIDE.md               # 이 파일
 ```
 
 ---
@@ -112,6 +118,17 @@ brain_tumor_back/
 - 경과 추적 25건
 - AI 추론 요청 10건
 
+### setup_dummy_data_3_prescriptions.py (처방 데이터)
+- 처방전 20건 (DRAFT, ISSUED, DISPENSED, CANCELLED 상태 분포)
+- 처방 항목 ~60건 (뇌종양 관련 약품)
+  - 항암제: Temozolomide, Bevacizumab, Lomustine
+  - 부종/뇌압 관리: Dexamethasone, Mannitol
+  - 항경련제: Levetiracetam, Valproic acid, Phenytoin
+  - 진통제: Acetaminophen, Tramadol, Oxycodone
+  - 구역/구토 관리: Ondansetron, Metoclopramide
+  - 위장 보호: Esomeprazole, Famotidine
+  - 기타 보조: Megestrol, Methylphenidate
+
 ---
 
 ## 실행 옵션
@@ -132,7 +149,10 @@ python -m setup_dummy_data --base
 # 추가 데이터만 생성
 python -m setup_dummy_data --add
 
-# 메뉴/권한만 업데이트 (네비게이션 바 반영) ⭐
+# 처방 데이터만 생성
+python -m setup_dummy_data --prescriptions
+
+# 메뉴/권한만 업데이트 (네비게이션 바 반영)
 python -m setup_dummy_data --menu
 ```
 
@@ -143,6 +163,9 @@ python setup_dummy_data/setup_dummy_data_1_base.py [--reset] [--force]
 
 # 추가 데이터만
 python setup_dummy_data/setup_dummy_data_2_add.py [--reset] [--force]
+
+# 처방 데이터만
+python setup_dummy_data/setup_dummy_data_3_prescriptions.py [--reset] [--force]
 ```
 
 ---
@@ -154,6 +177,7 @@ python manage.py shell
 >>> from apps.ai_inference.models import AIInferenceLog, AIInferenceResult, AIInferenceRequest
 >>> from apps.treatment.models import TreatmentSession, TreatmentPlan
 >>> from apps.followup.models import FollowUp
+>>> from apps.prescriptions.models import PrescriptionItem, Prescription
 >>> from apps.imaging.models import ImagingStudy
 >>> from apps.ocs.models import OCS, OCSHistory
 >>> from apps.encounters.models import Encounter
@@ -166,6 +190,8 @@ python manage.py shell
 >>> TreatmentSession.objects.all().delete()
 >>> TreatmentPlan.objects.all().delete()
 >>> FollowUp.objects.all().delete()
+>>> PrescriptionItem.objects.all().delete()
+>>> Prescription.objects.all().delete()
 >>> OCSHistory.objects.all().delete()
 >>> ImagingStudy.objects.all().delete()
 >>> OCS.objects.all().delete()
@@ -188,5 +214,21 @@ python manage.py shell
 | 영상 검사 | 30건 |
 | 치료 계획 | 15건 |
 | 경과 기록 | 25건 |
+| **처방전** | **20건** |
+| **처방 항목** | **~60건** |
 | AI 모델 | 3개 |
 | AI 요청 | 10건 |
+
+---
+
+## Status 값 규칙
+
+모든 status 값은 **snake_case**로 통일됩니다:
+
+| 앱 | Status 값 |
+|----|-----------|
+| encounters | `scheduled`, `in_progress`, `completed`, `cancelled` |
+| prescriptions | `DRAFT`, `ISSUED`, `DISPENSED`, `CANCELLED` |
+| treatment | `planned`, `in_progress`, `completed`, `cancelled`, `on_hold` |
+| followup | `stable`, `improved`, `deteriorated`, `recurrence`, `progression`, `remission` |
+| imaging (OCS 매핑) | `ordered`, `scheduled`, `in_progress`, `completed`, `reported`, `cancelled` |

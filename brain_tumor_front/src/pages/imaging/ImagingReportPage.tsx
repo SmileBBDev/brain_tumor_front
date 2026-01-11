@@ -107,11 +107,11 @@ export default function ImagingReportPage() {
         ) : (
           <>
             <ImagingListTable
+              role=""
               studies={studies}
               onEdit={handleOpenReportModal}
               onDelete={() => {}} // 판독 페이지에서는 삭제 불가
-              showActions={true}
-              actionLabel="판독"
+              onRefresh={fetchStudies}
             />
 
             <Pagination
@@ -127,8 +127,13 @@ export default function ImagingReportPage() {
       {/* Report Modal */}
       {isReportModalOpen && selectedStudy && (
         <ImagingReportModal
+          isOpen={isReportModalOpen}
           study={selectedStudy}
           onClose={handleCloseReportModal}
+          onSuccess={() => {
+            handleCloseReportModal();
+            fetchStudies();
+          }}
         />
       )}
     </div>

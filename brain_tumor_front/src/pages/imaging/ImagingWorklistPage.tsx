@@ -8,8 +8,6 @@ import '@/assets/style/encounterListView.css';
 
 export default function ImagingWorklistPage() {
   const { role } = useAuth();
-  const isRIS = role === 'RIS';
-  const isDoctor = role === 'DOCTOR';
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -175,7 +173,7 @@ export default function ImagingWorklistPage() {
           }}>
             <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>수행 중</div>
             <div style={{ fontSize: '2rem', fontWeight: 'bold', marginTop: '0.5rem' }}>
-              {studies.filter(s => s.status === 'in-progress').length}
+              {studies.filter(s => s.status === 'in_progress').length}
             </div>
           </div>
         </div>
@@ -221,7 +219,7 @@ export default function ImagingWorklistPage() {
         ) : (
           <>
             <ImagingListTable
-              role={role}
+              role={role || ''}
               studies={studies}
               onEdit={() => {}}
               onDelete={() => {}}

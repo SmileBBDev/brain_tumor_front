@@ -15,7 +15,7 @@ class Encounter(models.Model):
 
     STATUS_CHOICES = [
         ('scheduled', '예정'),
-        ('in-progress', '진행중'),
+        ('in_progress', '진행중'),
         ('completed', '완료'),
         ('cancelled', '취소'),
     ]
@@ -121,4 +121,4 @@ class Encounter(models.Model):
     @property
     def is_active(self):
         """활성 진료 여부"""
-        return self.status in ['scheduled', 'in-progress'] and not self.is_deleted
+        return self.status in ['scheduled', 'in_progress'] and not self.is_deleted

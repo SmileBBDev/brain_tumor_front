@@ -49,11 +49,8 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete 
     );
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ko-KR');
-  };
-
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleString('ko-KR');
   };
 
@@ -61,8 +58,8 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete 
     switch (status) {
       case 'scheduled':
         return 'status-badge status-scheduled';
-      case 'in-progress':
-        return 'status-badge status-in-progress';
+      case 'in_progress':
+        return 'status-badge status-in_progress';
       case 'completed':
         return 'status-badge status-completed';
       case 'cancelled':
@@ -116,7 +113,7 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete 
               </td>
               <td>
                 <div className="action-buttons">
-                  {canCreateOrder && (e.status === 'in-progress' || e.status === 'scheduled') && (
+                  {canCreateOrder && (e.status === 'in_progress' || e.status === 'scheduled') && (
                     <button
                       className="btn small"
                       onClick={() => handleCreateOrder(e)}

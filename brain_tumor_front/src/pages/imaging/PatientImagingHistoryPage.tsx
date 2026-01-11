@@ -48,7 +48,7 @@ export default function PatientImagingHistoryPage() {
     const statusMap: Record<string, { text: string; className: string }> = {
       ordered: { text: '오더 생성', className: 'badge-info' },
       scheduled: { text: '검사 예약', className: 'badge-warning' },
-      'in-progress': { text: '검사 수행 중', className: 'badge-primary' },
+      in_progress: { text: '검사 수행 중', className: 'badge-primary' },
       completed: { text: '검사 완료', className: 'badge-success' },
       reported: { text: '판독 완료', className: 'badge-completed' },
       cancelled: { text: '취소', className: 'badge-danger' },
@@ -225,7 +225,7 @@ export default function PatientImagingHistoryPage() {
                     {study.report && (
                       <button
                         className="btn-primary"
-                        onClick={() => window.location.href = `/imaging/reports/${study.report.id}`}
+                        onClick={() => window.location.href = `/imaging/reports/${study.report?.id}`}
                       >
                         판독문 보기
                       </button>

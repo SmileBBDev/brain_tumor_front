@@ -86,7 +86,7 @@ class ImagingStudyListSerializer(serializers.ModelSerializer):
         status_map = {
             'ORDERED': 'ordered',
             'ACCEPTED': 'scheduled',
-            'IN_PROGRESS': 'in-progress',
+            'IN_PROGRESS': 'in_progress',
             'RESULT_READY': 'completed',
             'CONFIRMED': 'reported',
             'CANCELLED': 'cancelled',
@@ -285,7 +285,7 @@ class ImagingStudyUpdateSerializer(serializers.Serializer):
     modality = serializers.ChoiceField(choices=['CT', 'MRI', 'PET', 'X-RAY'], required=False)
     body_part = serializers.CharField(required=False)
     status = serializers.ChoiceField(
-        choices=['ordered', 'scheduled', 'in-progress', 'completed', 'reported', 'cancelled'],
+        choices=['ordered', 'scheduled', 'in_progress', 'completed', 'reported', 'cancelled'],
         required=False
     )
     scheduled_at = serializers.DateTimeField(required=False, allow_null=True)
@@ -314,7 +314,7 @@ class ImagingStudyUpdateSerializer(serializers.Serializer):
             status_map = {
                 'ordered': 'ORDERED',
                 'scheduled': 'ACCEPTED',
-                'in-progress': 'IN_PROGRESS',
+                'in_progress': 'IN_PROGRESS',
                 'completed': 'RESULT_READY',
                 'reported': 'CONFIRMED',
                 'cancelled': 'CANCELLED',
@@ -482,7 +482,7 @@ class ImagingSearchSerializer(serializers.Serializer):
         help_text='검사 종류'
     )
     status = serializers.ChoiceField(
-        choices=['ordered', 'scheduled', 'in-progress', 'completed', 'reported', 'cancelled'],
+        choices=['ordered', 'scheduled', 'in_progress', 'completed', 'reported', 'cancelled'],
         required=False,
         help_text='검사 상태'
     )

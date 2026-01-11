@@ -156,7 +156,7 @@ export default function RISUploadPage() {
   const [newPatientBirthDate, setNewPatientBirthDate] = useState('');
   const [newPatientGender, setNewPatientGender] = useState<'M' | 'F' | 'O'>('M');
   const [newPatientPhone, setNewPatientPhone] = useState('');
-  const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [_isCreatingPatient, setIsCreatingPatient] = useState(false);
 
   // 새 외부 검사 등록 모드 - 검사 종류
   const [jobType, setJobType] = useState('CT');

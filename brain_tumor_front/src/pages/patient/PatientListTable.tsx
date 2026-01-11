@@ -11,7 +11,6 @@ type Props = {
 // role에 따른 테이블 컬럼 매핑 컴포넌트
 export default function PatientListTable( {role, patients, onEdit, onDelete} : Props ) {
   const navigate = useNavigate();
-  const isDoctor = role === 'DOCTOR';
   const isSystemManager = role === 'SYSTEMMANAGER';
   const canEdit = role === 'DOCTOR' || role === 'NURSE' || isSystemManager;
 

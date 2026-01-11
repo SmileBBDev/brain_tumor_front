@@ -1,7 +1,5 @@
-import type { Role } from '@/types/role';
-
 interface Props {
-  role: Role;
+  role: string;  // role code (DOCTOR, SYSTEMMANAGER 등)
 }
 
 export default function AISummaryTab({ role }: Props) {

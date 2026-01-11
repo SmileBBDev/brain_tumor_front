@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOCSList } from '@/services/ocs.api';
-import type { OCSListItem, OcsStatus } from '@/types/ocs';
+import type { OCSListItem } from '@/types/ocs';
 import { useOCSNotification } from '@/hooks/useOCSNotification';
 import OCSNotificationToast from '@/components/OCSNotificationToast';
 import './RISDashboardPage.css';

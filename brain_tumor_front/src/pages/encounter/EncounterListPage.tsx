@@ -172,7 +172,7 @@ export default function EncounterListPage() {
             >
               <option value="">전체 상태</option>
               <option value="scheduled">예정</option>
-              <option value="in-progress">진행중</option>
+              <option value="in_progress">진행중</option>
               <option value="completed">완료</option>
               <option value="cancelled">취소</option>
             </select>
@@ -209,7 +209,7 @@ export default function EncounterListPage() {
         ) : (
           <>
             <EncounterListTable
-              role={role}
+              role={role || ''}
               encounters={encounters}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}

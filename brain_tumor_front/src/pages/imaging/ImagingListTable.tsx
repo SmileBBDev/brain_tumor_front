@@ -66,8 +66,8 @@ export default function ImagingListTable({ role, studies, onEdit, onDelete, onRe
         return 'status-badge status-scheduled';
       case 'scheduled':
         return 'status-badge status-scheduled';
-      case 'in-progress':
-        return 'status-badge status-in-progress';
+      case 'in_progress':
+        return 'status-badge status-in_progress';
       case 'completed':
         return 'status-badge status-completed';
       case 'reported':
@@ -217,7 +217,7 @@ export default function ImagingListTable({ role, studies, onEdit, onDelete, onRe
                   <div className="action-buttons" style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                     {canEdit && study.status !== 'cancelled' && (
                       <>
-                        {study.status === 'in-progress' && (
+                        {study.status === 'in_progress' && (
                           <button
                             className="btn small"
                             onClick={() => handleComplete(study)}

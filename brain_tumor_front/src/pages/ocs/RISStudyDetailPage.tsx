@@ -638,10 +638,10 @@ export default function RISStudyDetailPage() {
         {/* 검사 결과 탭 */}
         {activeTab === 'result' && (
           <div className="tab-panel result-panel">
-            {/* 영상 조회 섹션 */}
+            {/* DICOM Viewer & Upload 섹션 */}
             <div className="viewer-section">
               <button className="btn btn-secondary" onClick={handleOpenViewer}>
-                영상 조회
+                DICOM Viewer & Upload
               </button>
             </div>
 

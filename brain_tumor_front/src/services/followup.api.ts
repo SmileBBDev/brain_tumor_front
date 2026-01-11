@@ -1,7 +1,7 @@
 import { api } from './api';
 
 // =============================================================================
-// Follow-up API Types
+// Follow-up API Types (백엔드 모델과 일치)
 // =============================================================================
 
 export interface FollowUp {
@@ -9,23 +9,19 @@ export interface FollowUp {
   patient: number;
   patient_name: string;
   patient_number: string;
-  encounter: number | null;
   treatment_plan: number | null;
-  treatment_plan_title: string | null;
+  related_ocs: number | null;
   followup_date: string;
-  followup_type: 'routine' | 'imaging' | 'lab' | 'symptom' | 'emergency';
+  followup_type: 'routine' | 'symptom_based' | 'post_treatment' | 'emergency';
   followup_type_display: string;
-  clinical_status: 'stable' | 'improved' | 'deteriorated' | 'recurrence' | 'unknown';
+  clinical_status: 'stable' | 'improved' | 'deteriorated' | 'recurrence' | 'progression' | 'remission';
   clinical_status_display: string;
-  kps_score: number | null; // Karnofsky Performance Status (0-100)
-  ecog_score: number | null; // ECOG Performance Status (0-5)
-  weight: number | null;
-  blood_pressure_systolic: number | null;
-  blood_pressure_diastolic: number | null;
-  symptoms: string;
-  physical_exam: string;
-  assessment: string;
-  plan: string;
+  symptoms: string[];
+  kps_score: number | null;
+  ecog_score: number | null;
+  vitals: Record<string, unknown>;
+  weight_kg: number | null;
+  note: string;
   next_followup_date: string | null;
   recorded_by: number;
   recorded_by_name: string;
@@ -33,22 +29,20 @@ export interface FollowUp {
   updated_at: string;
 }
 
+// 경과 추적 생성 데이터 (백엔드 필드명과 일치)
 export interface FollowUpCreateData {
-  patient_id: number;
-  encounter_id?: number;
-  treatment_plan_id?: number;
+  patient: number;              // patient_id → patient
+  treatment_plan?: number;      // treatment_plan_id → treatment_plan
+  related_ocs?: number;
   followup_date: string;
   followup_type: string;
   clinical_status: string;
+  symptoms?: string[];
   kps_score?: number;
   ecog_score?: number;
-  weight?: number;
-  blood_pressure_systolic?: number;
-  blood_pressure_diastolic?: number;
-  symptoms?: string;
-  physical_exam?: string;
-  assessment?: string;
-  plan?: string;
+  vitals?: Record<string, unknown>;
+  weight_kg?: number;
+  note?: string;
   next_followup_date?: string;
 }
 

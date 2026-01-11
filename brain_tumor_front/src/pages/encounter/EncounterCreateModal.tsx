@@ -250,7 +250,7 @@ export default function EncounterCreateModal({ isOpen, onClose, onSuccess }: Pro
                   required
                 >
                   <option value="scheduled">예정</option>
-                  <option value="in-progress">진행중</option>
+                  <option value="in_progress">진행중</option>
                   <option value="completed">완료</option>
                   <option value="cancelled">취소</option>
                 </select>

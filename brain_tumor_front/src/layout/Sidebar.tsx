@@ -1,4 +1,3 @@
-import { NavLink } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/pages/auth/AuthProvider';
 import SidebarItem from './SidebarItem';
@@ -30,24 +29,5 @@ export default function Sidebar() {
         </ul>
       </nav>
     </aside>
-  );
-}
-
-function MenuItem({ menu }: { menu: any }) {
-  if (menu.children?.length) {
-    return (
-      <div className="menu-group">
-        <span className="menu-title">{menu.label}</span>
-        {menu.children.map((child: any) => (
-          <MenuItem key={child.id} menu={child} />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <NavLink to={menu.path!} className="menu-item">
-      {menu.label}
-    </NavLink>
   );
 }

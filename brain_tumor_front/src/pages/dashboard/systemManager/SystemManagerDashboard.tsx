@@ -1,7 +1,7 @@
 import {useState} from "react";
 import DoctorDashboard from "../doctor/DoctorDashboard";
 import NurseDashboard from "../nurse/NurseDashboard";
-import LISDashboard from "../lis/LisDashboard";
+import LISDashboard from "../lis/LISDashboard";
 // import CommingSoon from "@/pages/common/CommingSoon";
 import RISDashboard from "../ris/RISDashboard";
 

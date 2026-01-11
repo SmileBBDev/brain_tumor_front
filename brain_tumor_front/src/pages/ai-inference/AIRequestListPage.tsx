@@ -43,7 +43,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 export default function AIRequestListPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const toast = useToast();
 
   // 필터 상태

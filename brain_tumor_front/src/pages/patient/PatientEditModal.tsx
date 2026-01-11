@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { updatePatient } from '@/services/patient.api';
-import type { Patient, PatientUpdateData, BloodType, PatientStatus } from '@/types/patient';
+import type { Patient, PatientUpdateData } from '@/types/patient';
 import './PatientCreateModal.css';
 
 type Props = {

@@ -6,7 +6,7 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../auth/AuthProvider';
+// useAuth import removed - not used
 import { usePatientAvailableModels, useCreateAIRequest } from '@/hooks';
 import { LoadingSpinner, useToast } from '@/components/common';
 import { searchPatients } from '@/services/patient.api';
@@ -40,7 +40,7 @@ export default function AIRequestCreatePage() {
   const [validationResult, setValidationResult] = useState<DataValidationResult | null>(null);
 
   // Hooks
-  const { models, availableModels, unavailableModels, loading: modelsLoading } = usePatientAvailableModels(
+  const { models: _models, availableModels, unavailableModels, loading: modelsLoading } = usePatientAvailableModels(
     selectedPatient?.id ?? null
   );
   const { create, validate, creating, validating, error } = useCreateAIRequest();

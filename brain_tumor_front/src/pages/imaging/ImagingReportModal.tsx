@@ -19,7 +19,7 @@ export default function ImagingReportModal({ isOpen, onClose, onSuccess, study }
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [studyDetail, setStudyDetail] = useState<ImagingStudyDetailResponse | null>(null);
+  const [_studyDetail, setStudyDetail] = useState<ImagingStudyDetailResponse | null>(null);
   const [existingReport, setExistingReport] = useState<ImagingReport | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
 

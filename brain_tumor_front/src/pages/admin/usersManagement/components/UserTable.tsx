@@ -9,7 +9,7 @@ interface UserTableProps {
   onRefresh: () => void;
 }
 
-const UserTable: React.FC<UserTableProps> = ({ users, onToggleActive, onUnlock, onRefresh }) => {
+const UserTable: React.FC<UserTableProps> = ({ users, onToggleActive, onUnlock, onRefresh: _onRefresh }) => {
   return (
     <table className="admin-table">
       <thead>

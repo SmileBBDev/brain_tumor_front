@@ -8,7 +8,6 @@ import {
   getAIRequest,
   createAIRequest,
   cancelAIRequest,
-  getAIRequestStatus,
   validateAIData,
   reviewAIResult,
   getPatientAvailableModels,

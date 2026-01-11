@@ -173,7 +173,7 @@ export default function ImagingListPage() {
               <option value="">전체 상태</option>
               <option value="ordered">오더 생성</option>
               <option value="scheduled">검사 예약</option>
-              <option value="in-progress">검사 수행 중</option>
+              <option value="in_progress">검사 수행 중</option>
               <option value="completed">검사 완료</option>
               <option value="reported">판독 완료</option>
               <option value="cancelled">취소</option>
@@ -238,7 +238,7 @@ export default function ImagingListPage() {
         ) : (
           <>
             <ImagingListTable
-              role={role}
+              role={role || ''}
               studies={studies}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}

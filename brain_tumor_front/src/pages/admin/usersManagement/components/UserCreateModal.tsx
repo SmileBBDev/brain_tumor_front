@@ -1,5 +1,5 @@
 // 사용자 추가 모달 컴포넌트
-import type { UserUpdateForm, User } from "@/types/user";
+import type { UserUpdateForm } from "@/types/user";
 import UserForm from "./UserForm";
 import type { AccountForm } from "./AccountSection";
 import { createUser, type CreateUserPayload } from "@/services/users.api";

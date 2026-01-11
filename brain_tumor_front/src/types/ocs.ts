@@ -364,7 +364,7 @@ export interface OCSAcceptRequest {}
 export interface OCSStartRequest {}
 
 export interface OCSSaveResultRequest {
-  worker_result?: Partial<WorkerResult>;
+  worker_result?: Partial<WorkerResult> | Record<string, unknown>;
   attachments?: Partial<Attachments>;
 }
 

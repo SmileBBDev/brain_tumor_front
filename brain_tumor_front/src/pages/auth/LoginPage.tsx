@@ -29,7 +29,7 @@ export default function LoginPage(){
     const [pw, setPw] = useState('');    
     const navigate = useNavigate();
 
-    const { user, refreshAuth } = useAuth();
+    const { refreshAuth } = useAuth();
     
     const handleLogin = async () => {
         //api 호출해서 로그인 처리 기능

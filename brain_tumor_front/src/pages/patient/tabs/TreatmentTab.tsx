@@ -27,22 +27,30 @@ const TREATMENT_TYPE_LABELS: Record<string, string> = {
   combined: '복합 치료',
 };
 
+// 치료 목표 라벨
+const TREATMENT_GOAL_LABELS: Record<string, string> = {
+  curative: '완치 목적',
+  palliative: '완화 목적',
+  adjuvant: '보조 요법',
+  neoadjuvant: '선행 요법',
+};
+
 // 상태 라벨
 const STATUS_LABELS: Record<string, string> = {
-  draft: '초안',
   planned: '계획됨',
-  active: '진행 중',
+  in_progress: '진행 중',
   completed: '완료',
   cancelled: '취소됨',
+  on_hold: '보류 중',
 };
 
 // 상태 색상
 const STATUS_COLORS: Record<string, string> = {
-  draft: 'status-draft',
   planned: 'status-planned',
-  active: 'status-active',
+  in_progress: 'status-active',
   completed: 'status-completed',
   cancelled: 'status-cancelled',
+  on_hold: 'status-draft',
 };
 
 export default function TreatmentTab({ role }: Props) {
@@ -80,7 +88,7 @@ export default function TreatmentTab({ role }: Props) {
   // 치료 계획 생성
   const handleCreate = async (data: TreatmentPlanCreateData) => {
     try {
-      await createTreatmentPlan({ ...data, patient_id: Number(patientId) });
+      await createTreatmentPlan({ ...data, patient: Number(patientId) });
       setShowCreateModal(false);
       fetchPlans();
     } catch (err) {
@@ -170,7 +178,7 @@ export default function TreatmentTab({ role }: Props) {
                   <span className={`type-badge type-${plan.treatment_type}`}>
                     {TREATMENT_TYPE_LABELS[plan.treatment_type] || plan.treatment_type}
                   </span>
-                  <h4>{plan.title}</h4>
+                  <h4>{plan.plan_summary}</h4>
                 </div>
                 <span className={`status-badge ${STATUS_COLORS[plan.status]}`}>
                   {STATUS_LABELS[plan.status] || plan.status}
@@ -184,25 +192,17 @@ export default function TreatmentTab({ role }: Props) {
                 </div>
                 <div className="info-row">
                   <span className="label">담당의:</span>
-                  <span>{plan.created_by_name}</span>
+                  <span>{plan.planned_by_name}</span>
                 </div>
-                {plan.description && (
-                  <div className="info-row">
-                    <span className="label">설명:</span>
-                    <span>{plan.description}</span>
-                  </div>
-                )}
+                <div className="info-row">
+                  <span className="label">치료 목표:</span>
+                  <span>{TREATMENT_GOAL_LABELS[plan.treatment_goal] || plan.treatment_goal_display}</span>
+                </div>
               </div>
 
               {/* 확장된 상세 정보 */}
               {selectedPlan?.id === plan.id && (
                 <div className="plan-detail">
-                  {plan.goals && (
-                    <div className="detail-section">
-                      <h5>치료 목표</h5>
-                      <p>{plan.goals}</p>
-                    </div>
-                  )}
                   {plan.notes && (
                     <div className="detail-section">
                       <h5>비고</h5>
@@ -218,7 +218,7 @@ export default function TreatmentTab({ role }: Props) {
                         {plan.sessions.map((session) => (
                           <div key={session.id} className="session-item">
                             <span className="session-number">#{session.session_number}</span>
-                            <span className="session-date">{formatDate(session.scheduled_date)}</span>
+                            <span className="session-date">{formatDate(session.session_date)}</span>
                             <span className={`session-status status-${session.status}`}>
                               {session.status_display}
                             </span>
@@ -236,12 +236,12 @@ export default function TreatmentTab({ role }: Props) {
                           치료 시작
                         </button>
                       )}
-                      {plan.status === 'active' && (
+                      {plan.status === 'in_progress' && (
                         <button className="btn btn-primary" onClick={() => handleComplete(plan.id)}>
                           치료 완료
                         </button>
                       )}
-                      {['draft', 'planned'].includes(plan.status) && (
+                      {['planned', 'on_hold'].includes(plan.status) && (
                         <button className="btn btn-danger" onClick={() => handleCancel(plan.id)}>
                           취소
                         </button>
@@ -276,15 +276,19 @@ function CreateTreatmentModal({
 }) {
   const [formData, setFormData] = useState<Partial<TreatmentPlanCreateData>>({
     treatment_type: 'surgery',
-    title: '',
-    description: '',
-    goals: '',
+    treatment_goal: 'curative',
+    plan_summary: '',
+    notes: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title) {
-      alert('제목을 입력해주세요.');
+    if (!formData.plan_summary) {
+      alert('치료 계획 요약을 입력해주세요.');
+      return;
+    }
+    if (!formData.treatment_goal) {
+      alert('치료 목표를 선택해주세요.');
       return;
     }
     onCreate(formData as TreatmentPlanCreateData);
@@ -310,32 +314,37 @@ function CreateTreatmentModal({
           </div>
 
           <div className="form-group">
-            <label>제목 *</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="치료 계획 제목"
+            <label>치료 목표 *</label>
+            <select
+              value={formData.treatment_goal}
+              onChange={(e) => setFormData({ ...formData, treatment_goal: e.target.value })}
+              required
+            >
+              {Object.entries(TREATMENT_GOAL_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>치료 계획 요약 *</label>
+            <textarea
+              value={formData.plan_summary}
+              onChange={(e) => setFormData({ ...formData, plan_summary: e.target.value })}
+              placeholder="치료 계획 요약을 입력하세요"
+              rows={3}
               required
             />
           </div>
 
           <div className="form-group">
-            <label>설명</label>
+            <label>비고</label>
             <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="치료 계획 설명"
-              rows={3}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>치료 목표</label>
-            <textarea
-              value={formData.goals}
-              onChange={(e) => setFormData({ ...formData, goals: e.target.value })}
-              placeholder="치료 목표"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="추가 사항"
               rows={2}
             />
           </div>

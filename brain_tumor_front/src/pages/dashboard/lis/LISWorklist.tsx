@@ -33,7 +33,7 @@ function LISRow({ patient, test, status, time }: any) {
       <td>{patient}</td>
       <td>{test}</td>
       <td>
-        <span className="badge in-progress">{status}</span>
+        <span className="badge in_progress">{status}</span>
       </td>
       <td>{time}</td>
     </tr>

@@ -175,3 +175,64 @@ class EncounterViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(encounter)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def calendar(self, request):
+        """
+        캘린더용 진료 목록 조회
+
+        Query Parameters:
+            - start_date: 시작일 (YYYY-MM-DD)
+            - end_date: 종료일 (YYYY-MM-DD)
+            - attending_doctor: 담당 의사 ID (선택)
+            - department: 진료과 (선택)
+
+        Returns:
+            진료 목록 (캘린더 표시용 간소화된 데이터)
+        """
+        queryset = self.get_queryset()
+
+        # 날짜 필터 (필수)
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if start_date:
+            queryset = queryset.filter(admission_date__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(admission_date__date__lte=end_date)
+
+        # 추가 필터
+        attending_doctor = request.query_params.get('attending_doctor')
+        if attending_doctor:
+            queryset = queryset.filter(attending_doctor_id=attending_doctor)
+
+        department = request.query_params.get('department')
+        if department:
+            queryset = queryset.filter(department=department)
+
+        # 캘린더용 간소화된 응답
+        events = []
+        for enc in queryset.select_related('patient', 'attending_doctor'):
+            events.append({
+                'id': enc.id,
+                'title': f"{enc.patient.name} ({enc.get_encounter_type_display()})",
+                'start': enc.admission_date.isoformat() if enc.admission_date else None,
+                'end': enc.discharge_date.isoformat() if enc.discharge_date else None,
+                'patient_id': enc.patient.id,
+                'patient_name': enc.patient.name,
+                'patient_number': enc.patient.patient_number,
+                'encounter_type': enc.encounter_type,
+                'encounter_type_display': enc.get_encounter_type_display(),
+                'status': enc.status,
+                'status_display': enc.get_status_display(),
+                'department': enc.department,
+                'department_display': enc.get_department_display(),
+                'attending_doctor_id': enc.attending_doctor.id if enc.attending_doctor else None,
+                'attending_doctor_name': enc.attending_doctor.name if enc.attending_doctor else None,
+                'chief_complaint': enc.chief_complaint,
+            })
+
+        return Response({
+            'count': len(events),
+            'events': events
+        })

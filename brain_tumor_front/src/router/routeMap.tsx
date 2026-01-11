@@ -1,26 +1,42 @@
-import type { ComponentType } from 'react';
+import { lazy, type ComponentType } from 'react';
 
-import DashboardPage from '@/pages/dashboard/DashboardPage';
-import PatientListPage from '@/pages/patient/PatientListPage';
-import PatientDetailPage from '@/pages/patient/PatientDetailPage';
-import EncounterListPage from '@/pages/encounter/EncounterListPage';
-import ImagingListPage from '@/pages/imaging/ImagingListPage';
-import PatientImagingHistoryPage from '@/pages/imaging/PatientImagingHistoryPage';
-import AISummaryPage from '@/pages/ai/AISummaryPage';
-import RISWorklistPage from '@/pages/ris/RISWorklistPage';
-import OrderListPage from '@/pages/orders/OrderListPage';
-import OrderCreatePage from '@/pages/orders/OrderCreate';
-import { DoctorOrderPage, RISWorklistPage as OCSRISWorklistPage, RISStudyDetailPage, LISWorklistPage, LISStudyDetailPage, RISDashboardPage, LISUploadPage, LISProcessStatusPage, RISUploadPage } from '@/pages/ocs';
-import { NurseReceptionPage } from '@/pages/nurse';
-import { AIRequestListPage, AIRequestCreatePage, AIRequestDetailPage } from '@/pages/ai-inference';
-import { ComingSoonPage } from '@/pages/common/CommingSoon';
-import MenuPermissionPage from '@/pages/admin/MenuPermissionPage';
-import UserList from '@/pages/admin/usersManagement/UserList';
-import AuditLog from '@/pages/admin/AuditLog';
-import SystemMonitorPage from '@/pages/admin/SystemMonitorPage';
-import UserDetailPage from '@/pages/admin/usersManagement/UserDetailPage';
-import RoleControlPage from '@/pages/admin/roleManagement/RoleControlPage';
-import { LabListPage } from '@/pages/lab';
+// Lazy loading으로 코드 스플리팅
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
+const PatientListPage = lazy(() => import('@/pages/patient/PatientListPage'));
+const PatientDetailPage = lazy(() => import('@/pages/patient/PatientDetailPage'));
+const ImagingListPage = lazy(() => import('@/pages/imaging/ImagingListPage'));
+const PatientImagingHistoryPage = lazy(() => import('@/pages/imaging/PatientImagingHistoryPage'));
+const AISummaryPage = lazy(() => import('@/pages/ai/AISummaryPage'));
+const RISWorklistPage = lazy(() => import('@/pages/ris/RISWorklistPage'));
+const OrderListPage = lazy(() => import('@/pages/orders/OrderListPage'));
+const OrderCreatePage = lazy(() => import('@/pages/orders/OrderCreate'));
+const MenuPermissionPage = lazy(() => import('@/pages/admin/MenuPermissionPage'));
+const UserList = lazy(() => import('@/pages/admin/usersManagement/UserList'));
+const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
+const SystemMonitorPage = lazy(() => import('@/pages/admin/SystemMonitorPage'));
+const UserDetailPage = lazy(() => import('@/pages/admin/usersManagement/UserDetailPage'));
+const RoleControlPage = lazy(() => import('@/pages/admin/roleManagement/RoleControlPage'));
+
+// OCS 페이지들 (barrel export에서 lazy import로 변경)
+const DoctorOrderPage = lazy(() => import('@/pages/ocs/DoctorOrderPage'));
+const OCSRISWorklistPage = lazy(() => import('@/pages/ocs/RISWorklistPage'));
+const RISStudyDetailPage = lazy(() => import('@/pages/ocs/RISStudyDetailPage'));
+const LISWorklistPage = lazy(() => import('@/pages/ocs/LISWorklistPage'));
+const LISStudyDetailPage = lazy(() => import('@/pages/ocs/LISStudyDetailPage'));
+const RISDashboardPage = lazy(() => import('@/pages/ocs/RISDashboardPage'));
+const LISUploadPage = lazy(() => import('@/pages/ocs/LISUploadPage'));
+const LISProcessStatusPage = lazy(() => import('@/pages/ocs/LISProcessStatusPage'));
+const RISUploadPage = lazy(() => import('@/pages/ocs/RISUploadPage'));
+
+// Nurse, Lab, Clinic
+const NurseReceptionPage = lazy(() => import('@/pages/nurse/NurseReceptionPage'));
+const LabListPage = lazy(() => import('@/pages/lab/LabListPage'));
+const ClinicPage = lazy(() => import('@/pages/clinic/ClinicPage'));
+
+// AI Inference
+const AIRequestListPage = lazy(() => import('@/pages/ai-inference/AIRequestListPage'));
+const AIRequestCreatePage = lazy(() => import('@/pages/ai-inference/AIRequestCreatePage'));
+const AIRequestDetailPage = lazy(() => import('@/pages/ai-inference/AIRequestDetailPage'));
 
 
 /**
@@ -43,7 +59,7 @@ export const routeMap: Record<string, ComponentType> = {
   // === PATIENT 그룹 ===
   PATIENT_LIST: PatientListPage,
   PATIENT_DETAIL: PatientDetailPage,
-  PATIENT_CARE: EncounterListPage,
+  PATIENT_CARE: ClinicPage,
 
   // === ORDER 그룹 ===
   ORDER_LIST: OrderListPage,

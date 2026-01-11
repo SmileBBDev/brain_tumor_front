@@ -18,7 +18,7 @@ export default function EncounterEditModal({ isOpen, onClose, onSuccess, encount
     status: encounter.status,
     attending_doctor: encounter.attending_doctor,
     department: encounter.department,
-    admission_date: encounter.admission_date.slice(0, 16),
+    admission_date: (encounter.admission_date || '').slice(0, 16),
     discharge_date: encounter.discharge_date ? encounter.discharge_date.slice(0, 16) : null,
     chief_complaint: encounter.chief_complaint,
     primary_diagnosis: encounter.primary_diagnosis,
@@ -33,7 +33,7 @@ export default function EncounterEditModal({ isOpen, onClose, onSuccess, encount
         status: encounter.status,
         attending_doctor: encounter.attending_doctor,
         department: encounter.department,
-        admission_date: encounter.admission_date.slice(0, 16),
+        admission_date: (encounter.admission_date || '').slice(0, 16),
         discharge_date: encounter.discharge_date ? encounter.discharge_date.slice(0, 16) : null,
         chief_complaint: encounter.chief_complaint,
         primary_diagnosis: encounter.primary_diagnosis,
@@ -126,7 +126,7 @@ export default function EncounterEditModal({ isOpen, onClose, onSuccess, encount
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as EncounterStatus })}
               >
                 <option value="scheduled">예정</option>
-                <option value="in-progress">진행중</option>
+                <option value="in_progress">진행중</option>
                 <option value="completed">완료</option>
                 <option value="cancelled">취소</option>
               </select>

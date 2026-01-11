@@ -17,12 +17,10 @@ function findBreadcrumbPath(
 ): BreadcrumbItem[] | null {
   for (const menu of menus) {
     let matched = false;
-    let params: Record<string, string> = {};
     // path 매칭 시도
     if (menu.path) {
       const result = matchPathPattern(menu.path, pathname);
       matched = result.matched;
-      params = result.params;
     }
     if (!matched && !menu.children) continue;
     // group 메뉴 (path 없음) → breadcrumb에는 제외

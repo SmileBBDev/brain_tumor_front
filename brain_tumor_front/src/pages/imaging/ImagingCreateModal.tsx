@@ -257,7 +257,7 @@ export default function ImagingCreateModal({ isOpen, onClose, onSuccess }: Props
                     <option value={0}>진료 없음 (외부 환자)</option>
                     {filteredEncounters.map((e) => (
                       <option key={e.id} value={e.id}>
-                        {e.encounter_type_display} - {new Date(e.admission_date).toLocaleDateString('ko-KR')} - {e.chief_complaint}
+                        {e.encounter_type_display} - {e.admission_date ? new Date(e.admission_date).toLocaleDateString('ko-KR') : '-'} - {e.chief_complaint}
                       </option>
                     ))}
                   </select>

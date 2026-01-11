@@ -1,7 +1,7 @@
 import { api } from './api';
 
 // =============================================================================
-// Treatment API Types
+// Treatment API Types (백엔드 모델과 일치)
 // =============================================================================
 
 export interface TreatmentPlan {
@@ -10,23 +10,23 @@ export interface TreatmentPlan {
   patient_name: string;
   patient_number: string;
   encounter: number | null;
-  ai_request: number | null;
+  ocs: number | null;
   treatment_type: 'surgery' | 'radiation' | 'chemotherapy' | 'observation' | 'combined';
   treatment_type_display: string;
-  title: string;
-  description: string;
-  goals: string;
+  treatment_goal: 'curative' | 'palliative' | 'adjuvant' | 'neoadjuvant';
+  treatment_goal_display: string;
+  plan_summary: string;
+  planned_by: number;
+  planned_by_name: string;
+  status: 'planned' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
+  status_display: string;
   start_date: string | null;
   end_date: string | null;
-  status: 'draft' | 'planned' | 'active' | 'completed' | 'cancelled';
-  status_display: string;
-  created_by: number;
-  created_by_name: string;
-  approved_by: number | null;
-  approved_by_name: string | null;
-  approved_at: string | null;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
   notes: string;
   sessions?: TreatmentSession[];
+  session_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -34,39 +34,39 @@ export interface TreatmentPlan {
 export interface TreatmentSession {
   id: number;
   treatment_plan: number;
-  ocs: number | null;
   session_number: number;
-  scheduled_date: string;
-  actual_date: string | null;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'missed';
-  status_display: string;
+  session_date: string;
   performed_by: number | null;
   performed_by_name: string | null;
-  vital_signs: Record<string, unknown>;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'missed';
+  status_display: string;
+  session_note: string;
+  adverse_events: string[];
+  vitals_before: Record<string, unknown>;
+  vitals_after: Record<string, unknown>;
   medications: Record<string, unknown>[];
-  notes: string;
-  complications: string;
   created_at: string;
   updated_at: string;
 }
 
+// 치료 계획 생성 데이터 (백엔드 필드명과 일치)
 export interface TreatmentPlanCreateData {
-  patient_id: number;
-  encounter_id?: number;
-  ai_request_id?: number;
+  patient: number;              // patient_id → patient
+  encounter?: number;           // encounter_id → encounter
+  ocs?: number;
   treatment_type: string;
-  title: string;
-  description?: string;
-  goals?: string;
+  treatment_goal: string;       // goals → treatment_goal
+  plan_summary: string;         // title → plan_summary
   start_date?: string;
   end_date?: string;
-  notes?: string;
+  notes?: string;               // description → notes
 }
 
 export interface TreatmentSessionCreateData {
-  treatment_plan_id: number;
-  scheduled_date: string;
-  notes?: string;
+  treatment_plan: number;
+  session_number: number;
+  session_date: string;
+  session_note?: string;
 }
 
 // =============================================================================
@@ -131,11 +131,11 @@ export const getTreatmentSessions = async (planId: number): Promise<TreatmentSes
 // 세션 생성
 export const createTreatmentSession = async (
   planId: number,
-  data: TreatmentSessionCreateData
+  data: Omit<TreatmentSessionCreateData, 'treatment_plan'>
 ): Promise<TreatmentSession> => {
   const response = await api.post<TreatmentSession>(`/treatment/sessions/`, {
     ...data,
-    treatment_plan_id: planId,
+    treatment_plan: planId,
   });
   return response.data;
 };
@@ -143,7 +143,7 @@ export const createTreatmentSession = async (
 // 세션 완료
 export const completeTreatmentSession = async (
   sessionId: number,
-  data: { notes?: string; complications?: string }
+  data: { session_note?: string; adverse_events?: string[] }
 ): Promise<{ message: string }> => {
   const response = await api.post<{ message: string }>(`/treatment/sessions/${sessionId}/complete/`, data);
   return response.data;

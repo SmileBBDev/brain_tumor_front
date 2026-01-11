@@ -1,7 +1,7 @@
 type Props = {
   role: string;
 };
-export default function ImagingTab({ role }: Props ) {
+export default function ImagingTab({ role: _role }: Props ) {
   return (
     <div className="imaging-layout">
 

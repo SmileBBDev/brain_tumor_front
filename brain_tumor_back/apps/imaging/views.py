@@ -67,7 +67,7 @@ class ImagingStudyViewSet(viewsets.ModelViewSet):
             status_map = {
                 'ordered': 'ORDERED',
                 'scheduled': 'ACCEPTED',
-                'in-progress': 'IN_PROGRESS',
+                'in_progress': 'IN_PROGRESS',
                 'completed': 'RESULT_READY',
                 'reported': 'CONFIRMED',
                 'cancelled': 'CANCELLED',

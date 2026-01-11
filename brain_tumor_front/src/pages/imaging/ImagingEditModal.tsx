@@ -174,7 +174,7 @@ export default function ImagingEditModal({ isOpen, onClose, onSuccess, study }: 
                 >
                   <option value="ordered">오더 생성</option>
                   <option value="scheduled">검사 예약</option>
-                  <option value="in-progress">검사 수행 중</option>
+                  <option value="in_progress">검사 수행 중</option>
                   <option value="completed">검사 완료</option>
                   <option value="reported">판독 완료</option>
                   <option value="cancelled">취소</option>
@@ -189,7 +189,7 @@ export default function ImagingEditModal({ isOpen, onClose, onSuccess, study }: 
                   type="datetime-local"
                   id="scheduled_at"
                   name="scheduled_at"
-                  value={formData.scheduled_at}
+                  value={formData.scheduled_at || ''}
                   onChange={handleChange}
                 />
               </div>
@@ -200,7 +200,7 @@ export default function ImagingEditModal({ isOpen, onClose, onSuccess, study }: 
                   type="datetime-local"
                   id="performed_at"
                   name="performed_at"
-                  value={formData.performed_at}
+                  value={formData.performed_at || ''}
                   onChange={handleChange}
                 />
               </div>

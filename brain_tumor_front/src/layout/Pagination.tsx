@@ -1,20 +1,30 @@
 interface PaginationProps {
   currentPage: number;
-  totalPages: number;
-  onChange: (currentPage: number) => void;
-  pageSize?: number; // 한 그룹에 보여줄 페이지 수 (기본 5)
+  totalPages?: number;
+  totalCount?: number;  // 호환성을 위해 추가
+  pageSize?: number;
+  onChange?: (currentPage: number) => void;
+  onPageChange?: (currentPage: number) => void;  // 호환성을 위해 추가
 }
 
 export default function Pagination({
   currentPage,
-  totalPages,
+  totalPages: totalPagesProp,
+  totalCount,
+  pageSize = 20,
   onChange,
-  pageSize = 5,
+  onPageChange,
 }: PaginationProps) {
+  // totalCount가 있으면 totalPages 계산, 없으면 totalPages 사용
+  const totalPages = totalPagesProp ?? Math.ceil((totalCount || 0) / pageSize);
+  // onChange 또는 onPageChange 사용
+  const handleChange = onChange ?? onPageChange ?? (() => {});
+
   if (totalPages <= 1) return null;
-  const currentGroup = Math.floor((currentPage - 1) / pageSize);
-  const startPage = currentGroup * pageSize + 1;
-  const endPage = Math.min(startPage + pageSize - 1, totalPages);
+  const groupSize = 5; // 한 그룹에 보여줄 페이지 수
+  const currentGroup = Math.floor((currentPage - 1) / groupSize);
+  const startPage = currentGroup * groupSize + 1;
+  const endPage = Math.min(startPage + groupSize - 1, totalPages);
   // const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
   // 그룹 범위만큼만 페이지 배열 생성
   const pages = endPage >= startPage
@@ -26,7 +36,7 @@ export default function Pagination({
   return (
     <div className="pagination-bar">
       {currentGroup > 0 && (
-        <button onClick={() => onChange(startPage - pageSize)}>{'<<'}</button>
+        <button onClick={() => handleChange(startPage - groupSize)}>{'<<'}</button>
       )}
 
 
@@ -34,7 +44,7 @@ export default function Pagination({
       <button
         className="page-btn"
         disabled={currentPage === 1}
-        onClick={() => onChange(currentPage - 1)}
+        onClick={() => handleChange(currentPage - 1)}
       >
         ◀
       </button>
@@ -44,23 +54,23 @@ export default function Pagination({
         <button
           key={p}
           className={`page-btn ${p === currentPage ? 'active' : ''}`}
-          onClick={() => onChange(p)}
+          onClick={() => handleChange(p)}
         >
           {p}
         </button>
       ))}
- 
+
       {/* 다음 */}
       <button
         className="page-btn"
         disabled={currentPage === totalPages}
-        onClick={() => onChange(currentPage + 1)}
+        onClick={() => handleChange(currentPage + 1)}
       >
         ▶
       </button>
 
       {endPage < totalPages && (
-        <button onClick={() => onChange(startPage + pageSize)}>{'>>'}</button>
+        <button onClick={() => handleChange(startPage + groupSize)}>{'>>'}</button>
       )}
     </div>
   );

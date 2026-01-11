@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { OCSListItem, OcsStatus } from '@/types/ocs';
-import { OCS_STATUS_LABELS } from '@/types/ocs';
+// OCS_STATUS_LABELS removed - not used in this file
 
 type Props = {
   role: string;
@@ -32,11 +32,8 @@ const getTestTypeColor = (jobType: string): string => {
   return '#666';
 };
 
-export default function LabListTable({ role, labOrders, onRefresh }: Props) {
+export default function LabListTable({ labOrders }: Props) {
   const navigate = useNavigate();
-  const isDoctor = role === 'DOCTOR';
-  const isLIS = role === 'LIS';
-  const isSystemManager = role === 'SYSTEMMANAGER';
 
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('ko-KR', {
@@ -46,25 +43,6 @@ export default function LabListTable({ role, labOrders, onRefresh }: Props) {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const getStatusBadgeClass = (status: OcsStatus) => {
-    switch (status) {
-      case 'ORDERED':
-        return 'status-badge status-scheduled';
-      case 'ACCEPTED':
-        return 'status-badge status-scheduled';
-      case 'IN_PROGRESS':
-        return 'status-badge status-in-progress';
-      case 'RESULT_READY':
-        return 'status-badge status-completed';
-      case 'CONFIRMED':
-        return 'status-badge status-completed';
-      case 'CANCELLED':
-        return 'status-badge status-cancelled';
-      default:
-        return 'status-badge';
-    }
   };
 
   const getStatusBadgeStyle = (status: OcsStatus): React.CSSProperties => {

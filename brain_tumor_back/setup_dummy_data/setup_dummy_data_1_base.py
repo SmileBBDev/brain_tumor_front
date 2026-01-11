@@ -314,6 +314,9 @@ def load_menu_permission_seed():
         ('LAB_RESULT_VIEW', '검사 결과 조회', '검사 결과 조회 화면'),
         ('LAB_RESULT_UPLOAD', '검사 결과 업로드', '검사 결과 업로드 화면'),
         ('AI_SUMMARY', 'AI 분석 요약', 'AI 분석 요약 화면'),
+        ('AI_REQUEST_LIST', 'AI 분석 요청 목록', 'AI 분석 요청 목록 화면'),
+        ('AI_REQUEST_CREATE', 'AI 분석 요청 생성', 'AI 분석 요청 생성 화면'),
+        ('AI_REQUEST_DETAIL', 'AI 분석 요청 상세', 'AI 분석 요청 상세 화면'),
         ('ADMIN', '관리자', '관리자 메뉴'),
         ('ADMIN_USER', '사용자 관리', '사용자 관리 화면'),
         ('ADMIN_USER_DETAIL', '사용자 관리 상세', '사용자 상세 화면'),
@@ -428,6 +431,11 @@ def load_menu_permission_seed():
     # LIS Result Upload 메뉴 (LAB 그룹)
     create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', breadcrumb_only=True, order=5, is_active=True, parent=menu_lab)
 
+    # AI 추론 요청 메뉴 (AI_SUMMARY 하위)
+    menu_ai_request, _ = create_menu(33, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=1, is_active=True, parent=menu_ai)
+    create_menu(34, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
+    create_menu(35, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=3, is_active=True, parent=menu_ai_request)
+
     print(f"  메뉴 생성: {changes['Menu']['created']}개 (전체: {Menu.objects.count()}개)")
     if menu_updates:
         print(f"  메뉴 업데이트: {len(menu_updates)}개")
@@ -501,6 +509,10 @@ def load_menu_permission_seed():
         (15, 'DEFAULT', '판독 Worklist'),
         # AI
         (2, 'DEFAULT', 'AI 분석 요약'),
+        (33, 'DEFAULT', 'AI 분석 요청'),
+        (33, 'DOCTOR', 'AI 분석 요청'),
+        (34, 'DEFAULT', 'AI 분석 요청 생성'),
+        (35, 'DEFAULT', 'AI 분석 요청 상세'),
         # LAB
         (5, 'DEFAULT', '검사'),
         (17, 'DEFAULT', '검사 조회'),  # 검사 결과 조회 → 검사 조회
@@ -539,10 +551,11 @@ def load_menu_permission_seed():
             'OCS_RIS', 'OCS_RIS_DETAIL', 'OCS_LIS', 'OCS_LIS_DETAIL',
             'IMAGING', 'IMAGE_VIEWER', 'RIS_WORKLIST',
             'LAB', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD',
-            'AI_SUMMARY', 'NURSE_RECEPTION',
+            'AI_SUMMARY', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL',
+            'NURSE_RECEPTION',
             'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG'
         ],
-        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'OCS_ORDER', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY'],
+        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'OCS_ORDER', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL'],
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ORDER_LIST', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'NURSE_RECEPTION'],
         'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD'],
         'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS'],

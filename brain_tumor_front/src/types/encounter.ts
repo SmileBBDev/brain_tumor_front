@@ -2,34 +2,41 @@
 
 export type EncounterType = 'outpatient' | 'inpatient' | 'emergency';
 
-export type EncounterStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+export type EncounterStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
 export type Department = 'neurology' | 'neurosurgery';
 
 export interface Encounter {
   id: number;
   patient: number;
-  patient_name: string;
-  patient_number: string;
+  patient_name?: string;
+  patient_number?: string;
   patient_gender?: string;
   patient_age?: number;
   encounter_type: EncounterType;
-  encounter_type_display: string;
+  encounter_type_display?: string;
   status: EncounterStatus;
-  status_display: string;
-  attending_doctor: number;
-  attending_doctor_name: string;
-  department: Department;
-  department_display: string;
-  admission_date: string;
-  discharge_date: string | null;
-  duration_days: number | null;
-  chief_complaint: string;
-  primary_diagnosis: string;
-  secondary_diagnoses: string[];
+  status_display?: string;
+  attending_doctor?: number;
+  attending_doctor_name?: string;
+  department?: Department;
+  department_display?: string;
+  // 진료 날짜/시간
+  encounter_date?: string;
+  scheduled_time?: string;
+  admission_date?: string;
+  discharge_date?: string | null;
+  duration_days?: number | null;
+  // 진료 내용
+  chief_complaint?: string;
+  symptoms?: string;
+  diagnosis?: string;
+  notes?: string;
+  primary_diagnosis?: string;
+  secondary_diagnoses?: string[];
   is_active?: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface EncounterListResponse {
@@ -46,6 +53,7 @@ export interface EncounterSearchParams {
   department?: Department;
   attending_doctor?: number;
   patient?: number;
+  encounter_date?: string;
   start_date?: string;
   end_date?: string;
   page?: number;
@@ -55,12 +63,17 @@ export interface EncounterSearchParams {
 export interface EncounterCreateData {
   patient: number;
   encounter_type: EncounterType;
-  status: EncounterStatus;
-  attending_doctor: number;
-  department: Department;
-  admission_date: string;
+  status?: EncounterStatus;
+  attending_doctor?: number;
+  department?: Department;
+  encounter_date?: string;
+  scheduled_time?: string;
+  admission_date?: string;
   discharge_date?: string | null;
-  chief_complaint: string;
+  chief_complaint?: string;
+  symptoms?: string;
+  diagnosis?: string;
+  notes?: string;
   primary_diagnosis?: string;
   secondary_diagnoses?: string[];
 }
@@ -69,9 +82,14 @@ export interface EncounterUpdateData {
   status?: EncounterStatus;
   attending_doctor?: number;
   department?: Department;
+  encounter_date?: string;
+  scheduled_time?: string;
   admission_date?: string;
   discharge_date?: string | null;
   chief_complaint?: string;
+  symptoms?: string;
+  diagnosis?: string;
+  notes?: string;
   primary_diagnosis?: string;
   secondary_diagnoses?: string[];
 }

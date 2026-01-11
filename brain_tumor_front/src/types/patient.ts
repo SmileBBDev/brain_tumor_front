@@ -53,6 +53,7 @@ export interface PatientCreateData {
   blood_type?: BloodType;
   allergies?: string[];
   chronic_diseases?: string[];
+  chief_complaint?: string;  // 주 호소 (환자가 말하는 증상)
 }
 
 export interface PatientUpdateData {

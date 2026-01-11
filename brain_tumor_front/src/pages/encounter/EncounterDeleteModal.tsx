@@ -51,7 +51,7 @@ export default function EncounterDeleteModal({ isOpen, onClose, onSuccess, encou
             <p><strong>진료유형:</strong> {encounter.encounter_type_display}</p>
             <p><strong>진료과:</strong> {encounter.department_display}</p>
             <p><strong>담당의사:</strong> {encounter.attending_doctor_name}</p>
-            <p><strong>입원일시:</strong> {new Date(encounter.admission_date).toLocaleString('ko-KR')}</p>
+            <p><strong>입원일시:</strong> {new Date(encounter.admission_date || '').toLocaleString('ko-KR')}</p>
             <p><strong>상태:</strong> {encounter.status_display}</p>
           </div>
           <p style={{ marginTop: '1rem', color: '#ef4444' }}>

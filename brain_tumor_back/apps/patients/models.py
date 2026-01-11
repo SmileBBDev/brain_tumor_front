@@ -81,6 +81,11 @@ class Patient(models.Model):
         verbose_name='기저질환',
         help_text='["고혈압", "당뇨"] 형식'
     )
+    chief_complaint = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='주 호소'
+    )
 
     # 상태
     status = models.CharField(
@@ -97,6 +102,16 @@ class Patient(models.Model):
         null=True,
         related_name='registered_patients',
         verbose_name='등록자'
+    )
+
+    # 환자 계정 연결 (선택적 - 환자 포털 로그인용)
+    user = models.OneToOneField(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='patient_profile',
+        verbose_name='환자 계정'
     )
 
     # 메타 정보

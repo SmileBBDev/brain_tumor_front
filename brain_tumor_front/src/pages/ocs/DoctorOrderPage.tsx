@@ -54,7 +54,7 @@ export default function DoctorOrderPage() {
   });
 
   // OCS 액션 훅
-  const { confirm, cancel } = useOCSActions({
+  const { confirm: _confirm, cancel: _cancel } = useOCSActions({
     onSuccess: (action) => {
       const messages: Record<string, string> = {
         confirm: '오더를 확정했습니다.',
@@ -191,7 +191,7 @@ export default function DoctorOrderPage() {
             action={{ label: '오더 생성', onClick: handleCreateOrder }}
           />
         ) : (
-          <OCSListTable role={role} ocsList={filteredOcsList} onRowClick={handleRowClick} />
+          <OCSListTable role={role || ''} ocsList={filteredOcsList} onRowClick={handleRowClick} />
         )}
       </section>
 

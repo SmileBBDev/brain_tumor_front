@@ -2,7 +2,7 @@ type Props = {
   role: string;
 };
 
-export default function OrderListFilter({ role }: Props) {
+export default function OrderListFilter({ role: _role }: Props) {
 
     return (
          <div className="filters-bar">

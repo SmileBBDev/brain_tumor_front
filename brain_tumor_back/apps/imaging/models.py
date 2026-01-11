@@ -147,7 +147,7 @@ class ImagingStudy(models.Model):
         status_map = {
             'ORDERED': 'ordered',
             'ACCEPTED': 'scheduled',
-            'IN_PROGRESS': 'in-progress',
+            'IN_PROGRESS': 'in_progress',
             'RESULT_READY': 'completed',
             'CONFIRMED': 'reported',
             'CANCELLED': 'cancelled',

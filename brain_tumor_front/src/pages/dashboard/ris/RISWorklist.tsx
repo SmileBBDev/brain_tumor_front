@@ -43,7 +43,7 @@ export function RISWorklist() {
     const labels: Record<string, string> = {
       ordered: '오더 생성',
       scheduled: '검사 예약',
-      'in-progress': '수행 중',
+      in_progress: '수행 중',
       completed: '검사 완료',
       reported: '판독 완료',
       cancelled: '취소',

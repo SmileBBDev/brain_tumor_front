@@ -64,7 +64,7 @@ export const getStatusClass = (status: string): string => {
   const classes: Record<string, string> = {
     ORDERED: 'status-ordered',
     ACCEPTED: 'status-accepted',
-    IN_PROGRESS: 'status-in-progress',
+    IN_PROGRESS: 'status-in_progress',
     RESULT_READY: 'status-result-ready',
     CONFIRMED: 'status-confirmed',
     CANCELLED: 'status-cancelled',

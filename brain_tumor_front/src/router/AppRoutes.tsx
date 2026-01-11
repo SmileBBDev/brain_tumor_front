@@ -1,11 +1,14 @@
+import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/pages/auth/AuthProvider';
 import ProtectedRoute from '@/pages/auth/ProtectedRoute';
 import { routeMap } from './routeMap';
 import type { MenuNode } from '@/types/menu';
 import FullScreenLoader from '@/pages/common/FullScreenLoader';
-import OrderCreatePage from '@/pages/orders/OrderCreate';
-import OCSResultReportPage from '@/pages/ocs/OCSResultReportPage';
+
+// Lazy loaded pages
+const OrderCreatePage = lazy(() => import('@/pages/orders/OrderCreate'));
+const OCSResultReportPage = lazy(() => import('@/pages/ocs/OCSResultReportPage'));
 
 // 접근 가능한 메뉴만 flatten (라우트 등록용 - breadcrumbOnly 포함)
 function flattenAccessibleMenus(
@@ -74,48 +77,50 @@ export default function AppRoutes() {
   const accessibleMenus = flattenAccessibleMenus(menus, permissions, true);
 
   return (
-    <Routes>
-      {/* 홈 */}
-      <Route index element={<Navigate to={homePath} replace />} />
+    <Suspense fallback={<FullScreenLoader />}>
+      <Routes>
+        {/* 홈 */}
+        <Route index element={<Navigate to={homePath} replace />} />
 
-      {/* 오더 생성 페이지 (메뉴에 없지만 직접 접근 필요) */}
-      <Route
-        path="/orders/create"
-        element={
-          <ProtectedRoute>
-            <OrderCreatePage />
-          </ProtectedRoute>
-        }
-      />
+        {/* 오더 생성 페이지 (메뉴에 없지만 직접 접근 필요) */}
+        <Route
+          path="/orders/create"
+          element={
+            <ProtectedRoute>
+              <OrderCreatePage />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* OCS 결과 보고서 페이지 */}
-      <Route
-        path="/ocs/report/:ocsId"
-        element={
-          <ProtectedRoute>
-            <OCSResultReportPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* OCS 결과 보고서 페이지 */}
+        <Route
+          path="/ocs/report/:ocsId"
+          element={
+            <ProtectedRoute>
+              <OCSResultReportPage />
+            </ProtectedRoute>
+          }
+        />
 
-      {accessibleMenus.map(menu => {
-        const Component = routeMap[menu.code];
-        if (!Component) return null;
+        {accessibleMenus.map(menu => {
+          const Component = routeMap[menu.code];
+          if (!Component) return null;
 
-        return (
-          <Route
-            key={menu.code}
-            path={menu.path!}
-            element={
-              <ProtectedRoute>
-                <Component />
-              </ProtectedRoute>
-            }
-          />
-        );
-      })}
+          return (
+            <Route
+              key={menu.code}
+              path={menu.path!}
+              element={
+                <ProtectedRoute>
+                  <Component />
+                </ProtectedRoute>
+              }
+            />
+          );
+        })}
 
-      <Route path="*" element={<Navigate to="/403" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/403" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

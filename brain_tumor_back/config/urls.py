@@ -38,6 +38,9 @@ urlpatterns = [
 
     # 경과 추적 API
     path("api/followup/", include("apps.followup.urls")),
+    
+    # 처방 관리 API
+    path("api/prescriptions/", include("apps.prescriptions.urls")),
 
     # API 문서화 엔드포인트
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

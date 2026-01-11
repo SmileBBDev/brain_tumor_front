@@ -32,7 +32,7 @@ const REVIEW_STATUS_LABELS: Record<string, string> = {
 export default function AIRequestDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const toast = useToast();
 
   // 상태

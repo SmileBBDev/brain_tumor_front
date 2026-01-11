@@ -50,6 +50,7 @@ class PatientDetailSerializer(serializers.ModelSerializer):
             'blood_type',
             'allergies',
             'chronic_diseases',
+            'chief_complaint',
             'status',
             'is_active',
             'registered_by',
@@ -125,6 +126,7 @@ class PatientCreateSerializer(serializers.ModelSerializer):
             'blood_type',
             'allergies',
             'chronic_diseases',
+            'chief_complaint',
         ]
 
     def validate_phone(self, value):
@@ -169,6 +171,7 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
             'blood_type',
             'allergies',
             'chronic_diseases',
+            'chief_complaint',
             'status',
         ]
 

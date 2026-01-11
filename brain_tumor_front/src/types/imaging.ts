@@ -2,7 +2,7 @@
 
 export type ImagingModality = 'CT' | 'MRI' | 'PET' | 'X-RAY';
 
-export type ImagingStatus = 'ordered' | 'scheduled' | 'in-progress' | 'completed' | 'reported' | 'cancelled';
+export type ImagingStatus = 'ordered' | 'scheduled' | 'in_progress' | 'completed' | 'reported' | 'cancelled';
 
 export type ReportStatus = 'draft' | 'signed' | 'amended';
 
@@ -31,6 +31,7 @@ export interface ImagingStudy {
   patient_number: string;
   encounter: number | null;  // OCS에서는 encounter_id로 반환
   encounter_id?: number | null;
+  encounter_type?: 'outpatient' | 'inpatient' | 'emergency';  // 응급 검사 표시용
   modality: ImagingModality;
   modality_display: string;
   body_part: string;
@@ -118,8 +119,8 @@ export interface ImagingStudyUpdateData {
   modality?: ImagingModality;
   body_part?: string;
   status?: ImagingStatus;
-  scheduled_at?: string;
-  performed_at?: string;
+  scheduled_at?: string | null;
+  performed_at?: string | null;
   radiologist?: number | null;
   work_note?: string;  // 새 작업 노트 (work_notes 배열에 추가됨)
   study_uid?: string;

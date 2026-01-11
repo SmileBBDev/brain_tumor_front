@@ -69,7 +69,7 @@
   color: var(--color-warning, #f59e0b);
 }
 
-.nurse-reception-page .summary-card.in-progress .card-value {
+.nurse-reception-page .summary-card.in_progress .card-value {
   color: var(--color-info, #06b6d4);
 }
 
@@ -221,7 +221,7 @@
   color: #92400e;
 }
 
-.nurse-reception-page .status-badge.status-in-progress {
+.nurse-reception-page .status-badge.status-in_progress {
   background: #cffafe;
   color: #0e7490;
 }

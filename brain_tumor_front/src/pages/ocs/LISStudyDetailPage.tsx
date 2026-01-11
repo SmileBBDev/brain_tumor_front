@@ -120,7 +120,7 @@ export default function LISStudyDetailPage() {
 
       // 기존 결과가 있으면 폼에 로드
       if (data.worker_result) {
-        const result = data.worker_result as Record<string, unknown>;
+        const result = data.worker_result as unknown as Record<string, unknown>;
         // 기본 검사 결과
         if (result.labResults) {
           setLabResults(result.labResults as LabResultItem[]);

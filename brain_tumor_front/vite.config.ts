@@ -19,5 +19,17 @@ export default defineConfig({
       },
     },
   },
-
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // 벤더 라이브러리 분리
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          // 대형 라이브러리 분리
+          sweetalert: ['sweetalert2'],
+          query: ['@tanstack/react-query'],
+        }
+      }
+    }
+  }
 })

@@ -14,7 +14,8 @@ import Pagination from '@/layout/Pagination';
 import './NurseReceptionPage.css';
 
 // 날짜 포맷
-const formatDate = (dateStr: string): string => {
+const formatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '-';
   const date = new Date(dateStr);
   return date.toLocaleDateString('ko-KR', {
     year: 'numeric',
@@ -23,7 +24,8 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
-const formatTime = (dateStr: string): string => {
+const formatTime = (dateStr: string | undefined): string => {
+  if (!dateStr) return '-';
   const date = new Date(dateStr);
   return date.toLocaleTimeString('ko-KR', {
     hour: '2-digit',
@@ -34,7 +36,7 @@ const formatTime = (dateStr: string): string => {
 // 상태 표시
 const STATUS_CONFIG: Record<EncounterStatus, { label: string; className: string }> = {
   scheduled: { label: '예정', className: 'status-scheduled' },
-  'in-progress': { label: '진행중', className: 'status-in-progress' },
+  'in_progress': { label: '진행중', className: 'status-in_progress' },
   completed: { label: '완료', className: 'status-completed' },
   cancelled: { label: '취소', className: 'status-cancelled' },
 };
@@ -78,7 +80,7 @@ export default function NurseReceptionPage() {
   const pageSize = 15;
 
   // 통계
-  const [statistics, setStatistics] = useState<EncounterStatistics | null>(null);
+  const [_statistics, setStatistics] = useState<EncounterStatistics | null>(null);
 
   // 의사 목록 로드
   useEffect(() => {
@@ -186,7 +188,7 @@ export default function NurseReceptionPage() {
 
     todayEncounters.forEach((enc) => {
       if (enc.status === 'scheduled') summary.scheduled++;
-      else if (enc.status === 'in-progress') summary.inProgress++;
+      else if (enc.status === 'in_progress') summary.inProgress++;
       else if (enc.status === 'completed') summary.completed++;
     });
 
@@ -221,7 +223,7 @@ export default function NurseReceptionPage() {
           <span className="card-value">{todaySummary.scheduled}</span>
           <span className="card-unit">건</span>
         </div>
-        <div className="summary-card in-progress">
+        <div className="summary-card in_progress">
           <span className="card-label">진행중</span>
           <span className="card-value">{todaySummary.inProgress}</span>
           <span className="card-unit">건</span>

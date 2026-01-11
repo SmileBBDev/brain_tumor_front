@@ -48,7 +48,6 @@ const formatDateTime = (dateStr: string): string => {
 
 // 더미 데이터 생성
 const generateMockData = (): ProcessItem[] => {
-  const statuses: ProcessStatus[] = ['pending', 'parsing', 'normalizing', 'saving', 'completed', 'error'];
   const items: ProcessItem[] = [];
 
   for (let i = 1; i <= 25; i++) {

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.ai_inference",    # AI 추론 관리
     "apps.treatment",       # 치료 관리
     "apps.followup",        # 경과 추적
+    "apps.prescriptions",   # 처방 관리
     "orthancproxy",         # Orthanc 프록시
 ]
 
@@ -102,6 +103,7 @@ DATABASES = {
         'PORT': env('MYSQL_PORT'),
         'OPTIONS': {
             'charset': 'utf8mb4',
+            'init_command': "SET time_zone='+09:00'",
         },
     },
 

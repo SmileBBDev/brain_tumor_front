@@ -316,7 +316,7 @@ button.primary:hover {
   font-weight: 600;
 }
 
-.badge.in-progress {
+.badge.in_progress {
   background: #e0f2fe;
   color: #0369a1;
 }

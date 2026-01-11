@@ -1,0 +1,15 @@
+// Clinic 카드 컴포넌트 export
+
+// 컬럼 1: 진료 입력
+export { default as TodaySymptomCard } from './TodaySymptomCard';
+export { default as DiagnosisPrescriptionCard } from './DiagnosisPrescriptionCard';
+export { default as OrderCard } from './OrderCard';
+
+// 컬럼 2: 과거 기록
+export { default as PastRecordCard } from './PastRecordCard';
+export { default as CalendarCard } from './CalendarCard';
+export { default as LabResultCard } from './LabResultCard';
+
+// 컬럼 3: 일정
+export { default as TodayAppointmentCard } from './TodayAppointmentCard';
+export { default as PastPrescriptionCard } from './PastPrescriptionCard';

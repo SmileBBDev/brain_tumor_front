@@ -1,8 +1,32 @@
 from django.contrib import admin
+from .models import Encounter
 
-# Register your models here.
 
-# admin.py 파일은 Django에서 자동으로 생성되는 파일입니다. Django의 Admin 인터페이스를 위한 설정 파일입니다. 용도:
-# Django Admin 사이트에서 모델을 관리할 수 있게 해주는 설정
-# 개발/테스트 단계에서 데이터를 쉽게 조회/수정할 수 있음
-# 현재는 비어있지만, 필요하면 Encounter 모델을 등록할 수 있음
+@admin.register(Encounter)
+class EncounterAdmin(admin.ModelAdmin):
+    """진료 Admin"""
+    list_display = [
+        'id', 'patient', 'encounter_type', 'status',
+        'attending_doctor', 'department', 'admission_date', 'is_deleted'
+    ]
+    list_filter = ['encounter_type', 'status', 'department', 'is_deleted']
+    search_fields = ['patient__name', 'patient__patient_number', 'chief_complaint']
+    date_hierarchy = 'admission_date'
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['patient', 'attending_doctor']
+
+    fieldsets = (
+        ('기본 정보', {
+            'fields': ('patient', 'encounter_type', 'status', 'attending_doctor', 'department')
+        }),
+        ('일시', {
+            'fields': ('admission_date', 'discharge_date')
+        }),
+        ('진료 내용', {
+            'fields': ('chief_complaint', 'primary_diagnosis', 'secondary_diagnoses')
+        }),
+        ('메타 정보', {
+            'fields': ('is_deleted', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
