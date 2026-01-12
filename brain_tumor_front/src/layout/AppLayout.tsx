@@ -6,8 +6,21 @@ import FullScreenLoader from '@/pages/common/FullScreenLoader';
 
 import Sidebar from '@/layout/Sidebar';
 import RequirePasswordChange from '@/pages/auth/RequirePasswordChange';
+import { OCSNotificationProvider, useOCSNotificationContext } from '@/context/OCSNotificationContext';
+import OCSNotificationToast from '@/components/OCSNotificationToast';
 
-function AppLayout() {
+// 전역 Toast 렌더링 컴포넌트
+function GlobalOCSToast() {
+  const { notifications, removeNotification } = useOCSNotificationContext();
+  return (
+    <OCSNotificationToast
+      notifications={notifications}
+      onDismiss={removeNotification}
+    />
+  );
+}
+
+function AppLayoutContent() {
   const { role, isAuthReady } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -23,9 +36,9 @@ function AppLayout() {
   return (
     <RequirePasswordChange>
       <div className='app-layout'>
-        <AppHeader onToggleSidebar={toggleSidebar} /> 
+        <AppHeader onToggleSidebar={toggleSidebar} />
 
-        <div className='app-body'>      
+        <div className='app-body'>
           {isSidebarOpen && <Sidebar/> }
           <main className='app-content'>
              {/* Outlet으로 자식 라우트(AppRoutes) 연결 */}
@@ -33,8 +46,19 @@ function AppLayout() {
           </main>
         </div>
 
+        {/* 전역 OCS 알림 Toast */}
+        <GlobalOCSToast />
       </div>
     </RequirePasswordChange>
   );
 }
+
+function AppLayout() {
+  return (
+    <OCSNotificationProvider>
+      <AppLayoutContent />
+    </OCSNotificationProvider>
+  );
+}
+
 export default AppLayout;

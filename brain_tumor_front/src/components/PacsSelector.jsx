@@ -27,16 +27,72 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
 
   const [busy, setBusy] = useState(false);
   const initializedRef = useRef(false);
+  const ocsAutoSelectRef = useRef(false);  // OCS 자동 선택 완료 여부
 
-  // 환자 목록 로드 + initialSelection 복원
+  // OCS 연동 모드인지 확인
+  const isOcsMode = Boolean(ocsInfo?.patientNumber);
+
+  // 환자 목록 로드 + initialSelection/OCS 자동 선택
   useEffect(() => {
     (async () => {
       try {
         const p = await getPatients();
         setPatients(p);
 
-        // initialSelection이 있으면 데이터 복원
-        if (initialSelection?.patientId && !initializedRef.current) {
+        // OCS 모드: patientNumber로 자동 매칭
+        if (isOcsMode && !ocsAutoSelectRef.current) {
+          ocsAutoSelectRef.current = true;
+
+          // Orthanc에서 patientNumber(=PatientID)로 환자 찾기
+          const matchedPatient = p.find(
+            (pt) => pt.patientId === ocsInfo.patientNumber
+          );
+
+          if (matchedPatient) {
+            setPatientId(matchedPatient.orthancId);
+
+            // Study 자동 로드
+            setBusy(true);
+            try {
+              const st = await getStudies(matchedPatient.orthancId);
+              setStudies(st);
+
+              // Study가 1개면 자동 선택
+              if (st.length === 1) {
+                const autoStudy = st[0];
+                setStudyId(autoStudy.orthancId);
+
+                // Series 로드
+                const se = await getSeries(autoStudy.orthancId);
+                setSeriesList(se);
+
+                onChange?.({
+                  patientId: matchedPatient.orthancId,
+                  studyId: autoStudy.orthancId,
+                  studyInstanceUID: autoStudy.studyInstanceUID || "",
+                  baseSeriesId: "",
+                  baseSeriesName: "",
+                  overlaySeriesId: "",
+                  overlaySeriesName: "",
+                });
+              } else {
+                onChange?.({
+                  patientId: matchedPatient.orthancId,
+                  studyId: "",
+                  studyInstanceUID: "",
+                  baseSeriesId: "",
+                  baseSeriesName: "",
+                  overlaySeriesId: "",
+                  overlaySeriesName: "",
+                });
+              }
+            } finally {
+              setBusy(false);
+            }
+          }
+        }
+        // 일반 모드: initialSelection 복원
+        else if (initialSelection?.patientId && !initializedRef.current) {
           initializedRef.current = true;
 
           // Study 로드
@@ -56,7 +112,7 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
         setPatients([]);
       }
     })();
-  }, []);
+  }, [isOcsMode, ocsInfo?.patientNumber]);
 
   const overlayCandidates = useMemo(() => {
     return (seriesList || []).filter((s) => {
@@ -186,46 +242,83 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
     });
   };
 
+  // 현재 선택된 환자 정보 가져오기
+  const selectedPatient = useMemo(() => {
+    if (!patientId) return null;
+    return patients.find((p) => p.orthancId === patientId);
+  }, [patientId, patients]);
+
   return (
     <section className="selCard">
       <div className="selHeader">
         <h2 className="selTitle">Selection</h2>
-        <div className="selHint">{busy ? "Loading..." : "Patient → Study → Series"}</div>
+        <div className="selHint">
+          {busy ? "Loading..." : isOcsMode ? "Study → Series" : "Patient → Study → Series"}
+        </div>
       </div>
 
-      {/* OCS 연동 정보 표시 */}
-      {ocsInfo && (
-        <div className="ocsLinkBox">
-          <div className="ocsLinkRow">
-            <span className="ocsLinkLabel">MySQL 환자</span>
-            <span className="ocsLinkValue">{ocsInfo.patientName} ({ocsInfo.patientNumber})</span>
+      {/* OCS 연동 모드: 환자 정보 읽기 전용 표시 */}
+      {isOcsMode ? (
+        <div className="ocsPatientBox">
+          <div className="ocsPatientHeader">
+            <span className="ocsPatientIcon">👤</span>
+            <span className="ocsPatientTitle">환자 정보 (OCS 연동)</span>
+          </div>
+          <div className="ocsPatientContent">
+            <div className="ocsPatientRow">
+              <span className="ocsPatientLabel">환자명</span>
+              <span className="ocsPatientValue">{ocsInfo.patientName}</span>
+            </div>
+            <div className="ocsPatientRow">
+              <span className="ocsPatientLabel">환자번호</span>
+              <span className="ocsPatientValue mono">{ocsInfo.patientNumber}</span>
+            </div>
+            {selectedPatient ? (
+              <div className="ocsPatientRow">
+                <span className="ocsPatientLabel">Orthanc</span>
+                <span className="ocsPatientValue matched">
+                  ✓ 매칭됨 ({selectedPatient.studiesCount}개 Study)
+                </span>
+              </div>
+            ) : (
+              <div className="ocsPatientRow">
+                <span className="ocsPatientLabel">Orthanc</span>
+                <span className="ocsPatientValue not-matched">
+                  ✗ 영상 없음 (업로드 필요)
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* 일반 모드: 환자 선택 드롭다운 */
+        <div className="selGrid">
+          <div className="row">
+            <label className="label">Patient</label>
+            <select
+              className="select"
+              value={patientId}
+              onChange={(e) => selectPatient(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">-- 선택 --</option>
+              {patients.map((p) => (
+                <option key={p.orthancId} value={p.orthancId}>
+                  {truncate(asText(p.patientName || p.patientId), 30)} ({p.studiesCount})
+                </option>
+              ))}
+            </select>
+            {patientId && (
+              <div className="idDisplay">
+                <span className="idLabel">Orthanc ID:</span>
+                <span className="idValue">{patientId}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       <div className="selGrid">
-        <div className="row">
-          <label className="label">Patient</label>
-          <select
-            className="select"
-            value={patientId}
-            onChange={(e) => selectPatient(e.target.value)}
-            disabled={busy}
-          >
-            <option value="">-- 선택 --</option>
-            {patients.map((p) => (
-              <option key={p.orthancId} value={p.orthancId}>
-                {truncate(asText(p.patientName || p.patientId), 30)} ({p.studiesCount})
-              </option>
-            ))}
-          </select>
-          {patientId && (
-            <div className="idDisplay">
-              <span className="idLabel">Orthanc ID:</span>
-              <span className="idValue">{patientId}</span>
-            </div>
-          )}
-        </div>
 
         <div className="row">
           <label className="label">Study</label>

@@ -67,38 +67,31 @@ export interface DoctorRequest {
   _custom: Record<string, unknown>;
 }
 
-// RIS worker result
+// RIS worker result (v1.2 - 중복 필드 제거, LocalStorage 파일 저장)
 export interface RISWorkerResult {
   _template: 'RIS';
-  _version: string;
+  _version: string;  // '1.2' - 중복 필드 제거 및 LocalStorage 파일 저장
   _confirmed: boolean;
 
-  // Orthanc 연동 정보 (DICOM 업로드 시 자동 저장)
+  // Orthanc 연동 정보 (주 저장소 - DICOM 업로드 시 자동 저장)
   orthanc?: {
     patient_id: string;        // Orthanc Patient ID (MySQL patient_number 기반)
-    study_id: string;          // Orthanc Study ID
-    study_uid: string;         // StudyInstanceUID (1.2.410.200001.{ocsId}.{timestamp})
+    orthanc_study_id: string;  // Orthanc Internal Study ID (API 호출용)
+    study_id: string;          // DICOM StudyID (UUID)
+    study_uid: string;         // StudyInstanceUID (OCS_{ocsId}_{patientId}_{timestamp})
     series: {
       orthanc_id: string;      // Orthanc Series ID
       series_uid: string;      // SeriesInstanceUID
+      series_type: string;     // T1, T2, T1C, FLAIR, OTHER
       description: string;     // Series Description (폴더명)
       instances_count: number; // Instance 수
     }[];
     uploaded_at: string;       // 업로드 일시
-  };
+  } | null;
 
-  // 기존 dicom 필드 (호환성 유지)
-  dicom: {
+  // dicom 필드 (호환성 유지 - orthanc에서 파생된 최소 정보만)
+  dicom?: {
     study_uid: string;
-    series: {
-      series_id: string;      // Orthanc Series ID (NEW)
-      series_uid: string;
-      series_type: string;    // T1, T2, T1C, FLAIR 등 (NEW)
-      modality: string;
-      description: string;
-      instance_count: number;
-    }[];
-    accession_number: string;
     series_count: number;
     instance_count: number;
   };
@@ -109,6 +102,24 @@ export interface RISWorkerResult {
 
   // 뇌종양 판독 결과
   tumorDetected?: boolean | null;  // true: 종양 있음, false: 종양 없음, null: 미판정
+
+  // 검사 결과 항목 (UI에서 추가)
+  imageResults?: {
+    itemName: string;
+    value: string;
+    unit: string;
+    refRange: string;
+    flag: 'normal' | 'abnormal' | 'critical';
+  }[];
+
+  // 첨부 파일 (LocalStorage 참조 방식 - dataUrl 제외)
+  files?: {
+    name: string;
+    size: number;
+    type: string;
+    uploadedAt: string;
+    storageKey: string;  // LocalStorage 참조 키 (dataUrl은 LocalStorage에 저장)
+  }[];
 
   _custom: Record<string, unknown>;
 }

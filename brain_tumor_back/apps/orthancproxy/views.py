@@ -104,12 +104,30 @@ def _parse_series_type(series_description: str) -> str:
     SeriesDescription에서 MRI 시퀀스 타입을 파싱합니다.
 
     Returns:
-        T1, T2, T1C (T1 contrast), FLAIR, OTHER
+        T1, T2, T1C (T1 contrast), FLAIR, DWI, SWI, SEG, OTHER
     """
     if not series_description:
         return "OTHER"
 
     desc_upper = series_description.upper()
+
+    # SEG (Segmentation) - 분할 마스크, 레이블 등
+    seg_patterns = ['SEG', 'SEGMENT', 'MASK', 'LABEL', 'ROI', 'ANNOTATION']
+    for pattern in seg_patterns:
+        if pattern in desc_upper:
+            return "SEG"
+
+    # DWI (Diffusion Weighted Imaging) - 확산 강조 영상
+    dwi_patterns = ['DWI', 'DIFFUSION', 'DW-', 'DW_', 'DW ', 'ADC', 'B1000', 'B0', 'TRACE']
+    for pattern in dwi_patterns:
+        if pattern in desc_upper:
+            return "DWI"
+
+    # SWI (Susceptibility Weighted Imaging) - 자화율 강조 영상
+    swi_patterns = ['SWI', 'SUSCEPTIBILITY', 'SW-', 'SW_', 'SW ', 'T2*', 'T2STAR', 'GRE', 'GRADIENT ECHO']
+    for pattern in swi_patterns:
+        if pattern in desc_upper:
+            return "SWI"
 
     # T1C (T1 contrast/enhanced) - T1C, T1+C, T1 GAD, T1 CONTRAST, POST 등
     t1c_patterns = ['T1C', 'T1+C', 'T1 C', 'T1+GAD', 'T1 GAD', 'T1POST', 'T1 POST',
@@ -128,7 +146,7 @@ def _parse_series_type(series_description: str) -> str:
     for pattern in t2_patterns:
         if pattern in desc_upper:
             return "T2"
-    if 'T2' in desc_upper and 'T2*' not in desc_upper:  # T2*는 제외
+    if 'T2' in desc_upper:
         return "T2"
 
     # T1 (contrast 아닌 것) - T1, T1W, T1-weighted 등

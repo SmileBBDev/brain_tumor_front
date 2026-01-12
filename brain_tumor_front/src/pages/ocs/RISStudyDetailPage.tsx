@@ -14,6 +14,14 @@ import { OCS_STATUS_LABELS } from '@/types/ocs';
 import AIAnalysisPanel from './components/AIAnalysisPanel';
 import DicomViewerPopup, { type UploadResult, type ExistingStudyInfo } from '@/components/DicomViewerPopup';
 import { getSeries } from '@/api/orthancApi';
+import {
+  type StoredFileInfo,
+  type FileWithData,
+  processFileUpload,
+  loadFilesWithData,
+  removeFileFromStorage,
+  migrateFilesToStorage,
+} from '@/utils/fileStorage';
 import './RISStudyDetailPage.css';
 
 // 검사 결과 항목 타입
@@ -25,14 +33,9 @@ interface ImageResultItem {
   flag: 'normal' | 'abnormal' | 'critical';
 }
 
-// 업로드 파일 타입
-interface UploadedFile {
-  name: string;
-  size: number;
-  type: string;
-  uploadedAt: string;
-  dataUrl?: string;
-}
+// 업로드 파일 타입 (LocalStorage 참조 방식)
+// StoredFileInfo: worker_result에 저장되는 정보 (storageKey만 포함, dataUrl 제외)
+// FileWithData: UI에서 사용하는 정보 (dataUrl 포함)
 
 // 날짜 포맷
 const formatDate = (dateStr: string | null): string => {
@@ -69,8 +72,10 @@ export default function RISStudyDetailPage() {
   // 검사 결과 항목
   const [imageResults, setImageResults] = useState<ImageResultItem[]>([]);
 
-  // 파일 업로드
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  // 파일 업로드 (LocalStorage 참조 방식)
+  // uploadedFiles: UI 표시용 (dataUrl 포함)
+  // 저장 시에는 StoredFileInfo로 변환 (dataUrl 제외, storageKey만 저장)
+  const [uploadedFiles, setUploadedFiles] = useState<FileWithData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // DICOM 뷰어 팝업
@@ -97,9 +102,14 @@ export default function RISStudyDetailPage() {
           if ((result as any).imageResults) {
             setImageResults((result as any).imageResults as ImageResultItem[]);
           }
-          // 파일 로드
-          if ((result as any).files) {
-            setUploadedFiles((result as any).files as UploadedFile[]);
+          // 파일 로드 (LocalStorage에서 dataUrl 복원)
+          if ((result as any).files && (result as any).files.length > 0) {
+            const storedFiles = (result as any).files as StoredFileInfo[];
+            // 기존 형식(dataUrl 직접 저장)에서 새 형식으로 마이그레이션
+            const migratedFiles = migrateFilesToStorage(storedFiles, data.id);
+            // LocalStorage에서 dataUrl 로드하여 UI용 데이터 생성
+            const filesWithData = loadFilesWithData(migratedFiles);
+            setUploadedFiles(filesWithData);
           }
         }
       } catch (error) {
@@ -133,33 +143,46 @@ export default function RISStudyDetailPage() {
     setImageResults(imageResults.filter((_, i) => i !== index));
   };
 
-  // 파일 업로드 핸들러
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 파일 업로드 핸들러 (LocalStorage에 저장)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || !ocsDetail) return;
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newFile: UploadedFile = {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          uploadedAt: new Date().toISOString(),
-          dataUrl: reader.result as string,
+    // 파일별로 LocalStorage에 저장 후 상태 업데이트
+    const uploadPromises = Array.from(files).map(async (file) => {
+      try {
+        const storedInfo = await processFileUpload(file, ocsDetail.id);
+        // UI용 dataUrl도 함께 로드
+        const fileWithData: FileWithData = {
+          ...storedInfo,
+          dataUrl: localStorage.getItem(storedInfo.storageKey) || undefined,
         };
-        setUploadedFiles((prev) => [...prev, newFile]);
-      };
-      reader.readAsDataURL(file);
+        return fileWithData;
+      } catch (error) {
+        console.error('파일 업로드 실패:', file.name, error);
+        alert(`파일 업로드 실패: ${file.name}\n${(error as Error).message}`);
+        return null;
+      }
     });
+
+    const results = await Promise.all(uploadPromises);
+    const successfulUploads = results.filter((r): r is FileWithData => r !== null);
+
+    if (successfulUploads.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...successfulUploads]);
+    }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // 파일 삭제
+  // 파일 삭제 (LocalStorage에서도 삭제)
   const handleRemoveFile = (index: number) => {
+    const fileToRemove = uploadedFiles[index];
+    if (fileToRemove?.storageKey) {
+      removeFileFromStorage(fileToRemove.storageKey);
+    }
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
@@ -186,27 +209,44 @@ export default function RISStudyDetailPage() {
     }
   };
 
+  // 파일 목록을 저장용으로 변환 (dataUrl 제외, storageKey만 포함)
+  const getFilesForStorage = (): StoredFileInfo[] => {
+    return uploadedFiles.map(({ name, size, type, uploadedAt, storageKey }) => ({
+      name,
+      size,
+      type,
+      uploadedAt,
+      storageKey: storageKey || '',
+    }));
+  };
+
   // 임시 저장
   const handleSaveDraft = async () => {
     if (!ocsDetail) return;
     setSaving(true);
     try {
+      // orthanc 정보를 기준으로 dicom 정보 생성 (중복 제거)
+      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc || null;
+
       const workerResult = {
         _template: 'RIS',
-        _version: '1.1',
+        _version: '1.2',  // 버전 업데이트 (LocalStorage 파일 저장 방식)
         _confirmed: false,
         findings,
         impression,
         recommendation,
         tumorDetected,  // 뇌종양 유무
         imageResults,
-        files: uploadedFiles,
-        dicom: (ocsDetail.worker_result as RISWorkerResult)?.dicom || {
-          study_uid: '',
-          series: [],
-          accession_number: '',
-        },
-        orthanc: (ocsDetail.worker_result as any)?.orthanc || null,
+        // 파일: dataUrl 제외, storageKey만 저장
+        files: getFilesForStorage(),
+        // orthanc 정보를 주 저장소로 사용
+        orthanc: orthancInfo,
+        // dicom 필드는 호환성을 위해 최소 정보만 유지 (orthanc에서 파생)
+        dicom: orthancInfo ? {
+          study_uid: orthancInfo.study_uid || '',
+          series_count: orthancInfo.series?.length || 0,
+          instance_count: orthancInfo.series?.reduce((sum: number, s: any) => sum + (s.instances_count || 0), 0) || 0,
+        } : { study_uid: '', series_count: 0, instance_count: 0 },
         _custom: {},
         _savedAt: new Date().toISOString(),
       };
@@ -247,22 +287,28 @@ export default function RISStudyDetailPage() {
 
     setSaving(true);
     try {
+      // orthanc 정보를 기준으로 dicom 정보 생성 (중복 제거)
+      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc || null;
+
       const workerResult = {
         _template: 'RIS',
-        _version: '1.1',
+        _version: '1.2',  // 버전 업데이트 (LocalStorage 파일 저장 방식)
         _confirmed: true,
         findings,
         impression,
         recommendation,
         tumorDetected,  // 뇌종양 유무
         imageResults,
-        files: uploadedFiles,
-        dicom: (ocsDetail.worker_result as RISWorkerResult)?.dicom || {
-          study_uid: '',
-          series: [],
-          accession_number: '',
-        },
-        orthanc: (ocsDetail.worker_result as any)?.orthanc || null,
+        // 파일: dataUrl 제외, storageKey만 저장
+        files: getFilesForStorage(),
+        // orthanc 정보를 주 저장소로 사용
+        orthanc: orthancInfo,
+        // dicom 필드는 호환성을 위해 최소 정보만 유지 (orthanc에서 파생)
+        dicom: orthancInfo ? {
+          study_uid: orthancInfo.study_uid || '',
+          series_count: orthancInfo.series?.length || 0,
+          instance_count: orthancInfo.series?.reduce((sum: number, s: any) => sum + (s.instances_count || 0), 0) || 0,
+        } : { study_uid: '', series_count: 0, instance_count: 0 },
         _custom: {},
         _verifiedAt: new Date().toISOString(),
         _verifiedBy: user?.name,
@@ -324,11 +370,10 @@ export default function RISStudyDetailPage() {
       const updatedResult = {
         ...currentResult,
         _template: 'RIS',
-        _version: '1.1',
+        _version: '1.2',
+        // dicom 필드는 호환성을 위해 최소 정보만 유지
         dicom: {
           study_uid: '',
-          series: [],
-          accession_number: '',
           series_count: 0,
           instance_count: 0,
         },
@@ -383,39 +428,42 @@ export default function RISStudyDetailPage() {
         }
       }
 
+      // orthanc 정보 구성 (주 저장소)
+      const orthancInfo = {
+        patient_id: result.patientId,
+        orthanc_study_id: result.orthancStudyId,  // Orthanc Internal Study ID
+        study_id: result.studyId,  // DICOM StudyID (UUID)
+        study_uid: result.studyUid,
+        series: seriesInfoList.map((s) => ({
+          orthanc_id: s.series_id,
+          series_uid: s.series_uid,
+          series_type: s.series_type,
+          description: s.description,
+          instances_count: s.instance_count,
+        })),
+        uploaded_at: new Date().toISOString(),
+      };
+
       // 현재 폼 상태와 기존 저장된 데이터를 병합
       const updatedResult = {
         _template: 'RIS',
-        _version: '1.1',  // 버전 업데이트 (series_id, series_type 추가)
+        _version: '1.2',  // 버전 업데이트 (중복 필드 제거, LocalStorage 파일 저장)
         _confirmed: currentResult._confirmed || false,
         // 현재 폼 상태 우선 사용 (사용자가 입력 중일 수 있음)
         findings: findings || currentResult.findings || '',
         impression: impression || currentResult.impression || '',
         recommendation: recommendation || currentResult.recommendation || '',
+        tumorDetected: tumorDetected ?? (currentResult as any).tumorDetected ?? null,
         imageResults: imageResults.length > 0 ? imageResults : (currentResult as any).imageResults || [],
-        files: uploadedFiles.length > 0 ? uploadedFiles : (currentResult as any).files || [],
-        // dicom 정보 업데이트 (series_id, series_type 포함)
+        // 파일: dataUrl 제외, storageKey만 저장
+        files: uploadedFiles.length > 0 ? getFilesForStorage() : (currentResult as any).files || [],
+        // orthanc 정보를 주 저장소로 사용
+        orthanc: orthancInfo,
+        // dicom 필드는 호환성을 위해 최소 정보만 유지 (orthanc에서 파생)
         dicom: {
           study_uid: result.studyUid || '',
-          series: seriesInfoList,  // series_id, series_type 포함
-          accession_number: currentResult.dicom?.accession_number || '',
           series_count: seriesInfoList.length,
           instance_count: totalInstanceCount,
-        },
-        // Orthanc 업로드 정보 업데이트
-        orthanc: {
-          patient_id: result.patientId,
-          orthanc_study_id: result.orthancStudyId,  // Orthanc Internal Study ID
-          study_id: result.studyId,  // DICOM StudyID (UUID)
-          study_uid: result.studyUid,
-          series: seriesInfoList.map((s) => ({
-            orthanc_id: s.series_id,
-            series_uid: s.series_uid,
-            series_type: s.series_type,
-            description: s.description,
-            instances_count: s.instance_count,
-          })),
-          uploaded_at: new Date().toISOString(),
         },
         _custom: currentResult._custom || {},
         _savedAt: new Date().toISOString(),

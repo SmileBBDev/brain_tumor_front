@@ -159,3 +159,68 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* OCS 환자 정보 박스 (연동 모드) */
+.ocsPatientBox {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.12) 0%, rgba(33, 150, 243, 0.12) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.35);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.ocsPatientHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ocsPatientIcon {
+  font-size: 16px;
+}
+
+.ocsPatientTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ocsPatientContent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ocsPatientRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.ocsPatientLabel {
+  color: rgba(255, 255, 255, 0.60);
+  min-width: 70px;
+}
+
+.ocsPatientValue {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+  text-align: right;
+}
+
+.ocsPatientValue.mono {
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: rgba(100, 200, 255, 0.90);
+}
+
+.ocsPatientValue.matched {
+  color: rgba(76, 175, 80, 0.95);
+}
+
+.ocsPatientValue.not-matched {
+  color: rgba(255, 152, 0, 0.95);
+}

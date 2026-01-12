@@ -4,15 +4,14 @@
  * - 상세 페이지로 이동하여 결과 입력
  * - 실시간 OCS 상태 변경 알림
  */
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import Pagination from '@/layout/Pagination';
 import { useOCSList } from '@/hooks/useOCSList';
 import { useOCSActions } from '@/hooks/useOCSActions';
-import { useOCSNotification } from '@/hooks/useOCSNotification';
+import { useOCSEventCallback } from '@/context/OCSNotificationContext';
 import { LoadingSpinner, EmptyState, useToast } from '@/components/common';
-import OCSNotificationToast from '@/components/OCSNotificationToast';
 import {
   formatDate,
   getStatusClass,
@@ -70,18 +69,10 @@ export default function LISWorklistPage() {
     },
   });
 
-  // 실시간 알림
-  const { notifications, removeNotification } = useOCSNotification({
+  // 실시간 알림 (전역 Context 사용)
+  useOCSEventCallback({
     autoRefresh: refresh,
   });
-
-  // 알림 클릭 시 상세 페이지로 이동
-  const handleNotificationClick = useCallback(
-    (notification: { ocsPk: number }) => {
-      navigate(`/ocs/lis/${notification.ocsPk}`);
-    },
-    [navigate]
-  );
 
   // 오더 접수
   const handleAccept = async (ocsId: number, e: React.MouseEvent) => {
@@ -337,12 +328,7 @@ export default function LISWorklistPage() {
         />
       </section>
 
-      {/* OCS 실시간 알림 Toast */}
-      <OCSNotificationToast
-        notifications={notifications}
-        onDismiss={removeNotification}
-        onClickNotification={handleNotificationClick}
-      />
+      {/* OCS 실시간 알림 Toast는 AppLayout에서 전역 렌더링 */}
 
       {/* Toast 컨테이너 */}
       <toast.ToastContainer position="top-right" />

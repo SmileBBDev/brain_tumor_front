@@ -22,8 +22,7 @@ import {
   JOB_ROLE_LABELS,
 } from '@/types/ocs';
 import OCSDetailModal from './OCSDetailModal';
-import { useOCSNotification } from '@/hooks/useOCSNotification';
-import OCSNotificationToast from '@/components/OCSNotificationToast';
+import { useOCSEventCallback } from '@/context/OCSNotificationContext';
 import './OCSStatusPage.css';
 
 // 날짜 포맷
@@ -88,16 +87,10 @@ export default function OCSStatusPage() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
-  // OCS 실시간 알림
-  const { notifications, removeNotification } = useOCSNotification({
+  // OCS 실시간 알림 (전역 Context 사용)
+  useOCSEventCallback({
     autoRefresh: refreshList,
   });
-
-  // 알림 클릭 시 상세 모달 열기
-  const handleNotificationClick = useCallback((notification: { ocsPk: number }) => {
-    setSelectedOcsId(notification.ocsPk);
-    setIsDetailModalOpen(true);
-  }, []);
 
   // OCS 목록 조회
   useEffect(() => {
@@ -322,12 +315,7 @@ export default function OCSStatusPage() {
         />
       )}
 
-      {/* OCS 실시간 알림 Toast */}
-      <OCSNotificationToast
-        notifications={notifications}
-        onDismiss={removeNotification}
-        onClickNotification={handleNotificationClick}
-      />
+      {/* OCS 실시간 알림 Toast는 AppLayout에서 전역 렌더링 */}
     </div>
   );
 }

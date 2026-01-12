@@ -8,8 +8,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOCSList } from '@/services/ocs.api';
 import type { OCSListItem } from '@/types/ocs';
-import { useOCSNotification } from '@/hooks/useOCSNotification';
-import OCSNotificationToast from '@/components/OCSNotificationToast';
+import { useOCSEventCallback } from '@/context/OCSNotificationContext';
 import './RISDashboardPage.css';
 
 // 상태별 설정
@@ -58,12 +57,7 @@ export default function RISDashboardPage() {
   const [ocsItems, setOcsItems] = useState<OCSListItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // WebSocket 알림
-  const { notifications, removeNotification } = useOCSNotification({
-    autoRefresh: () => loadData(),
-  });
-
-  // 데이터 로드
+  // 데이터 로드 (useOCSEventCallback보다 먼저 정의해야 함)
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -78,6 +72,11 @@ export default function RISDashboardPage() {
       setLoading(false);
     }
   }, []);
+
+  // WebSocket 이벤트 콜백 (전역 Context 사용)
+  useOCSEventCallback({
+    autoRefresh: loadData,
+  });
 
   useEffect(() => {
     loadData();
@@ -144,11 +143,7 @@ export default function RISDashboardPage() {
 
   return (
     <div className="page ris-dashboard-page">
-      {/* Toast 알림 */}
-      <OCSNotificationToast
-        notifications={notifications}
-        onDismiss={removeNotification}
-      />
+      {/* Toast 알림은 AppLayout에서 전역 렌더링 */}
 
       {/* 헤더 */}
       <header className="page-header">
