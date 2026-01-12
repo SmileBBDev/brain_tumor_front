@@ -321,3 +321,114 @@ class PatientAlertUpdateSerializer(serializers.ModelSerializer):
             'description',
             'is_active',
         ]
+
+
+# ========== Patient Dashboard Serializers (환자용 마이페이지) ==========
+
+class PatientDashboardSerializer(serializers.ModelSerializer):
+    """환자 대시보드용 기본정보 Serializer (환자 본인용)"""
+
+    age = serializers.ReadOnlyField()
+    attending_doctor_name = serializers.SerializerMethodField()
+    attending_doctor_department = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Patient
+        fields = [
+            'id',
+            'patient_number',
+            'name',
+            'birth_date',
+            'age',
+            'gender',
+            'phone',
+            'email',
+            'address',
+            'blood_type',
+            'allergies',
+            'chronic_diseases',
+            'chief_complaint',
+            'status',
+            'attending_doctor_name',
+            'attending_doctor_department',
+            'created_at',
+        ]
+
+    def get_attending_doctor_name(self, obj):
+        """주치의 이름 조회 (가장 최근 진료의 담당의)"""
+        from apps.encounters.models import Encounter
+        latest_encounter = Encounter.objects.filter(
+            patient=obj, is_deleted=False
+        ).order_by('-admission_date').first()
+
+        if latest_encounter and latest_encounter.attending_doctor:
+            return latest_encounter.attending_doctor.name
+        return None
+
+    def get_attending_doctor_department(self, obj):
+        """주치의 부서 조회"""
+        from apps.encounters.models import Encounter
+        latest_encounter = Encounter.objects.filter(
+            patient=obj, is_deleted=False
+        ).order_by('-admission_date').first()
+
+        if latest_encounter:
+            return latest_encounter.get_department_display()
+        return None
+
+
+class PatientEncounterListSerializer(serializers.ModelSerializer):
+    """환자용 진료 이력 Serializer (읽기 전용, 민감정보 제외)"""
+
+    attending_doctor_name = serializers.CharField(source='attending_doctor.name', read_only=True)
+    encounter_type_display = serializers.CharField(source='get_encounter_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    department_display = serializers.CharField(source='get_department_display', read_only=True)
+
+    class Meta:
+        model = None  # 아래에서 동적 설정
+        fields = [
+            'id',
+            'encounter_type',
+            'encounter_type_display',
+            'status',
+            'status_display',
+            'attending_doctor_name',
+            'department_display',
+            'admission_date',
+            'discharge_date',
+            'chief_complaint',
+            'primary_diagnosis',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        from apps.encounters.models import Encounter
+        self.Meta.model = Encounter
+        super().__init__(*args, **kwargs)
+
+
+class PatientOCSListSerializer(serializers.ModelSerializer):
+    """환자용 OCS 이력 Serializer (읽기 전용, 결과만)"""
+
+    doctor_name = serializers.CharField(source='doctor.name', read_only=True)
+    ocs_status_display = serializers.CharField(source='get_ocs_status_display', read_only=True)
+
+    class Meta:
+        model = None  # 아래에서 동적 설정
+        fields = [
+            'id',
+            'ocs_id',
+            'job_role',
+            'job_type',
+            'ocs_status',
+            'ocs_status_display',
+            'ocs_result',
+            'doctor_name',
+            'created_at',
+            'confirmed_at',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        from apps.ocs.models import OCS
+        self.Meta.model = OCS
+        super().__init__(*args, **kwargs)

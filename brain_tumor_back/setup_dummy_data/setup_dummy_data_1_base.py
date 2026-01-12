@@ -274,9 +274,58 @@ def setup_test_users():
             'departmentId': 20,
             'title': '신경외과 병동 수간호사',
         }),
-        ('patient1', 'patient1001', '환자테스트', 'patient1@example.com', 'PATIENT', False, {
-            'birthDate': date(1995, 9, 10),
-            'phoneMobile': '010-8901-7001',
+        ('nurse2', 'nurse2001', '김미영', 'nurse2@neuronova.hospital', 'NURSE', False, {
+            'birthDate': date(1994, 7, 12),
+            'phoneMobile': '010-7890-6002',
+            'phoneOffice': '02-1234-3002',
+            'hireDate': date(2020, 3, 1),
+            'departmentId': 20,
+            'title': '신경외과 병동 간호사',
+        }),
+        ('nurse3', 'nurse3001', '박지현', 'nurse3@neuronova.hospital', 'NURSE', False, {
+            'birthDate': date(1996, 11, 25),
+            'phoneMobile': '010-7890-6003',
+            'phoneOffice': '02-1234-3003',
+            'hireDate': date(2021, 9, 1),
+            'departmentId': 21,
+            'title': '신경과 외래 간호사',
+        }),
+        # PATIENT 역할 사용자 (5명) - 환자 테이블과 연결됨
+        ('patient1', 'patient1001', '김철수', 'patient1@example.com', 'PATIENT', False, {
+            'birthDate': date(1981, 1, 15),
+            'phoneMobile': '010-1234-5678',
+            'phoneOffice': None,
+            'hireDate': None,
+            'departmentId': None,
+            'title': None,
+        }),
+        ('patient2', 'patient2001', '이영희', 'patient2@example.com', 'PATIENT', False, {
+            'birthDate': date(1988, 3, 20),
+            'phoneMobile': '010-2345-6789',
+            'phoneOffice': None,
+            'hireDate': None,
+            'departmentId': None,
+            'title': None,
+        }),
+        ('patient3', 'patient3001', '박민수', 'patient3@example.com', 'PATIENT', False, {
+            'birthDate': date(1974, 5, 8),
+            'phoneMobile': '010-3456-7890',
+            'phoneOffice': None,
+            'hireDate': None,
+            'departmentId': None,
+            'title': None,
+        }),
+        ('patient4', 'patient4001', '최지은', 'patient4@example.com', 'PATIENT', False, {
+            'birthDate': date(1997, 6, 25),
+            'phoneMobile': '010-4567-8901',
+            'phoneOffice': None,
+            'hireDate': None,
+            'departmentId': None,
+            'title': None,
+        }),
+        ('patient5', 'patient5001', '정현우', 'patient5@example.com', 'PATIENT', False, {
+            'birthDate': date(1965, 9, 12),
+            'phoneMobile': '010-5678-9012',
             'phoneOffice': None,
             'hireDate': None,
             'departmentId': None,
@@ -290,11 +339,43 @@ def setup_test_users():
             'departmentId': 30,
             'title': '영상의학과 방사선사',
         }),
+        ('ris2', 'ris2001', '이준혁', 'ris2@neuronova.hospital', 'RIS', False, {
+            'birthDate': date(1990, 3, 15),
+            'phoneMobile': '010-9012-8002',
+            'phoneOffice': '02-1234-4002',
+            'hireDate': date(2019, 6, 1),
+            'departmentId': 30,
+            'title': '영상의학과 방사선사',
+        }),
+        ('ris3', 'ris3001', '최수빈', 'ris3@neuronova.hospital', 'RIS', False, {
+            'birthDate': date(1993, 8, 28),
+            'phoneMobile': '010-9012-8003',
+            'phoneOffice': '02-1234-4003',
+            'hireDate': date(2021, 2, 1),
+            'departmentId': 30,
+            'title': '영상의학과 방사선사',
+        }),
         ('lis1', 'lis1001', '윤서연', 'lis1@neuronova.hospital', 'LIS', False, {
             'birthDate': date(1991, 12, 5),
             'phoneMobile': '010-0123-9001',
             'phoneOffice': '02-1234-5001',
             'hireDate': date(2020, 4, 15),
+            'departmentId': 31,
+            'title': '진단검사의학과 임상병리사',
+        }),
+        ('lis2', 'lis2001', '정다은', 'lis2@neuronova.hospital', 'LIS', False, {
+            'birthDate': date(1989, 5, 10),
+            'phoneMobile': '010-0123-9002',
+            'phoneOffice': '02-1234-5002',
+            'hireDate': date(2018, 9, 1),
+            'departmentId': 31,
+            'title': '진단검사의학과 임상병리사',
+        }),
+        ('lis3', 'lis3001', '한승우', 'lis3@neuronova.hospital', 'LIS', False, {
+            'birthDate': date(1995, 1, 20),
+            'phoneMobile': '010-0123-9003',
+            'phoneOffice': '02-1234-5003',
+            'hireDate': date(2022, 1, 1),
             'departmentId': 31,
             'title': '진단검사의학과 임상병리사',
         }),
@@ -1430,6 +1511,63 @@ def update_encounters_with_soap(force=False):
     return True
 
 
+def link_patient_user_account():
+    """
+    PATIENT 역할 사용자를 환자(Patient) 테이블과 연결
+
+    patient1~5 계정 → 환자 테이블의 김철수, 이영희, 박민수, 최지은, 정현우와 연결
+    """
+    print("\n[추가 단계] 환자 계정-환자 테이블 연결...")
+
+    from apps.patients.models import Patient
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # PATIENT 역할 사용자 ↔ 환자 이름 매핑 (5명)
+    patient_mapping = [
+        ('patient1', '김철수'),
+        ('patient2', '이영희'),
+        ('patient3', '박민수'),
+        ('patient4', '최지은'),
+        ('patient5', '정현우'),
+    ]
+
+    linked_count = 0
+    skipped_count = 0
+
+    for login_id, patient_name in patient_mapping:
+        # 사용자 확인
+        patient_user = User.objects.filter(login_id=login_id, role__code='PATIENT').first()
+        if not patient_user:
+            print(f"  [SKIP] {login_id} 사용자가 없거나 PATIENT 역할이 아닙니다.")
+            skipped_count += 1
+            continue
+
+        # 이미 연결된 환자가 있는지 확인
+        if Patient.objects.filter(user=patient_user).exists():
+            linked_patient = Patient.objects.get(user=patient_user)
+            print(f"  [OK] 이미 연결됨: {login_id} → {linked_patient.name}")
+            skipped_count += 1
+            continue
+
+        # 환자 찾기
+        patient = Patient.objects.filter(name=patient_name, is_deleted=False, user__isnull=True).first()
+        if not patient:
+            print(f"  [SKIP] {patient_name} 환자가 없거나 이미 연결됨")
+            skipped_count += 1
+            continue
+
+        # 연결
+        patient.user = patient_user
+        patient.save()
+        linked_count += 1
+        print(f"  [OK] 연결: {login_id} → {patient.name} ({patient.patient_number})")
+
+    print(f"[OK] 환자 계정 연결 완료 (연결: {linked_count}건, 스킵: {skipped_count}건)")
+    print(f"     테스트 계정: patient1~5 / patient1001~patient5001")
+    return True
+
+
 def reset_base_data():
     """기본 더미 데이터 삭제 (base 영역만)"""
     print("\n[RESET] 기본 더미 데이터 삭제 중...")
@@ -1629,6 +1767,9 @@ def main():
 
     # 진료 SOAP 데이터 업데이트
     update_encounters_with_soap(force=force)
+
+    # 환자 계정-환자 테이블 연결 (PATIENT 역할용 마이페이지)
+    link_patient_user_account()
 
     # 요약 출력
     print_summary()

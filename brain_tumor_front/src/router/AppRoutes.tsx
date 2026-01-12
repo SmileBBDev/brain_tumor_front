@@ -12,6 +12,7 @@ const OCSResultReportPage = lazy(() => import('@/pages/ocs/OCSResultReportPage')
 const LISStudyDetailPage = lazy(() => import('@/pages/ocs/LISStudyDetailPage'));
 const RISStudyDetailPage = lazy(() => import('@/pages/ocs/RISStudyDetailPage'));
 const MyPage = lazy(() => import('@/pages/mypage/MyPage'));
+const PatientDashboard = lazy(() => import('@/pages/patient/PatientDashboard'));
 
 // 접근 가능한 메뉴만 flatten (라우트 등록용 - breadcrumbOnly 포함)
 function flattenAccessibleMenus(
@@ -64,17 +65,48 @@ function findFirstAccessiblePath(
 }
 
 export default function AppRoutes() {
-  const { menus, permissions, isAuthReady } = useAuth();
+  const { menus, permissions, isAuthReady, role } = useAuth();
 
-  // 준비 전엔 로딩
-  if (!isAuthReady || menus.length === 0 || permissions.length === 0) {
+  // PATIENT 역할은 메뉴/권한 없이도 대시보드 접근 가능
+  if (!isAuthReady) {
     return <FullScreenLoader />;
   }
 
-  const homePath = findFirstAccessiblePath(menus, permissions);
-  if (!homePath) {
+  // PATIENT 역할은 전용 대시보드로 이동
+  if (role === 'PATIENT') {
+    return (
+      <Suspense fallback={<FullScreenLoader />}>
+        <Routes>
+          <Route index element={<Navigate to="/patient/dashboard" replace />} />
+          <Route
+            path="/patient/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['PATIENT']}>
+                <PatientDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mypage"
+            element={
+              <ProtectedRoute>
+                <MyPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/patient/dashboard" replace />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // 준비 전엔 로딩 (PATIENT 외 역할)
+  if (menus.length === 0 || permissions.length === 0) {
     return <FullScreenLoader />;
   }
+
+  // 기본 홈 경로는 Dashboard로 고정
+  const homePath = '/dashboard';
 
   // 라우트 등록용: breadcrumbOnly 메뉴도 포함
   const accessibleMenus = flattenAccessibleMenus(menus, permissions, true);
@@ -131,6 +163,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <MyPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 환자 포털 (PATIENT 역할만 접근 가능) */}
+        <Route
+          path="/patient/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['PATIENT']}>
+              <PatientDashboard />
             </ProtectedRoute>
           }
         />

@@ -14,7 +14,7 @@ export default function App() {
       <Route path="/change-password" element={<ChangePasswordPage />} />
 
       {/* 내부 */}
-      <Route path="/" element={<AppLayout />}>
+      <Route path="/*" element={<AppLayout />}>
         <Route path="*" element={<AppRoutes />} />
       </Route>
     </Routes>

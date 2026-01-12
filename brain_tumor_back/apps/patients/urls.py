@@ -4,6 +4,14 @@ from . import views
 app_name = 'patients'
 
 urlpatterns = [
+    # ========== 환자 본인용 API (Patient Dashboard) ==========
+    # IMPORTANT: 'me/' 라우트는 '<int:patient_id>/'보다 먼저 정의해야 함
+    path('me/', views.patient_me, name='patient-me'),
+    path('me/encounters/', views.patient_me_encounters, name='patient-me-encounters'),
+    path('me/ocs/', views.patient_me_ocs, name='patient-me-ocs'),
+    path('me/alerts/', views.patient_me_alerts, name='patient-me-alerts'),
+
+    # ========== 의료진용 환자 관리 API ==========
     # 환자 목록 및 등록
     path('', views.patient_list_create, name='patient-list-create'),
 

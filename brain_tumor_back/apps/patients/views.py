@@ -17,6 +17,9 @@ from .serializers import (
     PatientAlertDetailSerializer,
     PatientAlertCreateSerializer,
     PatientAlertUpdateSerializer,
+    PatientDashboardSerializer,
+    PatientEncounterListSerializer,
+    PatientOCSListSerializer,
 )
 from .services import PatientService
 
@@ -566,3 +569,178 @@ def patient_examination_summary(request, patient_id):
         'ai_summary': ai_summary,
         'generated_at': timezone.now().isoformat()
     })
+
+
+# ========== Patient Dashboard Views (환자용 마이페이지) ==========
+
+def _get_patient_from_user(user):
+    """
+    로그인한 사용자로부터 연결된 Patient 객체를 조회
+    PATIENT 역할 사용자만 가능
+    """
+    # 역할 확인
+    if not user.role or user.role.code != 'PATIENT':
+        return None, Response(
+            {'error': '환자 계정으로만 접근할 수 있습니다.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    # User-Patient 연결 확인 (OneToOneField: related_name='patient_profile')
+    try:
+        patient = user.patient_profile
+        if patient.is_deleted:
+            return None, Response(
+                {'error': '삭제된 환자 정보입니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        return patient, None
+    except Patient.DoesNotExist:
+        return None, Response(
+            {'error': '연결된 환자 정보가 없습니다. 관리자에게 문의하세요.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def patient_me(request):
+    """
+    환자 본인 정보 조회 (GET /api/patients/me/)
+
+    PATIENT 역할의 사용자가 자신의 환자 정보를 조회합니다.
+
+    Returns:
+        - patient: 환자 기본정보
+        - attending_doctor_name: 주치의 이름
+        - attending_doctor_department: 주치의 진료과
+    """
+    patient, error_response = _get_patient_from_user(request.user)
+    if error_response:
+        return error_response
+
+    serializer = PatientDashboardSerializer(patient)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def patient_me_encounters(request):
+    """
+    환자 본인 진료 이력 조회 (GET /api/patients/me/encounters/)
+
+    PATIENT 역할의 사용자가 자신의 진료 이력을 조회합니다.
+
+    Query Parameters:
+        - page: 페이지 번호 (기본: 1)
+        - page_size: 페이지 크기 (기본: 10, 최대: 50)
+        - status: 진료 상태 필터 (scheduled, in_progress, completed, cancelled)
+
+    Returns:
+        - count: 전체 건수
+        - results: 진료 이력 목록
+    """
+    patient, error_response = _get_patient_from_user(request.user)
+    if error_response:
+        return error_response
+
+    from apps.encounters.models import Encounter
+
+    # 기본 쿼리셋
+    queryset = Encounter.objects.filter(
+        patient=patient,
+        is_deleted=False
+    ).select_related('attending_doctor').order_by('-admission_date')
+
+    # 상태 필터
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+
+    # 페이지네이션
+    paginator = PatientPagination()
+    paginator.page_size = 10
+    paginator.max_page_size = 50
+    page = paginator.paginate_queryset(queryset, request)
+
+    if page is not None:
+        serializer = PatientEncounterListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    serializer = PatientEncounterListSerializer(queryset, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def patient_me_ocs(request):
+    """
+    환자 본인 OCS(검사) 이력 조회 (GET /api/patients/me/ocs/)
+
+    PATIENT 역할의 사용자가 자신의 검사 이력을 조회합니다.
+    CONFIRMED(확정) 상태의 검사만 조회됩니다.
+
+    Query Parameters:
+        - page: 페이지 번호 (기본: 1)
+        - page_size: 페이지 크기 (기본: 10, 최대: 50)
+        - job_role: 검사 종류 필터 (RIS, LIS)
+
+    Returns:
+        - count: 전체 건수
+        - results: OCS 이력 목록
+    """
+    patient, error_response = _get_patient_from_user(request.user)
+    if error_response:
+        return error_response
+
+    from apps.ocs.models import OCS
+
+    # 기본 쿼리셋: CONFIRMED 상태만 조회 (환자는 확정된 결과만 볼 수 있음)
+    queryset = OCS.objects.filter(
+        patient=patient,
+        ocs_status=OCS.OcsStatus.CONFIRMED,
+        is_deleted=False
+    ).select_related('doctor').order_by('-confirmed_at')
+
+    # job_role 필터
+    job_role = request.query_params.get('job_role')
+    if job_role:
+        queryset = queryset.filter(job_role=job_role.upper())
+
+    # 페이지네이션
+    paginator = PatientPagination()
+    paginator.page_size = 10
+    paginator.max_page_size = 50
+    page = paginator.paginate_queryset(queryset, request)
+
+    if page is not None:
+        serializer = PatientOCSListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    serializer = PatientOCSListSerializer(queryset, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def patient_me_alerts(request):
+    """
+    환자 본인 주의사항 조회 (GET /api/patients/me/alerts/)
+
+    PATIENT 역할의 사용자가 자신의 주의사항(알레르기, 금기사항 등)을 조회합니다.
+    활성(is_active=True) 상태의 주의사항만 조회됩니다.
+
+    Returns:
+        - alerts: 주의사항 목록
+    """
+    patient, error_response = _get_patient_from_user(request.user)
+    if error_response:
+        return error_response
+
+    # 활성 주의사항만 조회
+    alerts = PatientAlert.objects.filter(
+        patient=patient,
+        is_active=True
+    ).order_by('-severity', '-created_at')
+
+    serializer = PatientAlertListSerializer(alerts, many=True)
+    return Response(serializer.data)
