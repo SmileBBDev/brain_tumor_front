@@ -23,3 +23,4 @@ migrate 순서가 중요하다.
 
 
 
+pip freeze > requirements.txt

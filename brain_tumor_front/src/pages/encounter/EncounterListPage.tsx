@@ -12,8 +12,9 @@ import '@/assets/style/encounterListView.css';
 export default function EncounterListPage() {
   const { role } = useAuth();
   const isDoctor = role === 'DOCTOR';
+  const isNurse = role === 'NURSE';
   const isSystemManager = role === 'SYSTEMMANAGER';
-  const canCreate = isDoctor || isSystemManager;
+  const canCreate = isDoctor || isNurse || isSystemManager;
 
   // Pagination
   const [page, setPage] = useState(1);
