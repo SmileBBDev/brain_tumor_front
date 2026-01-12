@@ -1,5 +1,8 @@
 // Patient types
 
+import type { Encounter } from './encounter';
+import type { OCSListItem } from './ocs';
+
 export type Gender = 'M' | 'F' | 'O';
 
 export type PatientStatus = 'active' | 'inactive' | 'deceased';
@@ -127,4 +130,35 @@ export interface PatientAlertUpdateData {
   title?: string;
   description?: string;
   is_active?: boolean;
+}
+
+// ============================================
+// Examination Summary (진찰 요약)
+// ============================================
+
+export interface ExaminationSummary {
+  patient: {
+    id: number;
+    patient_number: string;
+    name: string;
+    age: number;
+    gender: string;
+    blood_type: string | null;
+    allergies: string[];
+    chronic_diseases: string[];
+    chief_complaint: string;
+  };
+  alerts: PatientAlert[];
+  current_encounter: Encounter | null;
+  recent_encounters: Encounter[];
+  recent_ocs: {
+    ris: OCSListItem[];
+    lis: OCSListItem[];
+  };
+  ai_summary: {
+    id: number;
+    created_at: string;
+    result: any;
+  } | null;
+  generated_at: string;
 }

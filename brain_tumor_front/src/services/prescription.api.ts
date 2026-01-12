@@ -33,7 +33,12 @@ export const getPrescriptions = async (
   params?: PrescriptionSearchParams
 ): Promise<PrescriptionListItem[]> => {
   const response = await api.get<PrescriptionListResponse>('/prescriptions/', { params });
-  return response.data.results;
+  // API 응답이 배열이거나 {results: []} 형태일 수 있음
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data;
+  }
+  return data?.results || [];
 };
 
 // 환자별 처방 목록 조회 (편의 함수)
@@ -41,6 +46,13 @@ export const getPrescriptionsByPatient = async (
   patientId: number
 ): Promise<PrescriptionListItem[]> => {
   return getPrescriptions({ patient_id: patientId });
+};
+
+// 진료별 처방 목록 조회 (편의 함수)
+export const getPrescriptionsByEncounter = async (
+  encounterId: number
+): Promise<PrescriptionListItem[]> => {
+  return getPrescriptions({ encounter_id: encounterId });
 };
 
 // 처방 상세 조회

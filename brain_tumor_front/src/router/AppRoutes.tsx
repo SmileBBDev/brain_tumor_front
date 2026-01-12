@@ -9,6 +9,9 @@ import FullScreenLoader from '@/pages/common/FullScreenLoader';
 // Lazy loaded pages
 const OCSCreatePage = lazy(() => import('@/pages/ocs/OCSCreatePage'));
 const OCSResultReportPage = lazy(() => import('@/pages/ocs/OCSResultReportPage'));
+const LISStudyDetailPage = lazy(() => import('@/pages/ocs/LISStudyDetailPage'));
+const RISStudyDetailPage = lazy(() => import('@/pages/ocs/RISStudyDetailPage'));
+const MyPage = lazy(() => import('@/pages/mypage/MyPage'));
 
 // 접근 가능한 메뉴만 flatten (라우트 등록용 - breadcrumbOnly 포함)
 function flattenAccessibleMenus(
@@ -98,6 +101,36 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <OCSResultReportPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* LIS 검사 상세 페이지 (메뉴에 없지만 직접 접근 필요) */}
+        <Route
+          path="/ocs/lis/:ocsId"
+          element={
+            <ProtectedRoute>
+              <LISStudyDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* RIS 영상 상세 페이지 (메뉴에 없지만 직접 접근 필요) */}
+        <Route
+          path="/ocs/ris/:ocsId"
+          element={
+            <ProtectedRoute>
+              <RISStudyDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 마이페이지 (모든 로그인 사용자 접근 가능) */}
+        <Route
+          path="/mypage"
+          element={
+            <ProtectedRoute>
+              <MyPage />
             </ProtectedRoute>
           }
         />

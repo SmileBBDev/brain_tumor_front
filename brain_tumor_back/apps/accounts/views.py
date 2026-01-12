@@ -5,7 +5,14 @@ from rest_framework import generics, status, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import User
-from .serializers import UserSerializer, UserCreateUpdateSerializer, UserUpdateSerializer
+from .serializers import (
+    UserSerializer,
+    UserCreateUpdateSerializer,
+    UserUpdateSerializer,
+    MyProfileSerializer,
+    MyProfileUpdateSerializer,
+    ChangePasswordSerializer,
+)
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.utils import timezone
@@ -100,4 +107,57 @@ class UnlockUserView(APIView):
         user.save()
 
         return Response({"detail": "계정 잠금 해제 완료"})
+
+
+# ========== MyPage Views ==========
+
+# 5. 내 정보 조회 및 수정 (GET /api/accounts/me/, PUT /api/accounts/me/)
+class MyProfileView(APIView):
+    """
+    내 프로필 조회 및 수정
+
+    GET: 현재 로그인한 사용자의 정보 조회
+    PUT: 이름, 이메일, 프로필 정보 수정
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = MyProfileSerializer(request.user)
+        return Response(serializer.data)
+
+    def put(self, request):
+        serializer = MyProfileUpdateSerializer(
+            request.user,
+            data=request.data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            # 수정 후 전체 정보 반환
+            return Response(MyProfileSerializer(request.user).data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# 6. 비밀번호 변경 (POST /api/accounts/me/change-password/)
+class ChangePasswordView(APIView):
+    """
+    비밀번호 변경
+
+    POST: 현재 비밀번호 확인 후 새 비밀번호로 변경
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"detail": "비밀번호가 성공적으로 변경되었습니다."})
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

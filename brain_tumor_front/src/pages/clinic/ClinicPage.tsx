@@ -9,17 +9,16 @@ import { getOCSByPatient } from '@/services/ocs.api';
 import { getEncounters, createEncounter, completeEncounter } from '@/services/encounter.api';
 import { LoadingSpinner, useToast } from '@/components/common';
 import { useAuth } from '@/pages/auth/AuthProvider';
-import TodaySymptomCard from './components/TodaySymptomCard';
-import DiagnosisPrescriptionCard from './components/DiagnosisPrescriptionCard';
-import OrderCard from './components/OrderCard';
 import PastRecordCard from './components/PastRecordCard';
 import CalendarCard from './components/CalendarCard';
-import LabResultCard from './components/LabResultCard';
 import TodayAppointmentCard from './components/TodayAppointmentCard';
 import PastPrescriptionCard from './components/PastPrescriptionCard';
+import ExaminationTab from './components/ExaminationTab';
 import type { OCSListItem } from '@/types/ocs';
 import type { Encounter } from '@/types/encounter';
 import './ClinicPage.css';
+
+type ClinicTab = 'examination' | 'history';
 
 interface Patient {
   id: number;
@@ -48,6 +47,7 @@ export default function ClinicPage() {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
+  const [activeTab, setActiveTab] = useState<ClinicTab>('examination');
 
   // 환자 데이터 로드
   const loadPatientData = useCallback(async (patientId: number) => {
@@ -202,9 +202,6 @@ export default function ClinicPage() {
     );
   }
 
-  // LIS 결과만 필터링
-  const lisResults = ocsList.filter(ocs => ocs.job_role === 'LIS');
-
   return (
     <div className="page clinic-page">
       {/* 환자 정보 헤더 */}
@@ -247,50 +244,61 @@ export default function ClinicPage() {
         </div>
       </header>
 
-      {/* 3컬럼 그리드 레이아웃 */}
-      <div className="clinic-grid">
-        {/* 컬럼 1: 진료 입력 */}
-        <div className="clinic-column column-1">
-          <TodaySymptomCard
+      {/* 탭 네비게이션 */}
+      <div className="clinic-tabs">
+        <button
+          className={`clinic-tab ${activeTab === 'examination' ? 'active' : ''}`}
+          onClick={() => setActiveTab('examination')}
+        >
+          진찰
+        </button>
+        <button
+          className={`clinic-tab ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => setActiveTab('history')}
+        >
+          과거 기록
+        </button>
+      </div>
+
+      {/* 탭 컨텐츠 */}
+      {activeTab === 'examination' && (
+        <div className="clinic-tab-content">
+          <ExaminationTab
             patientId={patient.id}
+            encounterId={activeEncounter?.id || null}
             encounter={activeEncounter}
+            ocsList={ocsList}
             onUpdate={() => loadPatientData(patient.id)}
           />
-          <DiagnosisPrescriptionCard
-            patientId={patient.id}
-            encounter={activeEncounter}
-          />
-          <OrderCard
-            patientId={patient.id}
-            ocsList={ocsList}
-            onOrderCreated={() => loadPatientData(patient.id)}
-          />
         </div>
+      )}
 
-        {/* 컬럼 2: 과거 기록 */}
-        <div className="clinic-column column-2">
-          <PastRecordCard
-            patientId={patient.id}
-            encounters={encounters}
-          />
-          <CalendarCard
-            patientId={patient.id}
-            encounters={encounters}
-          />
-          <LabResultCard
-            patientId={patient.id}
-            lisResults={lisResults}
-          />
-        </div>
+      {activeTab === 'history' && (
+        <div className="clinic-grid">
+          {/* 컬럼 1: 과거 기록 */}
+          <div className="clinic-column column-1">
+            <PastRecordCard
+              patientId={patient.id}
+              encounters={encounters}
+            />
+          </div>
 
-        {/* 컬럼 3: 일정 */}
-        <div className="clinic-column column-3">
-          <TodayAppointmentCard />
-          <PastPrescriptionCard
-            patientId={patient.id}
-          />
+          {/* 컬럼 2: 캘린더 */}
+          <div className="clinic-column column-2">
+            <CalendarCard
+              patientId={patient.id}
+              encounters={encounters}
+            />
+          </div>
+
+          {/* 컬럼 3: 과거 처방 */}
+          <div className="clinic-column column-3">
+            <PastPrescriptionCard
+              patientId={patient.id}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -8,8 +8,6 @@ import type {
   PatientAlert,
   AlertType,
   AlertSeverity,
-  ALERT_TYPE_LABELS,
-  ALERT_SEVERITY_LABELS,
 } from '@/types/patient';
 
 interface PatientAlertsSectionProps {

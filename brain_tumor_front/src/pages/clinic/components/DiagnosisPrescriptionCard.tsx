@@ -1,10 +1,9 @@
 /**
- * 진단 기록 및 처방 카드
- * - 진단 기록 입력
+ * 처방 카드
  * - 약 처방 생성 및 발행
+ * - 진단은 SOAP Assessment에서 입력
  */
-import { useState, useCallback, useEffect } from 'react';
-import { updateEncounter } from '@/services/encounter.api';
+import { useState, useEffect } from 'react';
 import {
   createPrescription,
   issuePrescription,
@@ -19,7 +18,7 @@ import type {
 } from '@/types/prescription';
 import { FREQUENCY_LABELS, ROUTE_LABELS } from '@/types/prescription';
 
-interface DiagnosisPrescriptionCardProps {
+interface PrescriptionCardProps {
   patientId: number;
   encounter: Encounter | null;
   onPrescriptionCreated?: () => void;
@@ -36,16 +35,11 @@ const DEFAULT_ITEM: PrescriptionItemCreateData = {
   instructions: '',
 };
 
-export default function DiagnosisPrescriptionCard({
+export default function PrescriptionCard({
   patientId,
   encounter,
   onPrescriptionCreated,
-}: DiagnosisPrescriptionCardProps) {
-  const [diagnosis, setDiagnosis] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'diagnosis' | 'prescription'>('diagnosis');
-
+}: PrescriptionCardProps) {
   // 처방 관련 상태
   const [prescriptionDiagnosis, setPrescriptionDiagnosis] = useState('');
   const [prescriptionNotes, setPrescriptionNotes] = useState('');
@@ -54,12 +48,10 @@ export default function DiagnosisPrescriptionCard({
   const [_currentPrescriptionId, setCurrentPrescriptionId] = useState<number | null>(null);
   const [draftPrescriptions, setDraftPrescriptions] = useState<PrescriptionListItem[]>([]);
 
-  // 기존 데이터 로드
+  // 기존 데이터 로드 (진단명을 처방 진단명 기본값으로)
   useEffect(() => {
     if (encounter) {
-      setDiagnosis(encounter.diagnosis || '');
-      setNotes(encounter.notes || '');
-      setPrescriptionDiagnosis(encounter.diagnosis || '');
+      setPrescriptionDiagnosis(encounter.primary_diagnosis || '');
     }
   }, [encounter]);
 
@@ -69,9 +61,9 @@ export default function DiagnosisPrescriptionCard({
 
     const fetchDraftPrescriptions = async () => {
       try {
-        const response = await getPrescriptionsByPatient(patientId);
-        const prescriptions = Array.isArray(response) ? response : response?.results || [];
-        setDraftPrescriptions(prescriptions.filter((p) => p.status === 'DRAFT'));
+        const prescriptions = await getPrescriptionsByPatient(patientId);
+        const list = Array.isArray(prescriptions) ? prescriptions : [];
+        setDraftPrescriptions(list.filter((p) => p.status === 'DRAFT'));
       } catch (err) {
         console.error('작성 중 처방 조회 실패:', err);
       }
@@ -79,25 +71,6 @@ export default function DiagnosisPrescriptionCard({
 
     fetchDraftPrescriptions();
   }, [patientId]);
-
-  // 진단 저장
-  const handleSaveDiagnosis = useCallback(async () => {
-    if (!encounter) return;
-
-    setSaving(true);
-    try {
-      await updateEncounter(encounter.id, {
-        diagnosis,
-        notes,
-      });
-      alert('진단 기록이 저장되었습니다.');
-    } catch (err) {
-      console.error('Failed to save diagnosis:', err);
-      alert('저장에 실패했습니다.');
-    } finally {
-      setSaving(false);
-    }
-  }, [encounter, diagnosis, notes]);
 
   // 처방 항목 추가
   const handleAddItem = () => {
@@ -161,7 +134,6 @@ export default function DiagnosisPrescriptionCard({
       setCurrentPrescriptionId(prescription.id);
 
       if (issueAfterCreate) {
-        // 바로 발행
         await issuePrescription(prescription.id);
         alert('처방전이 발행되었습니다.');
       } else {
@@ -174,9 +146,9 @@ export default function DiagnosisPrescriptionCard({
       onPrescriptionCreated?.();
 
       // 작성 중 목록 새로고침
-      const response = await getPrescriptionsByPatient(patientId);
-      const prescriptions = Array.isArray(response) ? response : response?.results || [];
-      setDraftPrescriptions(prescriptions.filter((p) => p.status === 'DRAFT'));
+      const prescriptions = await getPrescriptionsByPatient(patientId);
+      const list = Array.isArray(prescriptions) ? prescriptions : [];
+      setDraftPrescriptions(list.filter((p) => p.status === 'DRAFT'));
     } catch (err) {
       console.error('처방 생성 실패:', err);
       alert('처방 생성에 실패했습니다.');
@@ -191,15 +163,15 @@ export default function DiagnosisPrescriptionCard({
       <div className="clinic-card">
         <div className="clinic-card-header">
           <h3>
-            <span className="card-icon">📝</span>
-            진단 및 처방
+            <span className="card-icon">💊</span>
+            처방
           </h3>
         </div>
         <div className="clinic-card-body">
           <div className="empty-state">
             <div className="empty-state-icon">💊</div>
             <div className="empty-state-text">
-              진료를 시작하면 진단 및 처방을 입력할 수 있습니다.
+              진료를 시작하면 처방을 입력할 수 있습니다.
             </div>
           </div>
         </div>
@@ -208,268 +180,186 @@ export default function DiagnosisPrescriptionCard({
   }
 
   return (
-    <div className="clinic-card diagnosis-prescription-card">
+    <div className="clinic-card prescription-card">
       <div className="clinic-card-header">
         <h3>
-          <span className="card-icon">📝</span>
-          진단 및 처방
+          <span className="card-icon">💊</span>
+          처방
+          {draftPrescriptions.length > 0 && (
+            <span className="draft-count">작성중 {draftPrescriptions.length}</span>
+          )}
         </h3>
-        <div className="tab-buttons">
+      </div>
+      <div className="clinic-card-body">
+        <div className="prescription-section">
+          {/* 처방 진단명 */}
+          <div className="form-group">
+            <label>처방 진단명</label>
+            <input
+              type="text"
+              value={prescriptionDiagnosis}
+              onChange={(e) => setPrescriptionDiagnosis(e.target.value)}
+              placeholder="처방 관련 진단명"
+            />
+          </div>
+
+          {/* 처방 항목 목록 */}
+          <div className="prescription-items">
+            <div className="items-header">
+              <label>처방 약품</label>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={handleAddItem}
+                type="button"
+              >
+                + 약품 추가
+              </button>
+            </div>
+
+            {items.map((item, index) => (
+              <div key={index} className="prescription-item-form">
+                <div className="item-row">
+                  <div className="form-group flex-2">
+                    <input
+                      type="text"
+                      value={item.medication_name}
+                      onChange={(e) =>
+                        handleUpdateItem(index, 'medication_name', e.target.value)
+                      }
+                      placeholder="약품명"
+                    />
+                  </div>
+                  <div className="form-group flex-1">
+                    <input
+                      type="text"
+                      value={item.dosage}
+                      onChange={(e) => handleUpdateItem(index, 'dosage', e.target.value)}
+                      placeholder="용량 (예: 500mg)"
+                    />
+                  </div>
+                  {items.length > 1 && (
+                    <button
+                      className="btn-remove"
+                      onClick={() => handleRemoveItem(index)}
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="item-row">
+                  <div className="form-group">
+                    <select
+                      value={item.frequency}
+                      onChange={(e) =>
+                        handleUpdateItem(
+                          index,
+                          'frequency',
+                          e.target.value as PrescriptionFrequency
+                        )
+                      }
+                    >
+                      {(Object.keys(FREQUENCY_LABELS) as PrescriptionFrequency[]).map((f) => (
+                        <option key={f} value={f}>
+                          {FREQUENCY_LABELS[f]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <select
+                      value={item.route}
+                      onChange={(e) =>
+                        handleUpdateItem(index, 'route', e.target.value as PrescriptionRoute)
+                      }
+                    >
+                      {(Object.keys(ROUTE_LABELS) as PrescriptionRoute[]).map((r) => (
+                        <option key={r} value={r}>
+                          {ROUTE_LABELS[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <input
+                      type="number"
+                      value={item.duration_days}
+                      onChange={(e) =>
+                        handleUpdateItem(index, 'duration_days', parseInt(e.target.value) || 1)
+                      }
+                      min={1}
+                      placeholder="일수"
+                    />
+                    <span className="input-suffix">일</span>
+                  </div>
+                  <div className="form-group">
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)
+                      }
+                      min={1}
+                      placeholder="수량"
+                    />
+                    <span className="input-suffix">개</span>
+                  </div>
+                </div>
+                <div className="item-row">
+                  <div className="form-group flex-1">
+                    <input
+                      type="text"
+                      value={item.instructions || ''}
+                      onChange={(e) =>
+                        handleUpdateItem(index, 'instructions', e.target.value)
+                      }
+                      placeholder="복용 지시 (예: 식후 30분)"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 처방 비고 */}
+          <div className="form-group">
+            <label>처방 비고</label>
+            <textarea
+              value={prescriptionNotes}
+              onChange={(e) => setPrescriptionNotes(e.target.value)}
+              placeholder="추가 지시사항..."
+              rows={2}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 푸터: 발행 버튼 */}
+      <div className="clinic-card-footer">
+        <div className="prescription-actions">
           <button
-            className={`tab-btn ${activeTab === 'diagnosis' ? 'active' : ''}`}
-            onClick={() => setActiveTab('diagnosis')}
+            className="btn btn-primary"
+            onClick={() => handleCreatePrescription(true)}
+            disabled={creatingPrescription}
           >
-            진단
-          </button>
-          <button
-            className={`tab-btn ${activeTab === 'prescription' ? 'active' : ''}`}
-            onClick={() => setActiveTab('prescription')}
-          >
-            처방
-            {draftPrescriptions.length > 0 && (
-              <span className="draft-badge">{draftPrescriptions.length}</span>
-            )}
+            {creatingPrescription ? '처리 중...' : '처방전 발행'}
           </button>
         </div>
       </div>
-      <div className="clinic-card-body">
-        {activeTab === 'diagnosis' ? (
-          <>
-            <div className="form-group">
-              <label>진단명</label>
-              <input
-                type="text"
-                value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
-                placeholder="진단명을 입력하세요"
-              />
-            </div>
-            <div className="form-group">
-              <label>진료 노트</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="진료 내용을 기록하세요..."
-                rows={4}
-              />
-            </div>
-          </>
-        ) : (
-          <div className="prescription-section">
-            {/* 처방 진단명 */}
-            <div className="form-group">
-              <label>처방 진단명</label>
-              <input
-                type="text"
-                value={prescriptionDiagnosis}
-                onChange={(e) => setPrescriptionDiagnosis(e.target.value)}
-                placeholder="처방 관련 진단명"
-              />
-            </div>
-
-            {/* 처방 항목 목록 */}
-            <div className="prescription-items">
-              <div className="items-header">
-                <label>처방 약품</label>
-                <button
-                  className="btn btn-sm btn-secondary"
-                  onClick={handleAddItem}
-                  type="button"
-                >
-                  + 약품 추가
-                </button>
-              </div>
-
-              {items.map((item, index) => (
-                <div key={index} className="prescription-item-form">
-                  <div className="item-row">
-                    <div className="form-group flex-2">
-                      <input
-                        type="text"
-                        value={item.medication_name}
-                        onChange={(e) =>
-                          handleUpdateItem(index, 'medication_name', e.target.value)
-                        }
-                        placeholder="약품명"
-                      />
-                    </div>
-                    <div className="form-group flex-1">
-                      <input
-                        type="text"
-                        value={item.dosage}
-                        onChange={(e) => handleUpdateItem(index, 'dosage', e.target.value)}
-                        placeholder="용량 (예: 500mg)"
-                      />
-                    </div>
-                    {items.length > 1 && (
-                      <button
-                        className="btn-remove"
-                        onClick={() => handleRemoveItem(index)}
-                        type="button"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  <div className="item-row">
-                    <div className="form-group">
-                      <select
-                        value={item.frequency}
-                        onChange={(e) =>
-                          handleUpdateItem(
-                            index,
-                            'frequency',
-                            e.target.value as PrescriptionFrequency
-                          )
-                        }
-                      >
-                        {(Object.keys(FREQUENCY_LABELS) as PrescriptionFrequency[]).map((f) => (
-                          <option key={f} value={f}>
-                            {FREQUENCY_LABELS[f]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <select
-                        value={item.route}
-                        onChange={(e) =>
-                          handleUpdateItem(index, 'route', e.target.value as PrescriptionRoute)
-                        }
-                      >
-                        {(Object.keys(ROUTE_LABELS) as PrescriptionRoute[]).map((r) => (
-                          <option key={r} value={r}>
-                            {ROUTE_LABELS[r]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <input
-                        type="number"
-                        value={item.duration_days}
-                        onChange={(e) =>
-                          handleUpdateItem(index, 'duration_days', parseInt(e.target.value) || 1)
-                        }
-                        min={1}
-                        placeholder="일수"
-                      />
-                      <span className="input-suffix">일</span>
-                    </div>
-                    <div className="form-group">
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)
-                        }
-                        min={1}
-                        placeholder="수량"
-                      />
-                      <span className="input-suffix">개</span>
-                    </div>
-                  </div>
-                  <div className="item-row">
-                    <div className="form-group flex-1">
-                      <input
-                        type="text"
-                        value={item.instructions || ''}
-                        onChange={(e) =>
-                          handleUpdateItem(index, 'instructions', e.target.value)
-                        }
-                        placeholder="복용 지시 (예: 식후 30분)"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* 처방 비고 */}
-            <div className="form-group">
-              <label>처방 비고</label>
-              <textarea
-                value={prescriptionNotes}
-                onChange={(e) => setPrescriptionNotes(e.target.value)}
-                placeholder="추가 지시사항..."
-                rows={2}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 푸터: 저장/발행 버튼 */}
-      <div className="clinic-card-footer">
-        {activeTab === 'diagnosis' ? (
-          <button
-            className="btn btn-primary"
-            onClick={handleSaveDiagnosis}
-            disabled={saving}
-          >
-            {saving ? '저장 중...' : '저장'}
-          </button>
-        ) : (
-          <div className="prescription-actions">
-            <button
-              className="btn btn-secondary"
-              onClick={() => handleCreatePrescription(false)}
-              disabled={creatingPrescription}
-            >
-              임시 저장
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => handleCreatePrescription(true)}
-              disabled={creatingPrescription}
-            >
-              {creatingPrescription ? '처리 중...' : '처방전 발행'}
-            </button>
-          </div>
-        )}
-      </div>
 
       <style>{`
-        .diagnosis-prescription-card .clinic-card-body {
+        .prescription-card .clinic-card-body {
           max-height: 400px;
           overflow-y: auto;
         }
-        .tab-buttons {
-          display: flex;
-          gap: 4px;
-        }
-        .tab-btn {
-          position: relative;
-          padding: 4px 12px;
-          border: 1px solid var(--border-color, #e0e0e0);
-          background: white;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-        .tab-btn.active {
-          background: var(--primary, #1976d2);
-          color: white;
-          border-color: var(--primary, #1976d2);
-        }
-        .tab-btn:hover:not(.active) {
-          background: var(--bg-secondary, #f5f5f5);
-        }
-        .draft-badge {
-          position: absolute;
-          top: -6px;
-          right: -6px;
-          min-width: 16px;
-          height: 16px;
-          padding: 0 4px;
-          border-radius: 8px;
+        .draft-count {
+          font-size: 11px;
+          font-weight: normal;
+          padding: 2px 8px;
           background: var(--warning, #f57c00);
           color: white;
-          font-size: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          border-radius: 10px;
+          margin-left: 8px;
         }
         .prescription-section {
           display: flex;

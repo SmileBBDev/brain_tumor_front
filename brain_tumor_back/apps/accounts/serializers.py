@@ -177,3 +177,89 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+# ========== MyPage Serializers ==========
+
+class MyProfileSerializer(serializers.ModelSerializer):
+    """내 정보 조회용 Serializer"""
+    role = RoleSerializer(read_only=True)
+    profile = UserProfileSerializer(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "login_id",
+            "name",
+            "email",
+            "role",
+            "is_active",
+            "last_login",
+            "created_at",
+            "profile",
+        ]
+        read_only_fields = ["id", "login_id", "role", "is_active", "last_login", "created_at"]
+
+
+class MyProfileUpdateSerializer(serializers.ModelSerializer):
+    """내 정보 수정용 Serializer (본인이 수정 가능한 필드만)"""
+    profile = UserProfileSerializer(required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            "name",
+            "email",
+            "profile",
+        ]
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        # profile 업데이트
+        profile_data = validated_data.pop("profile", None)
+        if profile_data is not None:
+            profile, _ = UserProfile.objects.get_or_create(user=instance)
+
+            for attr, value in profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
+
+        # user 기본 필드 (name, email만)
+        for key, value in validated_data.items():
+            setattr(instance, key, value)
+
+        instance.save()
+        return instance
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """비밀번호 변경용 Serializer"""
+    current_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+    def validate_current_password(self, value):
+        """현재 비밀번호 검증"""
+        user = self.context.get('request').user
+        if not user.check_password(value):
+            raise ValidationError("현재 비밀번호가 일치하지 않습니다.")
+        return value
+
+    def validate(self, data):
+        """새 비밀번호 확인"""
+        if data['new_password'] != data['confirm_password']:
+            raise ValidationError({"confirm_password": "새 비밀번호가 일치하지 않습니다."})
+
+        if data['current_password'] == data['new_password']:
+            raise ValidationError({"new_password": "현재 비밀번호와 다른 비밀번호를 입력해주세요."})
+
+        return data
+
+    def save(self):
+        """비밀번호 변경"""
+        user = self.context.get('request').user
+        user.set_password(self.validated_data['new_password'])
+        user.must_change_password = False
+        user.save()
+        return user

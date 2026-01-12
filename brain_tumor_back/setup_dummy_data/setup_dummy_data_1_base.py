@@ -206,33 +206,113 @@ def setup_superuser():
 
 
 def setup_test_users():
-    """테스트 사용자 생성"""
+    """테스트 사용자 생성 (UserProfile 포함)"""
     print("\n[3단계] 테스트 사용자 설정...")
 
     from django.contrib.auth import get_user_model
-    from apps.accounts.models import Role
+    from apps.accounts.models import Role, UserProfile
+    from datetime import date
 
     User = get_user_model()
 
-    # (login_id, password, name, role_code, is_staff)
+    # (login_id, password, name, email, role_code, is_staff, profile_data)
     # 비밀번호 규칙: {login_id}001 (예: admin → admin001, doctor1 → doctor1001)
     test_users = [
-        ('admin', 'admin001', '병원관리자', 'ADMIN', True),
-        ('doctor1', 'doctor1001', '김철수 의사', 'DOCTOR', False),
-        ('doctor2', 'doctor2001', '이영희 의사', 'DOCTOR', False),
-        ('doctor3', 'doctor3001', '박민수 의사', 'DOCTOR', False),
-        ('doctor4', 'doctor4001', '최지은 의사', 'DOCTOR', False),
-        ('doctor5', 'doctor5001', '정현우 의사', 'DOCTOR', False),
-        ('nurse1', 'nurse1001', '간호사', 'NURSE', False),
-        ('patient1', 'patient1001', '환자', 'PATIENT', False),
-        ('ris1', 'ris1001', '영상과', 'RIS', False),
-        ('lis1', 'lis1001', '검사과', 'LIS', False),
+        ('admin', 'admin001', '병원관리자', 'admin@neuronova.hospital', 'ADMIN', True, {
+            'birthDate': date(1975, 3, 15),
+            'phoneMobile': '010-1234-0001',
+            'phoneOffice': '02-1234-1001',
+            'hireDate': date(2010, 1, 1),
+            'departmentId': 1,
+            'title': '병원 관리자',
+        }),
+        ('doctor1', 'doctor1001', '김철수', 'doctor1@neuronova.hospital', 'DOCTOR', False, {
+            'birthDate': date(1978, 5, 20),
+            'phoneMobile': '010-2345-1001',
+            'phoneOffice': '02-1234-2001',
+            'hireDate': date(2015, 3, 1),
+            'departmentId': 10,
+            'title': '신경외과 전문의',
+        }),
+        ('doctor2', 'doctor2001', '이영희', 'doctor2@neuronova.hospital', 'DOCTOR', False, {
+            'birthDate': date(1982, 8, 12),
+            'phoneMobile': '010-3456-2001',
+            'phoneOffice': '02-1234-2002',
+            'hireDate': date(2018, 6, 15),
+            'departmentId': 10,
+            'title': '신경외과 부교수',
+        }),
+        ('doctor3', 'doctor3001', '박민수', 'doctor3@neuronova.hospital', 'DOCTOR', False, {
+            'birthDate': date(1985, 11, 8),
+            'phoneMobile': '010-4567-3001',
+            'phoneOffice': '02-1234-2003',
+            'hireDate': date(2020, 2, 1),
+            'departmentId': 11,
+            'title': '신경과 전문의',
+        }),
+        ('doctor4', 'doctor4001', '최지은', 'doctor4@neuronova.hospital', 'DOCTOR', False, {
+            'birthDate': date(1988, 2, 25),
+            'phoneMobile': '010-5678-4001',
+            'phoneOffice': '02-1234-2004',
+            'hireDate': date(2021, 9, 1),
+            'departmentId': 12,
+            'title': '영상의학과 전문의',
+        }),
+        ('doctor5', 'doctor5001', '정현우', 'doctor5@neuronova.hospital', 'DOCTOR', False, {
+            'birthDate': date(1990, 7, 3),
+            'phoneMobile': '010-6789-5001',
+            'phoneOffice': '02-1234-2005',
+            'hireDate': date(2022, 3, 1),
+            'departmentId': 10,
+            'title': '신경외과 레지던트 4년차',
+        }),
+        ('nurse1', 'nurse1001', '홍수진', 'nurse1@neuronova.hospital', 'NURSE', False, {
+            'birthDate': date(1992, 4, 18),
+            'phoneMobile': '010-7890-6001',
+            'phoneOffice': '02-1234-3001',
+            'hireDate': date(2019, 5, 1),
+            'departmentId': 20,
+            'title': '신경외과 병동 수간호사',
+        }),
+        ('patient1', 'patient1001', '환자테스트', 'patient1@example.com', 'PATIENT', False, {
+            'birthDate': date(1995, 9, 10),
+            'phoneMobile': '010-8901-7001',
+            'phoneOffice': None,
+            'hireDate': None,
+            'departmentId': None,
+            'title': None,
+        }),
+        ('ris1', 'ris1001', '강민호', 'ris1@neuronova.hospital', 'RIS', False, {
+            'birthDate': date(1987, 6, 22),
+            'phoneMobile': '010-9012-8001',
+            'phoneOffice': '02-1234-4001',
+            'hireDate': date(2017, 8, 1),
+            'departmentId': 30,
+            'title': '영상의학과 방사선사',
+        }),
+        ('lis1', 'lis1001', '윤서연', 'lis1@neuronova.hospital', 'LIS', False, {
+            'birthDate': date(1991, 12, 5),
+            'phoneMobile': '010-0123-9001',
+            'phoneOffice': '02-1234-5001',
+            'hireDate': date(2020, 4, 15),
+            'departmentId': 31,
+            'title': '진단검사의학과 임상병리사',
+        }),
     ]
 
     created_count = 0
-    for login_id, password, name, role_code, is_staff in test_users:
-        if User.objects.filter(login_id=login_id).exists():
+    profile_count = 0
+
+    for login_id, password, name, email, role_code, is_staff, profile_data in test_users:
+        user = User.objects.filter(login_id=login_id).first()
+
+        if user:
             print(f"  존재: {login_id}")
+            # 기존 사용자에도 프로필이 없으면 생성
+            if not hasattr(user, 'profile') or not UserProfile.objects.filter(user=user).exists():
+                UserProfile.objects.create(user=user, **profile_data)
+                profile_count += 1
+                print(f"    → 프로필 추가: {login_id}")
             continue
 
         try:
@@ -240,18 +320,24 @@ def setup_test_users():
             user = User(
                 login_id=login_id,
                 name=name,
+                email=email,
                 is_staff=is_staff,
                 is_active=True,
                 role=role
             )
             user.set_password(password)
             user.save()
+
+            # UserProfile 생성
+            UserProfile.objects.create(user=user, **profile_data)
+
             created_count += 1
-            print(f"  생성: {login_id} / {password}")
+            profile_count += 1
+            print(f"  생성: {login_id} / {password} (프로필 포함)")
         except Exception as e:
             print(f"  오류 ({login_id}): {e}")
 
-    print(f"[OK] 테스트 사용자 설정 완료 ({created_count}개 생성)")
+    print(f"[OK] 테스트 사용자 설정 완료 ({created_count}개 생성, 프로필 {profile_count}개)")
     return True
 
 
@@ -1008,10 +1094,15 @@ def create_dummy_lis_orders(num_orders=20, force=False):
     if not lab_workers:
         lab_workers = doctors
 
-    # 검사 항목
+    # 검사 항목 (BLOOD, GENETIC, PROTEIN 포함)
     test_types = [
+        # BLOOD 검사
         'CBC', 'BMP', 'CMP', 'Lipid Panel', 'LFT', 'RFT',
-        'Thyroid Panel', 'Coagulation', 'Urinalysis', 'Tumor Markers'
+        'Thyroid Panel', 'Coagulation', 'Urinalysis', 'Tumor Markers',
+        # GENETIC 검사 (유전자)
+        'GENETIC', 'RNA_SEQ', 'DNA_SEQ', 'GENE_PANEL',
+        # PROTEIN 검사 (단백질)
+        'PROTEIN', 'PROTEIN_PANEL', 'BIOMARKER',
     ]
     ocs_statuses = ['ORDERED', 'ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']
     priorities = ['urgent', 'normal']
@@ -1062,6 +1153,36 @@ def create_dummy_lis_orders(num_orders=20, force=False):
                     {"code": "CEA", "name": "암배아항원", "value": str(cea_val), "unit": "ng/mL", "reference": "0-5.0", "is_abnormal": cea_val > 5.0},
                     {"code": "AFP", "name": "알파태아단백", "value": str(afp_val), "unit": "ng/mL", "reference": "0-10.0", "is_abnormal": afp_val > 10.0},
                 ]
+            elif test_type in ['GENETIC', 'RNA_SEQ', 'DNA_SEQ', 'GENE_PANEL']:
+                # 유전자 검사 결과
+                gene_mutations = [
+                    {"gene_name": "IDH1", "mutation_type": "R132H" if is_abnormal else "Wild Type", "status": "Mutant" if is_abnormal else "Normal", "allele_frequency": round(random.uniform(0.1, 0.5), 2) if is_abnormal else None, "clinical_significance": "Favorable prognosis" if is_abnormal else "N/A"},
+                    {"gene_name": "TP53", "mutation_type": random.choice(["Missense", "Nonsense", "Wild Type"]), "status": random.choice(["Mutant", "Normal"]), "allele_frequency": round(random.uniform(0.05, 0.3), 2), "clinical_significance": "Variable"},
+                    {"gene_name": "MGMT", "mutation_type": "Methylated" if random.random() > 0.5 else "Unmethylated", "status": "Methylated" if random.random() > 0.5 else "Unmethylated", "allele_frequency": None, "clinical_significance": "TMZ response predictor"},
+                    {"gene_name": "EGFR", "mutation_type": random.choice(["Amplified", "Normal"]), "status": random.choice(["Amplified", "Normal"]), "allele_frequency": None, "clinical_significance": "GBM marker"},
+                ]
+                test_results = [{"code": "GENE", "name": "유전자 변이 분석", "value": "분석 완료", "unit": "", "reference": "", "is_abnormal": is_abnormal}]
+                worker_result = {
+                    "_template": "LIS", "_version": "1.0", "_confirmed": ocs_status == 'CONFIRMED',
+                    "test_type": "GENETIC", "test_results": test_results, "gene_mutations": gene_mutations,
+                    "summary": "유전자 변이 검출됨" if is_abnormal else "유전자 변이 없음",
+                    "interpretation": "IDH1 변이 양성 - 예후 양호" if is_abnormal else "특이 변이 없음", "_custom": {}
+                }
+            elif test_type in ['PROTEIN', 'PROTEIN_PANEL', 'BIOMARKER']:
+                # 단백질 검사 결과
+                protein_markers = [
+                    {"marker_name": "GFAP", "value": round(random.uniform(0.1, 5.0), 2), "unit": "ng/mL", "reference_range": "0-2.0", "is_abnormal": random.random() > 0.7, "interpretation": "Astrocyte marker"},
+                    {"marker_name": "S100B", "value": round(random.uniform(0.01, 0.5), 3), "unit": "ug/L", "reference_range": "0-0.15", "is_abnormal": random.random() > 0.6, "interpretation": "Brain injury marker"},
+                    {"marker_name": "NSE", "value": round(random.uniform(5, 25), 1), "unit": "ng/mL", "reference_range": "0-16.3", "is_abnormal": random.random() > 0.7, "interpretation": "Neuroendocrine marker"},
+                ]
+                test_results = [{"code": "PROT", "name": "단백질 마커 분석", "value": "분석 완료", "unit": "", "reference": "", "is_abnormal": is_abnormal}]
+                worker_result = {
+                    "_template": "LIS", "_version": "1.0", "_confirmed": ocs_status == 'CONFIRMED',
+                    "test_type": "PROTEIN", "test_results": test_results, "protein_markers": protein_markers,
+                    "protein": "GFAP, S100B 상승" if is_abnormal else "정상 범위",
+                    "summary": "단백질 마커 이상" if is_abnormal else "정상 범위",
+                    "interpretation": "뇌종양 관련 마커 상승 소견" if is_abnormal else "특이 소견 없음", "_custom": {}
+                }
             else:
                 # 일반 검사
                 test_results = [
@@ -1069,7 +1190,9 @@ def create_dummy_lis_orders(num_orders=20, force=False):
                     {"code": "TEST2", "name": f"{test_type} 항목2", "value": str(round(random.uniform(10, 50), 1)), "unit": "U/L", "reference": "10-50", "is_abnormal": False},
                 ]
 
-            worker_result = {
+            # GENETIC/PROTEIN은 위에서 이미 worker_result 설정됨
+            if test_type not in ['GENETIC', 'RNA_SEQ', 'DNA_SEQ', 'GENE_PANEL', 'PROTEIN', 'PROTEIN_PANEL', 'BIOMARKER']:
+                worker_result = {
                 "_template": "LIS",
                 "_version": "1.0",
                 "_confirmed": ocs_status == 'CONFIRMED',

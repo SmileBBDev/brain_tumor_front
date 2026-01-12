@@ -1,8 +1,11 @@
 // Clinic 카드 컴포넌트 export
 
+// 탭 컴포넌트
+export { default as ExaminationTab } from './ExaminationTab';
+
 // 컬럼 1: 진료 입력
 export { default as TodaySymptomCard } from './TodaySymptomCard';
-export { default as DiagnosisPrescriptionCard } from './DiagnosisPrescriptionCard';
+export { default as PrescriptionCard } from './DiagnosisPrescriptionCard';
 export { default as OCSCard, OrderCard } from './OCSCard';
 
 // 컬럼 2: 과거 기록

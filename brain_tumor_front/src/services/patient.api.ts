@@ -9,6 +9,7 @@ import type {
   PatientAlert,
   PatientAlertCreateData,
   PatientAlertUpdateData,
+  ExaminationSummary,
 } from '@/types/patient';
 
 /**
@@ -190,4 +191,17 @@ export const deletePatientAlert = async (
   alertId: number
 ): Promise<void> => {
   await api.delete(`/patients/${patientId}/alerts/${alertId}/`);
+};
+
+// =============================================================================
+// 진찰 요약 (Examination Summary) API
+// =============================================================================
+
+/**
+ * 환자 진찰 요약 조회
+ * GET /api/patients/{patientId}/examination-summary/
+ */
+export const getExaminationSummary = async (patientId: number): Promise<ExaminationSummary> => {
+  const response = await api.get<ExaminationSummary>(`/patients/${patientId}/examination-summary/`);
+  return response.data;
 };

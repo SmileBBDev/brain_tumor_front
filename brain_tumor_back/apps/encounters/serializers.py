@@ -33,6 +33,12 @@ class EncounterListSerializer(serializers.ModelSerializer):
             'scheduled_time',
             'discharge_date',
             'chief_complaint',
+            'primary_diagnosis',
+            # SOAP 필드 추가 (과거 기록 조회용)
+            'subjective',
+            'objective',
+            'assessment',
+            'plan',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']

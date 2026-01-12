@@ -9,6 +9,7 @@ import { getPrescriptionsByPatient, getPrescriptions } from '@/services/prescrip
 import { useAuth } from '@/pages/auth/AuthProvider';
 import type { PrescriptionListItem } from '@/types/prescription';
 import { STATUS_LABELS } from '@/types/prescription';
+import PrescriptionDetailModal from './PrescriptionDetailModal';
 
 interface PastPrescriptionCardProps {
   patientId?: number;
@@ -23,6 +24,7 @@ export default function PastPrescriptionCard({
   const [prescriptions, setPrescriptions] = useState<PrescriptionListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<number | null>(null);
 
   useEffect(() => {
     // SYSTEMMANAGER가 아닌 경우 patientId가 필수
@@ -32,16 +34,16 @@ export default function PastPrescriptionCard({
       setLoading(true);
       setError(null);
       try {
-        let response;
+        let data: PrescriptionListItem[];
         if (isSystemManager && !patientId) {
           // SYSTEMMANAGER: 모든 처방 조회
-          response = await getPrescriptions();
+          data = await getPrescriptions();
         } else {
           // 특정 환자의 처방 조회
-          response = await getPrescriptionsByPatient(patientId!);
+          data = await getPrescriptionsByPatient(patientId!);
         }
-        const data = Array.isArray(response) ? response : response?.results || [];
-        setPrescriptions(data);
+        // data가 배열인지 확인
+        setPrescriptions(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('처방 목록 조회 실패:', err);
         setError('처방 목록을 불러오는데 실패했습니다.');
@@ -101,7 +103,11 @@ export default function PastPrescriptionCard({
         ) : (
           <div className="prescription-list">
             {prescriptions.slice(0, 10).map((rx) => (
-              <div key={rx.id} className="list-item prescription-item">
+              <div
+                key={rx.id}
+                className="list-item prescription-item clickable"
+                onClick={() => setSelectedPrescriptionId(rx.id)}
+              >
                 <div className="list-item-content">
                   <div className="list-item-title">
                     <span className="rx-id">{rx.prescription_id}</span>
@@ -128,6 +134,7 @@ export default function PastPrescriptionCard({
                   <span className={`status-badge ${getStatusClass(rx.status)}`}>
                     {STATUS_LABELS[rx.status] || rx.status_display || rx.status}
                   </span>
+                  <span className="view-detail">보기 →</span>
                 </div>
               </div>
             ))}
@@ -137,6 +144,14 @@ export default function PastPrescriptionCard({
               </div>
             )}
           </div>
+        )}
+
+        {/* 처방전 상세 모달 */}
+        {selectedPrescriptionId && (
+          <PrescriptionDetailModal
+            prescriptionId={selectedPrescriptionId}
+            onClose={() => setSelectedPrescriptionId(null)}
+          />
         )}
       </div>
 
@@ -170,6 +185,28 @@ export default function PastPrescriptionCard({
         }
         .prescription-item {
           padding: 10px 16px;
+        }
+        .prescription-item.clickable {
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .prescription-item.clickable:hover {
+          background: var(--bg-secondary, #f5f5f5);
+        }
+        .list-item-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+        }
+        .view-detail {
+          font-size: 11px;
+          color: var(--primary, #1976d2);
+          opacity: 0;
+          transition: opacity 0.15s ease;
+        }
+        .prescription-item:hover .view-detail {
+          opacity: 1;
         }
         .rx-id {
           font-family: monospace;

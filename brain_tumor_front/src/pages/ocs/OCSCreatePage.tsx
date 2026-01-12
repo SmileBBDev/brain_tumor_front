@@ -25,6 +25,7 @@ const JOB_TYPE_OPTIONS: Record<JobRole, { code: string; name: string }[]> = {
     { code: 'Fluoroscopy', name: 'Fluoroscopy (투시촬영)' },
   ],
   LIS: [
+    // 혈액 검사 (BLOOD)
     { code: 'CBC', name: 'CBC (일반혈액검사)' },
     { code: 'BMP', name: 'BMP (기초대사패널)' },
     { code: 'CMP', name: 'CMP (종합대사패널)' },
@@ -35,6 +36,15 @@ const JOB_TYPE_OPTIONS: Record<JobRole, { code: string; name: string }[]> = {
     { code: 'Coagulation', name: 'Coagulation (응고검사)' },
     { code: 'Urinalysis', name: 'Urinalysis (소변검사)' },
     { code: 'Tumor Markers', name: 'Tumor Markers (종양표지자)' },
+    // 유전자 검사 (GENETIC)
+    { code: 'GENETIC', name: 'GENETIC (유전자검사)' },
+    { code: 'RNA_SEQ', name: 'RNA_SEQ (RNA 시퀀싱)' },
+    { code: 'DNA_SEQ', name: 'DNA_SEQ (DNA 시퀀싱)' },
+    { code: 'GENE_PANEL', name: 'GENE_PANEL (유전자패널)' },
+    // 단백질 검사 (PROTEIN)
+    { code: 'PROTEIN', name: 'PROTEIN (단백질검사)' },
+    { code: 'PROTEIN_PANEL', name: 'PROTEIN_PANEL (단백질패널)' },
+    { code: 'BIOMARKER', name: 'BIOMARKER (바이오마커)' },
   ],
   TREATMENT: [
     { code: 'Chemotherapy', name: 'Chemotherapy (화학요법)' },
