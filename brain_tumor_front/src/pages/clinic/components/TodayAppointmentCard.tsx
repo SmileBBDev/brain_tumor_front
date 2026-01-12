@@ -39,7 +39,7 @@ export default function TodayAppointmentCard() {
 
   // 환자 진료 페이지로 이동
   const handleSelectPatient = (encounter: Encounter) => {
-    navigate(`/patients/care?patientId=${encounter.patient}`);
+    navigate(`/patientsCare?patientId=${encounter.patient}`);
   };
 
   // 시간 순 정렬

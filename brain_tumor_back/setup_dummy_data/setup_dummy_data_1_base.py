@@ -401,7 +401,7 @@ def load_menu_permission_seed():
     # Patient 하위
     create_menu(20, code='PATIENT_LIST', path='/patients', order=1, is_active=True, parent=menu_patient)
     create_menu(21, code='PATIENT_DETAIL', path='/patients/:patientId', breadcrumb_only=True, order=1, is_active=True, parent_id=20)
-    create_menu(22, code='PATIENT_CARE', path='/patients/care', order=2, is_active=True, parent=menu_patient)
+    create_menu(22, code='PATIENT_CARE', path='/patientsCare', order=2, is_active=True, parent=menu_patient)
     create_menu(36, code='ENCOUNTER_LIST', path='/encounters', order=3, is_active=True, parent=menu_patient)
 
     # OCS 메뉴 (역할 기반 그룹 분리)
