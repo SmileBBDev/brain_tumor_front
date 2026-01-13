@@ -11,8 +11,8 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from apps.accounts.models import User
 from apps.patients.models import Patient
 from apps.ocs.models import OCS
-from apps.common.permission import IsAdmin, IsExternal, IsDoctor
 from apps.encounters.models import Encounter
+from apps.common.permission import IsAdmin, IsExternalOrAdmin, IsDoctorOrAdmin
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @extend_schema(
     tags=["Dashboard"],
     summary="관리자 대시보드 통계",
-    description="관리자용 대시보드 통계를 조회합니다. ADMIN 또는 SYSTEMMANAGER 역할만 접근 가능합니다.",
+    description="관리자용 대시보드 통계를 조회합니다. ADMIN, SYSTEMMANAGER 역할 접근 가능합니다.",
     responses={
         200: OpenApiResponse(description="통계 조회 성공"),
         403: OpenApiResponse(description="권한 없음"),
@@ -89,7 +89,7 @@ class AdminDashboardStatsView(APIView):
 @extend_schema(
     tags=["Dashboard"],
     summary="외부기관 대시보드 통계",
-    description="외부기관용 대시보드 통계를 조회합니다. RIS 또는 LIS 역할만 접근 가능합니다.",
+    description="외부기관용 대시보드 통계를 조회합니다. EXTERNAL, ADMIN, SYSTEMMANAGER 역할 접근 가능합니다.",
     responses={
         200: OpenApiResponse(description="통계 조회 성공"),
         403: OpenApiResponse(description="권한 없음"),
@@ -98,7 +98,7 @@ class AdminDashboardStatsView(APIView):
 )
 class ExternalDashboardStatsView(APIView):
     """외부기관 대시보드 통계 API"""
-    permission_classes = [IsExternal]
+    permission_classes = [IsExternalOrAdmin]
 
     def get(self, request):
         try:
@@ -159,7 +159,7 @@ class ExternalDashboardStatsView(APIView):
 @extend_schema(
     tags=["Dashboard"],
     summary="의사 대시보드 통계",
-    description="의사용 대시보드 통계를 조회합니다. DOCTOR 역할만 접근 가능합니다. 금일 예약 환자 5명을 반환합니다.",
+    description="의사용 대시보드 통계를 조회합니다. DOCTOR, ADMIN, SYSTEMMANAGER 역할 접근 가능합니다. 금일 예약 환자 5명을 반환합니다.",
     responses={
         200: OpenApiResponse(description="통계 조회 성공"),
         403: OpenApiResponse(description="권한 없음"),
@@ -168,7 +168,7 @@ class ExternalDashboardStatsView(APIView):
 )
 class DoctorDashboardStatsView(APIView):
     """의사 대시보드 통계 API"""
-    permission_classes = [IsDoctor]
+    permission_classes = [IsDoctorOrAdmin]
 
     def get(self, request):
         try:

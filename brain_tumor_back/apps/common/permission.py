@@ -33,6 +33,16 @@ class IsExternal(BasePermission):
         return request.user.role.code == 'EXTERNAL'
 
 
+class IsExternalOrAdmin(BasePermission):
+    """EXTERNAL, ADMIN, SYSTEMMANAGER 역할 접근 가능 (관리자가 외부기관 현황 조회용)"""
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if not request.user.role:
+            return False
+        return request.user.role.code in ['EXTERNAL', 'ADMIN', 'SYSTEMMANAGER']
+
+
 class IsDoctor(BasePermission):
     """DOCTOR 역할만 접근 가능"""
     def has_permission(self, request, view):
@@ -41,3 +51,13 @@ class IsDoctor(BasePermission):
         if not request.user.role:
             return False
         return request.user.role.code == 'DOCTOR'
+
+
+class IsDoctorOrAdmin(BasePermission):
+    """DOCTOR, ADMIN, SYSTEMMANAGER 역할 접근 가능 (관리자가 의사 현황 조회용)"""
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if not request.user.role:
+            return False
+        return request.user.role.code in ['DOCTOR', 'ADMIN', 'SYSTEMMANAGER']

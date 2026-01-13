@@ -11,8 +11,8 @@ import string
 
 # Serialzer는 데이터 변환
 
-class UserProfileSerializer(serializers.ModelSerializer):    
-    departmentId = serializers.IntegerField()
+class UserProfileSerializer(serializers.ModelSerializer):
+    departmentId = serializers.IntegerField(required=False, allow_null=True)
     class Meta:
         model = UserProfile
         fields = [
@@ -22,6 +22,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "hireDate",
             "departmentId",
             "title",
+            "department",
+            "workStation",
         ]
 
 

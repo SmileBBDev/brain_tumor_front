@@ -58,4 +58,7 @@ urlpatterns = [
     path("api/dashboard/admin/stats/", AdminDashboardStatsView.as_view()),
     path("api/dashboard/external/stats/", ExternalDashboardStatsView.as_view()),
     path("api/dashboard/doctor/stats/", DoctorDashboardStatsView.as_view()),
+
+    # 진료 보고서 API
+    path("api/reports/", include("apps.reports.urls")),
 ]

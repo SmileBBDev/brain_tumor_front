@@ -612,8 +612,8 @@ def load_menu_permission_seed():
     # LIS Result Upload 메뉴 (LAB 그룹)
     create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', icon='upload', order=5, is_active=True, parent=menu_lab)
 
-    # AI 추론 요청 메뉴 (AI_SUMMARY 하위)
-    menu_ai_request, _ = create_menu(33, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=1, is_active=True, parent=menu_ai)
+    # AI 추론 요청 메뉴 (AI_SUMMARY 하위) - AI_REQUEST_LIST는 사이드바에 표시하지 않음 (breadcrumb_only)
+    menu_ai_request, _ = create_menu(33, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', breadcrumb_only=True, order=1, is_active=True, parent=menu_ai)
     create_menu(34, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
     create_menu(35, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=3, is_active=True, parent=menu_ai_request)
 
