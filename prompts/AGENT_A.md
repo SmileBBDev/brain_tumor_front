@@ -62,103 +62,31 @@
 
 ## 📋 현재 작업 지시서 (2026-01-13)
 
-### 작업 1: OCS 페이지 통합 - 메뉴 설정 (B와 협업)
+### ✅ 작업 1: OCS 페이지 통합 - 메뉴 설정 - 완료
 
-**목표**: `/ocs/manage` → `/ocs/status`로 통합
-
-**작업 내용**:
-1. 메뉴 DB에서 `OCS_MANAGE` 항목 제거 또는 비활성화
-2. `OCS_STATUS` 메뉴 권한에 DOCTOR, SYSTEMMANAGER 추가 (OCS 생성 버튼용)
-
-**수정 파일**: `setup_dummy_data/` 메뉴 설정 또는 DB 직접 수정
+**수정 파일**: `setup_dummy_data_1_base.py`
+- OCS_MANAGE → 비활성화 (is_active=False)
+- OCS_CREATE → OCS_STATUS의 하위 메뉴로 이동
 
 ---
 
-### 작업 2: `/ocs/process-status` API 생성
+### ✅ 작업 2: `/ocs/process-status` API 생성 - 완료
 
-**참고**: `/ocs/ris/process-status` 구조 참고
-
-**작업 내용**:
-1. `apps/ocs/views.py`에 OCSProcessStatusView 추가
-2. RIS + LIS 통합 처리 현황 API
-3. URL 등록: `/api/ocs/process-status/`
-
-**응답 형식**:
-```python
-{
-    'ris': {
-        'pending': ...,
-        'in_progress': ...,
-        'completed': ...,
-        'total_today': ...
-    },
-    'lis': {
-        'pending': ...,
-        'in_progress': ...,
-        'completed': ...,
-        'total_today': ...
-    },
-    'combined': {
-        'total_pending': ...,
-        'total_completed': ...
-    }
-}
-```
+**수정 파일**: `apps/ocs/views.py`, `apps/ocs/urls.py`
+**URL**: `GET /api/ocs/process-status/`
 
 ---
 
-### 작업 3: 의사 Dashboard API - 금일 예약환자 (B와 협업)
+### ✅ 작업 3: 의사 Dashboard API - 금일 예약환자 - 완료
 
-**목표**: 의사 대시보드에서 금일 예약환자 5명 표시
-
-**작업 내용**:
-1. `apps/common/views.py`에 DoctorDashboardStatsView 추가
-2. 금일 예약환자 API (현 시간 기준 가까운 5명)
-
-**URL**: `/api/dashboard/doctor/stats/`
-
-**응답 형식**:
-```python
-{
-    'today_appointments': [
-        {
-            'patient_id': ...,
-            'patient_name': ...,
-            'appointment_time': ...,
-            'reason': ...
-        },
-        # 최대 5명
-    ],
-    'total_today': ...,
-    'remaining': ...
-}
-```
+**수정 파일**: `apps/common/views.py`, `apps/common/permission.py`, `config/urls.py`
+**URL**: `GET /api/dashboard/doctor/stats/`
 
 ---
 
-### 작업 4: AI 페이지 관련 API 확인
+### ✅ 작업 4: AI 페이지 관련 API 확인 - 완료
 
-**B가 필요로 하는 API**:
-1. `GET /api/ai/requests/` - AI 요청 목록 (✅ 이미 존재)
-2. `GET /api/ai/process-status/` - AI 처리 현황 (신규 필요 시)
-3. `GET /api/ai/models/` - AI 모델 정보 (신규 필요 시)
-
-**AI 모델 정보 API** (필요 시):
-```python
-# URL: /api/ai/models/
-{
-    'models': [
-        {
-            'code': 'M1',
-            'name': 'MRI 4-Channel Analysis',
-            'description': 'MRI 영상 기반 뇌종양 분석',
-            'input_type': 'T1, T2, T1C, FLAIR',
-            'accuracy': 0.95
-        },
-        # MG, MM...
-    ]
-}
-```
+이미 존재 (건드리지 않음)
 
 ---
 

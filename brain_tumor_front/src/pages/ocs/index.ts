@@ -13,4 +13,5 @@ export { default as RISDashboardPage } from './RISDashboardPage';
 export { default as LISUploadPage } from './LISUploadPage';
 export { default as LISProcessStatusPage } from './LISProcessStatusPage';
 export { default as RISUploadPage } from './RISUploadPage';
+export { default as OCSProcessStatusPage } from './OCSProcessStatusPage';
 export { default as AIAnalysisPanel } from './components/AIAnalysisPanel';

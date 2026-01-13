@@ -11,7 +11,7 @@ const generateStudyInstanceUID = (ocsId, patientId = "") => {
   return `OCS_${ocsId}_${patientId}_${timestamp}`;
 };
 
-export default function UploadSection({ onUploaded, ocsInfo, existingStudy, onStudyDeleted }) {
+export default function UploadSection({ onUploaded, ocsInfo, existingStudy, onStudyDeleted, isMyWork = true, workerName }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [seriesPaths, setSeriesPaths] = useState([]);
   const [folderName, setFolderName] = useState(""); // Patient ID (MySQL patient_number)
@@ -196,6 +196,28 @@ export default function UploadSection({ onUploaded, ocsInfo, existingStudy, onSt
       setIsUploading(false);
     }
   };
+
+  // 담당자가 아닌 경우 업로드 불가 안내
+  if (!isMyWork) {
+    return (
+      <section className="uploadCard notMyWorkCard">
+        <div className="uploadCardHeader">
+          <h2 className="uploadTitle">폴더 업로드</h2>
+        </div>
+        <div className="notMyWorkContent">
+          <div className="notMyWorkIcon">🚫</div>
+          <div className="notMyWorkMessage">담당자가 아닙니다</div>
+          <div className="notMyWorkWorker">
+            <span className="workerLabel">담당자</span>
+            <span className="workerName">{workerName || '미배정'}</span>
+          </div>
+          <div className="notMyWorkHint">
+            본인 담당 오더만 업로드/저장할 수 있습니다
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="uploadCard">

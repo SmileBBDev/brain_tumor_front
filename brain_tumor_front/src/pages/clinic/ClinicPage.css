@@ -147,6 +147,22 @@
   gap: 6px;
 }
 
+.clinic-page .btn-outline {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-sub);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clinic-page .btn-outline:hover {
+  border-color: var(--text-sub);
+  background: var(--bg-main);
+}
+
 .encounter-badge {
   padding: 8px 16px;
   border-radius: 20px;

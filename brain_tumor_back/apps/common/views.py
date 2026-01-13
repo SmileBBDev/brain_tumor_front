@@ -154,3 +154,69 @@ class ExternalDashboardStatsView(APIView):
                 {'error': '통계를 불러오는 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+@extend_schema(
+    tags=["Dashboard"],
+    summary="의사 대시보드 통계",
+    description="의사용 대시보드 통계를 조회합니다. DOCTOR 역할만 접근 가능합니다. 금일 예약 환자 5명을 반환합니다.",
+    responses={
+        200: OpenApiResponse(description="통계 조회 성공"),
+        403: OpenApiResponse(description="권한 없음"),
+        500: OpenApiResponse(description="서버 오류"),
+    }
+)
+class DoctorDashboardStatsView(APIView):
+    """의사 대시보드 통계 API"""
+    permission_classes = [IsDoctor]
+
+    def get(self, request):
+        try:
+            now = timezone.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_end = today_start + timedelta(days=1)
+
+            # 현재 로그인한 의사의 금일 예약환자 조회
+            today_appointments = Encounter.objects.filter(
+                attending_doctor=request.user,
+                admission_date__gte=today_start,
+                admission_date__lt=today_end,
+                status='scheduled',
+                is_deleted=False
+            ).select_related('patient').order_by('admission_date')
+
+            # 전체 금일 예약 수
+            total_today = today_appointments.count()
+
+            # 현재 시간 이후의 예약만 (가까운 순서로 5개)
+            upcoming = today_appointments.filter(
+                admission_date__gte=now
+            )[:5]
+
+            # 남은 예약 수
+            remaining = today_appointments.filter(admission_date__gte=now).count()
+
+            return Response({
+                'today_appointments': [
+                    {
+                        'patient_id': enc.patient.id,
+                        'patient_name': enc.patient.name,
+                        'patient_number': enc.patient.patient_number,
+                        'appointment_time': enc.admission_date.isoformat(),
+                        'scheduled_time': enc.scheduled_time.isoformat() if enc.scheduled_time else None,
+                        'encounter_type': enc.encounter_type,
+                        'reason': enc.chief_complaint or '',
+                        'department': enc.department,
+                    }
+                    for enc in upcoming
+                ],
+                'total_today': total_today,
+                'remaining': remaining,
+            })
+
+        except Exception as e:
+            logger.error(f"Doctor dashboard stats error: {str(e)}")
+            return Response(
+                {'error': '통계를 불러오는 중 오류가 발생했습니다.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

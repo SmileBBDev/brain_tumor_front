@@ -397,6 +397,36 @@ export const createExternalRIS = async (
 };
 
 // =============================================================================
+// OCS 처리 현황 API
+// =============================================================================
+
+// OCS 처리 현황 응답 타입
+export type OCSProcessStatus = {
+  ris: {
+    pending: number;
+    in_progress: number;
+    completed: number;
+    total_today: number;
+  };
+  lis: {
+    pending: number;
+    in_progress: number;
+    completed: number;
+    total_today: number;
+  };
+  combined: {
+    total_pending: number;
+    total_completed: number;
+  };
+};
+
+// OCS 처리 현황 조회
+export const getOCSProcessStatus = async (): Promise<OCSProcessStatus> => {
+  const response = await api.get<OCSProcessStatus>('/ocs/process-status/');
+  return response.data;
+};
+
+// =============================================================================
 // localStorage 유틸리티
 // =============================================================================
 

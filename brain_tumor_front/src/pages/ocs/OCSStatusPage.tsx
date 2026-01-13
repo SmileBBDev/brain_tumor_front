@@ -6,6 +6,7 @@
  * - 실시간 OCS 상태 변경 알림
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import Pagination from '@/layout/Pagination';
 import { getOCSList } from '@/services/ocs.api';
@@ -61,6 +62,7 @@ const getPriorityClass = (priority: string): string => {
 };
 
 export default function OCSStatusPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const role = user?.role?.code;
 
@@ -155,8 +157,20 @@ export default function OCSStatusPage() {
     <div className="page ocs-status-page">
       {/* 헤더 */}
       <header className="page-header">
-        <h2>OCS 현황</h2>
-        <span className="subtitle">전체 OCS 현황을 확인합니다</span>
+        <div className="header-left">
+          <h2>OCS 현황</h2>
+          <span className="subtitle">전체 OCS 현황을 확인합니다</span>
+        </div>
+        <div className="header-right">
+          {(role === 'DOCTOR' || role === 'SYSTEMMANAGER') && (
+            <button
+              className="btn primary"
+              onClick={() => navigate('/ocs/create')}
+            >
+              + OCS 생성
+            </button>
+          )}
+        </div>
       </header>
 
       {/* 필터 영역 */}

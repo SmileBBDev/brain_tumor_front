@@ -40,6 +40,13 @@ export default function ClinicPage() {
 
   // URL에서 환자 ID 추출
   const patientIdParam = searchParams.get('patientId');
+  // patientId=null 또는 patientId 없음 → 환자 미선택 상태
+  const isPatientSelected = patientIdParam && patientIdParam !== 'null';
+
+  // 환자 선택 해제 (금일 예약 목록으로 돌아가기)
+  const handleClearPatient = () => {
+    navigate('/patientsCare?patientId=null');
+  };
 
   // 상태
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -85,12 +92,17 @@ export default function ClinicPage() {
   }, []);  // toast 제거 - 안정적인 참조
 
   useEffect(() => {
-    if (patientIdParam) {
+    if (isPatientSelected) {
       loadPatientData(Number(patientIdParam));
     } else {
+      // 환자 미선택 - 상태 초기화
+      setPatient(null);
+      setOcsList([]);
+      setEncounters([]);
+      setActiveEncounter(null);
       setLoading(false);
     }
-  }, [patientIdParam, loadPatientData]);
+  }, [patientIdParam, isPatientSelected, loadPatientData]);
 
   // 진료 시작
   const handleStartEncounter = useCallback(async () => {
@@ -151,8 +163,8 @@ export default function ClinicPage() {
     return age;
   };
 
-  // 환자 선택 안됨 - 금일 예약 목록 표시
-  if (!patientIdParam) {
+  // 환자 선택 안됨 (patientId 없음 또는 patientId=null) - 금일 예약 목록 표시
+  if (!isPatientSelected) {
     return (
       <div className="page clinic-page">
         <header className="patient-header">
@@ -161,7 +173,11 @@ export default function ClinicPage() {
             <div className="patient-details">
               <h1 className="patient-name">환자 진료</h1>
               <div className="patient-meta">
-                <span>금일 예약된 환자를 선택하거나, 환자 목록에서 검색하세요.</span>
+                <span>
+                  {patientIdParam === 'null'
+                    ? '환자 ID 조회 필요 - 아래 예약 목록에서 환자를 선택하세요.'
+                    : '금일 예약된 환자를 선택하거나, 환자 목록에서 검색하세요.'}
+                </span>
               </div>
             </div>
           </div>
@@ -260,6 +276,13 @@ export default function ClinicPage() {
               title="환자 상세 정보"
             >
               <span>상세 보기</span>
+            </button>
+            <button
+              className="btn btn-outline"
+              onClick={handleClearPatient}
+              title="금일 예약 목록으로 돌아가기"
+            >
+              환자 선택 해제
             </button>
           </div>
         </div>

@@ -103,6 +103,14 @@
   color: #fff;
 }
 
+/* 백그라운드 프리로드 진행률 */
+.preloadProgress {
+  font-size: 11px;
+  color: rgba(66, 245, 141, 0.9);
+  margin-left: 8px;
+  opacity: 0.85;
+}
+
 /* 버튼 */
 .btn {
   display: inline-flex;

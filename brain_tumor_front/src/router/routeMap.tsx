@@ -26,6 +26,7 @@ const RISProcessStatusPage = lazy(() => import('@/pages/ocs/RISProcessStatusPage
 const LISUploadPage = lazy(() => import('@/pages/ocs/LISUploadPage'));
 const LISProcessStatusPage = lazy(() => import('@/pages/ocs/LISProcessStatusPage'));
 const RISUploadPage = lazy(() => import('@/pages/ocs/RISUploadPage'));
+const OCSProcessStatusPage = lazy(() => import('@/pages/ocs/OCSProcessStatusPage'));
 
 // Nurse, Lab, Clinic
 const NurseReceptionPage = lazy(() => import('@/pages/nurse/NurseReceptionPage'));
@@ -68,6 +69,7 @@ export const routeMap: Record<string, ComponentType> = {
   OCS_STATUS: OCSStatusPage,       // OCS 현황 (간호사/관리자용)
   OCS_CREATE: OCSCreatePage,       // OCS 생성
   OCS_MANAGE: OCSManagePage,       // OCS 관리 (의사용)
+  OCS_PROCESS_STATUS: OCSProcessStatusPage, // OCS 통합 처리 현황
 
   // === IMAGING 그룹 ===
   IMAGE_VIEWER: ImagingListPage,

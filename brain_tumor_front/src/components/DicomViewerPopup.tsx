@@ -56,6 +56,8 @@ interface DicomViewerPopupProps {
   existingStudy?: ExistingStudyInfo;  // 기존 업로드된 Study 정보
   onUploadComplete?: (result: UploadResult) => void;  // 업로드 완료 콜백
   onStudyDeleted?: () => void;  // 기존 Study 삭제 완료 콜백
+  isMyWork?: boolean;  // 본인 담당 오더 여부
+  workerName?: string;  // 담당자 이름 (본인이 아닐 때 표시)
 }
 
 // 뷰어 인스턴스 타입
@@ -64,7 +66,7 @@ interface ViewerInstance {
   selection: Selection;
 }
 
-export default function DicomViewerPopup({ open, onClose, ocsInfo, existingStudy, onUploadComplete, onStudyDeleted }: DicomViewerPopupProps) {
+export default function DicomViewerPopup({ open, onClose, ocsInfo, existingStudy, onUploadComplete, onStudyDeleted, isMyWork = true, workerName }: DicomViewerPopupProps) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // 스플리터 상태
@@ -225,6 +227,8 @@ export default function DicomViewerPopup({ open, onClose, ocsInfo, existingStudy
                 ocsInfo={ocsInfo}
                 existingStudy={existingStudy}
                 onStudyDeleted={onStudyDeleted}
+                isMyWork={isMyWork}
+                workerName={workerName}
               />
               <PacsSelector
                 key={`${refreshKey}-${activeViewerId}`}

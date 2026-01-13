@@ -7,7 +7,7 @@ from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
 )
-from apps.common.views import AdminDashboardStatsView, ExternalDashboardStatsView
+from apps.common.views import AdminDashboardStatsView, ExternalDashboardStatsView, DoctorDashboardStatsView
 
 
 urlpatterns = [
@@ -57,4 +57,5 @@ urlpatterns = [
     # Dashboard API
     path("api/dashboard/admin/stats/", AdminDashboardStatsView.as_view()),
     path("api/dashboard/external/stats/", ExternalDashboardStatsView.as_view()),
+    path("api/dashboard/doctor/stats/", DoctorDashboardStatsView.as_view()),
 ]

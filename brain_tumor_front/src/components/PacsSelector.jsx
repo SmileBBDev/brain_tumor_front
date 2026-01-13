@@ -5,6 +5,33 @@ import { getPatients, getStudies, getSeries } from "../api/orthancApi";
 
 const asText = (v) => (v == null ? "" : String(v));
 
+// 간단한 메모리 캐시 (5분 TTL)
+const cache = {
+  studies: new Map(),  // patientId -> { data, timestamp }
+  series: new Map(),   // studyId -> { data, timestamp }
+  TTL: 5 * 60 * 1000,  // 5분
+};
+
+const getCachedStudies = async (patientId) => {
+  const cached = cache.studies.get(patientId);
+  if (cached && Date.now() - cached.timestamp < cache.TTL) {
+    return cached.data;
+  }
+  const data = await getStudies(patientId);
+  cache.studies.set(patientId, { data, timestamp: Date.now() });
+  return data;
+};
+
+const getCachedSeries = async (studyId) => {
+  const cached = cache.series.get(studyId);
+  if (cached && Date.now() - cached.timestamp < cache.TTL) {
+    return cached.data;
+  }
+  const data = await getSeries(studyId);
+  cache.series.set(studyId, { data, timestamp: Date.now() });
+  return data;
+};
+
 // 긴 텍스트 말줄임 처리
 const truncate = (text, maxLen = 40) => {
   if (!text || text.length <= maxLen) return text;
@@ -28,28 +55,81 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
   const [busy, setBusy] = useState(false);
   const initializedRef = useRef(false);
   const ocsAutoSelectRef = useRef(false);  // OCS 자동 선택 완료 여부
+  const mountedRef = useRef(true);  // 컴포넌트 마운트 상태
 
   // OCS 연동 모드인지 확인
   const isOcsMode = Boolean(ocsInfo?.patientNumber);
 
+  // ✅ initialSelection이 있으면 OCS 자동 선택 건너뛰기 (V1→V2→V1 복원 시)
+  const hasInitialData = Boolean(initialSelection?.patientId && initialSelection?.baseSeriesId);
+
+  // 컴포넌트 언마운트 추적
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   // initialSelection 복원 useEffect (복수 화면 전환 시 데이터 유지)
   useEffect(() => {
-    if (initialSelection?.baseSeriesId) {
-      setBaseSeriesId(initialSelection.baseSeriesId);
-      setBaseSeriesName(initialSelection.baseSeriesName || "");
+    let cancelled = false;
+
+    async function restore() {
+      // patientId, studyId 복원
+      if (initialSelection?.patientId) {
+        setPatientId(initialSelection.patientId);
+      }
+      if (initialSelection?.studyId) {
+        setStudyId(initialSelection.studyId);
+      }
+      if (initialSelection?.baseSeriesId) {
+        setBaseSeriesId(initialSelection.baseSeriesId);
+        setBaseSeriesName(initialSelection.baseSeriesName || "");
+      }
+      if (initialSelection?.overlaySeriesId) {
+        setOverlaySeriesId(initialSelection.overlaySeriesId);
+        setOverlaySeriesName(initialSelection.overlaySeriesName || "");
+      }
+
+      // studies, seriesList 다시 로드 (patientId가 있으면 항상, 캐시 사용)
+      if (initialSelection?.patientId) {
+        try {
+          const st = await getCachedStudies(initialSelection.patientId);
+          if (cancelled || !mountedRef.current) return;
+          setStudies(st);
+
+          if (initialSelection?.studyId) {
+            const se = await getCachedSeries(initialSelection.studyId);
+            if (cancelled || !mountedRef.current) return;
+            setSeriesList(se);
+          }
+        } catch (err) {
+          console.error("Failed to restore selection data:", err);
+        }
+      }
     }
-    if (initialSelection?.overlaySeriesId) {
-      setOverlaySeriesId(initialSelection.overlaySeriesId);
-      setOverlaySeriesName(initialSelection.overlaySeriesName || "");
-    }
-  }, [initialSelection?.baseSeriesId, initialSelection?.overlaySeriesId]);
+
+    restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSelection?.patientId, initialSelection?.studyId, initialSelection?.baseSeriesId, initialSelection?.overlaySeriesId]);
 
   // 환자 목록 로드 + initialSelection/OCS 자동 선택
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
         const p = await getPatients();
+        if (cancelled || !mountedRef.current) return;
         setPatients(p);
+
+        // ✅ initialSelection에 데이터가 있으면 OCS 자동 선택 건너뛰기
+        if (hasInitialData) {
+          return;
+        }
 
         // OCS 모드: patientNumber로 자동 매칭
         if (isOcsMode && !ocsAutoSelectRef.current) {
@@ -63,10 +143,11 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
           if (matchedPatient) {
             setPatientId(matchedPatient.orthancId);
 
-            // Study 자동 로드
+            // Study 자동 로드 (캐시 사용)
             setBusy(true);
             try {
-              const st = await getStudies(matchedPatient.orthancId);
+              const st = await getCachedStudies(matchedPatient.orthancId);
+              if (cancelled || !mountedRef.current) return;
               setStudies(st);
 
               // Study가 1개면 자동 선택
@@ -74,8 +155,9 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
                 const autoStudy = st[0];
                 setStudyId(autoStudy.orthancId);
 
-                // Series 로드
-                const se = await getSeries(autoStudy.orthancId);
+                // Series 로드 (캐시 사용)
+                const se = await getCachedSeries(autoStudy.orthancId);
+                if (cancelled || !mountedRef.current) return;
                 setSeriesList(se);
 
                 onChange?.({
@@ -103,28 +185,36 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
             }
           }
         }
-        // 일반 모드: initialSelection 복원
+        // 일반 모드: initialSelection 복원 (캐시 사용)
         else if (initialSelection?.patientId && !initializedRef.current) {
           initializedRef.current = true;
 
           // Study 로드
           if (initialSelection.patientId) {
-            const st = await getStudies(initialSelection.patientId);
+            const st = await getCachedStudies(initialSelection.patientId);
+            if (cancelled || !mountedRef.current) return;
             setStudies(st);
 
             // Series 로드
             if (initialSelection.studyId) {
-              const se = await getSeries(initialSelection.studyId);
+              const se = await getCachedSeries(initialSelection.studyId);
+              if (cancelled || !mountedRef.current) return;
               setSeriesList(se);
             }
           }
         }
       } catch (err) {
         console.error("Failed to load patients:", err);
-        setPatients([]);
+        if (!cancelled && mountedRef.current) {
+          setPatients([]);
+        }
       }
     })();
-  }, [isOcsMode, ocsInfo?.patientNumber]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOcsMode, ocsInfo?.patientNumber, hasInitialData]);
 
   const overlayCandidates = useMemo(() => {
     return (seriesList || []).filter((s) => {
@@ -188,7 +278,7 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
 
     setBusy(true);
     try {
-      const st = await getStudies(pid);
+      const st = await getCachedStudies(pid);
       setStudies(st);
     } finally {
       setBusy(false);
@@ -223,7 +313,7 @@ export default function PacsSelector({ onChange, ocsInfo, initialSelection }) {
 
     setBusy(true);
     try {
-      const se = await getSeries(sid);
+      const se = await getCachedSeries(sid);
       setSeriesList(se);
     } finally {
       setBusy(false);

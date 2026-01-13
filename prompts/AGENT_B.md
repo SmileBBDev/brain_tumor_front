@@ -25,49 +25,21 @@
 
 ## 📋 현재 작업 지시서 (2026-01-13)
 
-### 🔴 작업 1: 오탕크 뷰어 복수 화면 버그 수정 (긴급)
-
-**문제**: 복수 화면에서 이전 설정 화면 클릭 시 'Base Series' 선택은 남아있지만 실제 데이터 리셋
-
-**원인**: `PacsSelector.jsx`가 `initialSelection`의 `baseSeriesId`, `baseSeriesName`을 내부 상태로 초기화하지 않음
+### ✅ 작업 1: 오탕크 뷰어 복수 화면 버그 수정 - 완료
 
 **수정 파일**: `src/components/PacsSelector.jsx`
 
-**수정 내용**:
-```javascript
-// 추가: initialSelection 복원 useEffect (기존 useEffect 아래에 추가)
-useEffect(() => {
-  if (initialSelection?.baseSeriesId) {
-    setBaseSeriesId(initialSelection.baseSeriesId);
-    setBaseSeriesName(initialSelection.baseSeriesName || "");
-  }
-  if (initialSelection?.overlaySeriesId) {
-    setOverlaySeriesId(initialSelection.overlaySeriesId);
-    setOverlaySeriesName(initialSelection.overlaySeriesName || "");
-  }
-}, [initialSelection?.baseSeriesId, initialSelection?.overlaySeriesId]);
-```
-
-**테스트**:
-1. V1에서 Series 선택
-2. V2 추가 후 Series 선택
-3. V1으로 복귀 → 데이터가 유지되는지 확인
-
 ---
 
-### 작업 2: OCS 페이지 통합
-
-**목표**: `/ocs/status` + `/ocs/manage` 통합
-
-**작업 내용**:
-1. `/ocs/manage` 기능을 `/ocs/status`로 흡수
-2. 'OCS 생성버튼' 권한 분기 (DOCTOR, SYSTEMMANAGER만 표시)
-3. `/ocs/manage` 페이지 제거 또는 리다이렉트
+### ✅ 작업 2: OCS 페이지 통합 - 완료
 
 **수정 파일**:
-- `src/pages/ocs/OCSStatusPage.tsx`
-- `src/router/routeMap.tsx`
-- 메뉴 설정 (A와 협업)
+- `src/pages/ocs/OCSStatusPage.tsx` (Line 9, 65, 159-174)
+- `src/pages/ocs/OCSStatusPage.css`
+
+**완료 내용**:
+- 'OCS 생성' 버튼 추가 (DOCTOR, SYSTEMMANAGER만 표시)
+- 클릭 시 `/ocs/create`로 이동
 
 ---
 

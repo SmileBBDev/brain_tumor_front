@@ -1058,6 +1058,8 @@ export default function RISStudyDetailPage() {
         existingStudy={getExistingStudyInfo()}
         onUploadComplete={handleUploadComplete}
         onStudyDeleted={handleStudyDeleted}
+        isMyWork={isMyWork}
+        workerName={ocsDetail?.worker?.name}
       />
     </div>
   );

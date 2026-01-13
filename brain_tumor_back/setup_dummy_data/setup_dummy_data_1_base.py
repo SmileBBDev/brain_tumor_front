@@ -467,6 +467,7 @@ def load_menu_permission_seed():
         ('OCS_STATUS', '검사 현황', '검사 오더 현황 조회 (간호사/관리자용)'),
         ('OCS_CREATE', '오더 생성', '검사 오더 생성 화면'),
         ('OCS_MANAGE', '오더 관리', '의사용 검사 오더 관리'),
+        ('OCS_PROCESS_STATUS', 'OCS 처리 현황', 'RIS/LIS 통합 처리 현황 대시보드'),
         ('OCS_RIS', '영상 워크리스트', 'RIS 작업자용 영상 오더 처리'),
         ('OCS_RIS_DETAIL', '영상 검사 상세', 'RIS 영상 검사 상세 페이지'),
         ('RIS_DASHBOARD', '판독 현황 대시보드', 'RIS 전체 판독 현황 대시보드'),
@@ -577,6 +578,8 @@ def load_menu_permission_seed():
     menu_ocs_manage, _ = create_menu(23, code='OCS_MANAGE', path='/ocs/manage', icon='file-medical', order=3, is_active=False, parent=menu_ocs)
     # OCS_CREATE는 OCS_STATUS의 하위 메뉴로 변경
     create_menu(18, code='OCS_CREATE', path='/ocs/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_ocs_status)
+    # OCS 통합 처리 현황 (RIS + LIS 통합)
+    create_menu(37, code='OCS_PROCESS_STATUS', path='/ocs/process-status', icon='chart-pie', order=4, is_active=True, parent=menu_ocs)
 
     # Patient 하위
     create_menu(20, code='PATIENT_LIST', path='/patients', order=1, is_active=True, parent=menu_patient)
@@ -666,6 +669,10 @@ def load_menu_permission_seed():
         (25, 'DEFAULT', '검사 워크리스트'),
         (26, 'DEFAULT', '영상 검사 상세'),
         (27, 'DEFAULT', '검사 결과 상세'),
+        (37, 'DEFAULT', 'OCS 처리 현황'),
+        (37, 'DOCTOR', '검사 처리 현황'),
+        (37, 'NURSE', '검사 처리 현황'),
+        (37, 'ADMIN', 'OCS 통합 현황'),
         # 간호사
         (28, 'DEFAULT', '진료 접수 현황'),
         (28, 'NURSE', '진료 접수'),
@@ -730,7 +737,7 @@ def load_menu_permission_seed():
         'SYSTEMMANAGER': list(menu_map.keys()),  # 모든 메뉴
         'ADMIN': [
             'DASHBOARD', 'PATIENT', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST',
-            'OCS', 'OCS_STATUS', 'OCS_CREATE',
+            'OCS', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS',
             'OCS_RIS', 'OCS_RIS_DETAIL', 'OCS_LIS', 'OCS_LIS_DETAIL',
             'IMAGING', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD',
             'LAB', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'LIS_PROCESS_STATUS',
@@ -738,8 +745,8 @@ def load_menu_permission_seed():
             'NURSE_RECEPTION',
             'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG', 'ADMIN_SYSTEM_MONITOR'
         ],
-        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL'],
-        'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'OCS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'NURSE_RECEPTION'],  # PATIENT_CARE 제거 (DOCTOR, SYSTEMMANAGER만)
+        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL'],
+        'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'NURSE_RECEPTION'],  # PATIENT_CARE 제거 (DOCTOR, SYSTEMMANAGER만)
         'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD'],
         'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS'],
     }

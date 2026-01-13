@@ -49,3 +49,27 @@ export const getExternalStats = async (): Promise<ExternalStats> => {
   const response = await api.get('/dashboard/external/stats/');
   return response.data;
 };
+
+// Doctor Dashboard 통계
+export type DoctorStats = {
+  today_appointments: Array<{
+    encounter_id: number;
+    patient_id: number;
+    patient_name: string;
+    patient_number: string;
+    scheduled_time: string;
+    status: string;
+    encounter_type: string;
+  }>;
+  stats: {
+    total_today: number;
+    completed: number;
+    in_progress: number;
+    waiting: number;
+  };
+}
+
+export const getDoctorStats = async (): Promise<DoctorStats> => {
+  const response = await api.get('/dashboard/doctor/stats/');
+  return response.data;
+};

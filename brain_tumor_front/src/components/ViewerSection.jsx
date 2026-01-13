@@ -1754,19 +1754,31 @@ export default function ViewerSection({
     return () => ro.disconnect();
   }, []);
 
-  // load instances
+  // 백그라운드 프리로드 진행률 상태
+  const [preloadProgress, setPreloadProgress] = useState({ loaded: 0, total: 0 });
+  const preloadAbortRef = useRef(null);
+
+  // Base Series 로딩 (overlaySeriesId 변경 시 영향 없음)
   useEffect(() => {
     let alive = true;
 
-    async function load() {
+    // 이전 프리로드 작업 취소
+    if (preloadAbortRef.current) {
+      preloadAbortRef.current.abort = true;
+    }
+    const abortController = { abort: false };
+    preloadAbortRef.current = abortController;
+
+    async function loadBase() {
       setError("");
       setLoading(true);
+      setPreloadProgress({ loaded: 0, total: 0 });
 
       setBaseInstances([]);
-      setOverlayInstances([]);
       setSliceIndex(0);
 
-      // overlay 관련 reset
+      // Base 변경 시에만 overlay 리셋
+      setOverlayInstances([]);
       setLabels([]);
       setLabelCfg({});
       setLabelScanning(false);
@@ -1777,36 +1789,109 @@ export default function ViewerSection({
           return;
         }
 
+        // 1. 인스턴스 목록 가져오기 (메타데이터만, 실제 이미지 아님)
         const base = await getInstances(baseSeriesId);
         const sortedBase = [...(base || [])].sort(
           (a, b) => getBestInstanceNumber(a) - getBestInstanceNumber(b)
         );
 
-        let overlay = [];
-        if (overlaySeriesId) {
-          overlay = await getInstances(overlaySeriesId);
-          overlay = [...(overlay || [])].sort(
-            (a, b) => getBestInstanceNumber(a) - getBestInstanceNumber(b)
-          );
-        }
+        if (!alive || abortController.abort) return;
 
-        if (!alive) return;
+        // 2. 첫 번째 인스턴스 즉시 표시를 위해 상태 설정
         setBaseInstances(sortedBase);
-        setOverlayInstances(overlay);
         setSliceIndex(0);
+        setLoading(false); // 로딩 완료 (첫 슬라이스 표시 가능)
+
+        // 3. 백그라운드 프리로드: 첫 번째 인스턴스 먼저, 그 다음 나머지 순차적으로
+        if (sortedBase.length > 0) {
+          setPreloadProgress({ loaded: 0, total: sortedBase.length });
+
+          // 첫 번째 인스턴스 우선 프리로드 (현재 보는 슬라이스)
+          const firstInst = sortedBase[0];
+          const firstId = firstInst?.orthancId || firstInst?.id || firstInst?.OrthancId || firstInst?.ID;
+          if (firstId) {
+            try {
+              const firstUrl = getInstanceFileUrl(firstId);
+              await cornerstone.loadAndCacheImage(`wadouri:${firstUrl}`);
+              if (!alive || abortController.abort) return;
+              setPreloadProgress({ loaded: 1, total: sortedBase.length });
+            } catch (e) {
+              console.warn("First instance preload failed:", e);
+            }
+          }
+
+          // 나머지 인스턴스 백그라운드 프리로드 (배치 처리)
+          const BATCH_SIZE = 5; // 동시에 5개씩 로드
+          for (let i = 1; i < sortedBase.length; i += BATCH_SIZE) {
+            if (!alive || abortController.abort) return;
+
+            const batch = sortedBase.slice(i, i + BATCH_SIZE);
+            const promises = batch.map(async (inst) => {
+              const id = inst?.orthancId || inst?.id || inst?.OrthancId || inst?.ID;
+              if (!id) return;
+              try {
+                const url = getInstanceFileUrl(id);
+                await cornerstone.loadAndCacheImage(`wadouri:${url}`);
+              } catch (e) {
+                // 개별 인스턴스 실패는 무시 (이미 캐시됐거나 네트워크 오류)
+              }
+            });
+
+            await Promise.all(promises);
+
+            if (!alive || abortController.abort) return;
+            setPreloadProgress((prev) => ({
+              ...prev,
+              loaded: Math.min(i + BATCH_SIZE, sortedBase.length),
+            }));
+          }
+        }
       } catch (e) {
-        if (!alive) return;
+        if (!alive || abortController.abort) return;
         setError(e?.message || String(e));
-      } finally {
-        if (alive) setLoading(false);
+        setLoading(false);
       }
     }
 
-    load();
+    loadBase();
+    return () => {
+      alive = false;
+      abortController.abort = true;
+    };
+  }, [baseSeriesId]); // ✅ baseSeriesId만 의존
+
+  // Overlay Series 로딩 (별도 useEffect - Base 영향 없음)
+  useEffect(() => {
+    let alive = true;
+
+    async function loadOverlay() {
+      if (!overlaySeriesId) {
+        setOverlayInstances([]);
+        setLabels([]);
+        setLabelCfg({});
+        return;
+      }
+
+      try {
+        const overlay = await getInstances(overlaySeriesId);
+        const sortedOverlay = [...(overlay || [])].sort(
+          (a, b) => getBestInstanceNumber(a) - getBestInstanceNumber(b)
+        );
+
+        if (!alive) return;
+        setOverlayInstances(sortedOverlay);
+      } catch (e) {
+        if (!alive) return;
+        console.warn("Overlay load failed:", e);
+        setOverlayInstances([]);
+      }
+    }
+
+    loadOverlay();
     return () => {
       alive = false;
     };
-  }, [baseSeriesId, overlaySeriesId]);
+  }, [overlaySeriesId]); // ✅ overlaySeriesId만 의존
 
   // ✅ overlay 레이블 스캔: 전체 overlayInstances에서 픽셀값(>0) 수집
   // ✅ 표시명은 L1/L2/L3... (실제 값 16383 등은 내부키로만 사용)
@@ -2169,6 +2254,12 @@ export default function ViewerSection({
           <div className="sliceInfo">
             Slice: {baseInstances.length ? sliceIndex + 1 : 0} /{" "}
             {baseInstances.length || 0}
+            {/* 백그라운드 프리로드 진행률 */}
+            {preloadProgress.total > 0 && preloadProgress.loaded < preloadProgress.total && (
+              <span className="preloadProgress">
+                ({Math.round((preloadProgress.loaded / preloadProgress.total) * 100)}% cached)
+              </span>
+            )}
           </div>
 
           <button

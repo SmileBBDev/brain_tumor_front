@@ -6,9 +6,10 @@ import NurseDashboard from '../nurse/NurseDashboard';
 import LISDashboard from '../lis/LISDashboard';
 import RISDashboard from '../ris/RISDashboard';
 import PatientDashboardPreview from '../patient/PatientDashboardPreview';
+import ExternalDashboard from '../external/ExternalDashboard';
 import './SystemManagerDashboard.css';
 
-type TabType = 'OVERVIEW' | 'DOCTOR' | 'NURSE' | 'LIS' | 'RIS' | 'PATIENT';
+type TabType = 'OVERVIEW' | 'DOCTOR' | 'NURSE' | 'LIS' | 'RIS' | 'PATIENT' | 'EXTERNAL';
 
 const dashboards = {
   DOCTOR: <DoctorDashboard />,
@@ -16,6 +17,7 @@ const dashboards = {
   LIS: <LISDashboard />,
   RIS: <RISDashboard />,
   PATIENT: <PatientDashboardPreview />,
+  EXTERNAL: <ExternalDashboard />,
 };
 
 export default function SystemManagerDashboard() {
@@ -44,6 +46,7 @@ export default function SystemManagerDashboard() {
     LIS: '검사실',
     RIS: '영상실',
     PATIENT: '환자',
+    EXTERNAL: '외부기관',
   };
 
   return (
