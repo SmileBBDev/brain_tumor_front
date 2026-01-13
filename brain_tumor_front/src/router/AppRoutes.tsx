@@ -6,13 +6,11 @@ import { routeMap } from './routeMap';
 import type { MenuNode } from '@/types/menu';
 import FullScreenLoader from '@/pages/common/FullScreenLoader';
 
-// Lazy loaded pages
-const OCSCreatePage = lazy(() => import('@/pages/ocs/OCSCreatePage'));
+// Lazy loaded pages (메뉴에 없는 특수 페이지들)
 const OCSResultReportPage = lazy(() => import('@/pages/ocs/OCSResultReportPage'));
-const LISStudyDetailPage = lazy(() => import('@/pages/ocs/LISStudyDetailPage'));
-const RISStudyDetailPage = lazy(() => import('@/pages/ocs/RISStudyDetailPage'));
 const MyPage = lazy(() => import('@/pages/mypage/MyPage'));
 const PatientDashboard = lazy(() => import('@/pages/patient/PatientDashboard'));
+const PatientDetailPage = lazy(() => import('@/pages/patient/PatientDetailPage'));
 
 // 접근 가능한 메뉴만 flatten (라우트 등록용 - breadcrumbOnly 포함)
 function flattenAccessibleMenus(
@@ -93,42 +91,12 @@ export default function AppRoutes() {
         {/* 홈 */}
         <Route index element={<Navigate to={homePath} replace />} />
 
-        {/* OCS 생성 페이지 (메뉴에 없지만 직접 접근 필요) */}
-        <Route
-          path="/ocs/create"
-          element={
-            <ProtectedRoute>
-              <OCSCreatePage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* OCS 결과 보고서 페이지 */}
+        {/* OCS 결과 보고서 페이지 (메뉴에 없는 특수 페이지) */}
         <Route
           path="/ocs/report/:ocsId"
           element={
             <ProtectedRoute>
               <OCSResultReportPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* LIS 검사 상세 페이지 (메뉴에 없지만 직접 접근 필요) */}
-        <Route
-          path="/ocs/lis/:ocsId"
-          element={
-            <ProtectedRoute>
-              <LISStudyDetailPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* RIS 영상 상세 페이지 (메뉴에 없지만 직접 접근 필요) */}
-        <Route
-          path="/ocs/ris/:ocsId"
-          element={
-            <ProtectedRoute>
-              <RISStudyDetailPage />
             </ProtectedRoute>
           }
         />
@@ -149,6 +117,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={['PATIENT']}>
               <PatientDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 환자 상세 페이지 */}
+        <Route
+          path="/patients/:patientId"
+          element={
+            <ProtectedRoute>
+              <PatientDetailPage />
             </ProtectedRoute>
           }
         />

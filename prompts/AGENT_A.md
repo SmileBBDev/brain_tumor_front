@@ -21,6 +21,23 @@
 
 ---
 
+## 완료된 작업 (2026-01-13)
+
+### ✅ 상세 페이지 라우팅 수정 - 완료
+- **문제점**: `breadcrumb_only=True`인 메뉴(상세 페이지)가 API 응답에서 제외되어 라우팅 실패
+- **수정 파일**: `apps/menus/services.py`
+- **해결**: `breadcrumb_only` 필터 제거 → 모든 메뉴 반환, 사이드바 표시는 프론트엔드에서 처리
+- **영향받는 페이지**:
+  - `/patients/:patientId` (PATIENT_DETAIL)
+  - `/admin/users/:id` (ADMIN_USER_DETAIL)
+  - `/ocs/create` (OCS_CREATE)
+  - `/ocs/ris/:ocsId` (OCS_RIS_DETAIL)
+  - `/ocs/lis/:ocsId` (OCS_LIS_DETAIL)
+  - `/ai/requests/create` (AI_REQUEST_CREATE)
+  - `/ai/requests/:id` (AI_REQUEST_DETAIL)
+
+---
+
 ## 완료된 작업 (2026-01-12)
 
 ### ✅ 작업 1: Admin Dashboard API - 완료
@@ -169,4 +186,4 @@ class AdminDashboardStatsView(APIView):
 - [x] 역할 기반 권한 검증 추가
 - [x] 에러 처리 추가
 - [x] OCS 상태 enum 사용
-- [ ] **🚨 IsExternal 수정: EXTERNAL 역할만 허용 (RIS, LIS 제외)**
+- [x] **✅ IsExternal 수정: EXTERNAL 역할만 허용 (RIS, LIS 제외)** - 완료됨

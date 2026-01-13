@@ -42,12 +42,12 @@ def get_user_menus(user):
 
     add_parents(all_menu_ids.copy())
 
-    # 4. 메뉴 조회 (breadcrumb_only 메뉴는 사이드바에서 제외)
+    # 4. 메뉴 조회 (breadcrumb_only 포함 - 라우팅/권한 체크용)
+    # 사이드바 표시 여부는 프론트엔드에서 breadcrumbOnly 필드로 결정
     menus = (
         Menu.objects.filter(
             is_active=True,
             id__in=all_menu_ids,
-            breadcrumb_only=False  # 사이드바에 표시할 메뉴만
         )
         .select_related("parent")
         .prefetch_related("children", "labels")
