@@ -26,6 +26,10 @@ from apps.menus.serializers import MenuSerializer
 
 from .serializers import LoginSerializer, MeSerializer, CustomTokenObtainPairSerializer, RoleSerializer, RolePermissionHistorySerializer
 
+from datetime import datetime, time
+from django.utils.timezone import make_aware
+
+
 # JWT 토큰 발급 View
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -322,10 +326,24 @@ class RoleViewSet(ModelViewSet): # - ModelViewSet을 상속하면 기본적으�
         date_from = request.query_params.get("from")
         date_to = request.query_params.get("to")
 
+        # if date_from:
+        #     qs = qs.filter(changed_at__date__gte=date_from)
+        # if date_to:
+        #     qs = qs.filter(changed_at__date__lte=date_to)
         if date_from:
-            qs = qs.filter(changed_at__date__gte=date_from)
+            from_dt = make_aware(
+                datetime.strptime(date_from, "%Y-%m-%d")
+            )
+            qs = qs.filter(changed_at__gte=from_dt)
+
         if date_to:
-            qs = qs.filter(changed_at__date__lte=date_to)
+            to_dt = make_aware(
+                datetime.combine(
+                    datetime.strptime(date_to, "%Y-%m-%d"),
+                    time.max
+                )
+            )
+            qs = qs.filter(changed_at__lte=to_dt)
 
         qs = qs.select_related(
             "role", "menu", "changed_by"
