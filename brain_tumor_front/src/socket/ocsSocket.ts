@@ -73,10 +73,14 @@ const RECONNECT_DELAY = 3000;
 export function subscribeOCSSocket(callbacks: OCSSocketCallbacks): string {
   const listenerId = `listener-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   listeners.push({ id: listenerId, callbacks });
+  console.log('🔌 [ocsSocket] 리스너 등록:', listenerId, '총 리스너 수:', listeners.length);
 
   // 연결이 없으면 새로 연결
   if (!globalSocket || globalSocket.readyState === WebSocket.CLOSED) {
+    console.log('🔌 [ocsSocket] WebSocket 연결 시작...');
     initGlobalSocket();
+  } else {
+    console.log('🔌 [ocsSocket] WebSocket 이미 연결됨, readyState:', globalSocket.readyState);
   }
 
   return listenerId;
@@ -123,9 +127,12 @@ function initGlobalSocket(): void {
   globalSocket.onmessage = (e) => {
     try {
       const event: OCSEvent = JSON.parse(e.data);
+      console.log('📨 [ocsSocket] 메시지 수신:', event.type, event);
+      console.log('📨 [ocsSocket] 등록된 리스너 수:', listeners.length);
 
       // 모든 리스너에게 이벤트 전달
-      listeners.forEach(({ callbacks }) => {
+      listeners.forEach(({ id, callbacks }) => {
+        console.log('📨 [ocsSocket] 리스너에게 전달:', id, event.type);
         switch (event.type) {
           case 'OCS_STATUS_CHANGED':
             callbacks.onStatusChanged?.(event);

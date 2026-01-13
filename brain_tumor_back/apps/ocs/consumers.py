@@ -2,6 +2,11 @@
 OCS WebSocket Consumer
 - OCS 상태 변경 실시간 알림
 - 역할(RIS/LIS)별 그룹 구독
+
+그룹 구조:
+- ocs_ris: 모든 RIS 관련 알림 (RIS 작업자, 관리자, 간호사가 구독)
+- ocs_lis: 모든 LIS 관련 알림 (LIS 작업자, 관리자, 간호사가 구독)
+- ocs_doctor_{user_id}: 특정 의사가 처방한 오더 알림
 """
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -14,11 +19,9 @@ class OCSConsumer(AsyncWebsocketConsumer):
     OCS 상태 변경 알림 WebSocket Consumer
 
     그룹:
-    - ocs_all: 모든 OCS 알림 (관리자용)
-    - ocs_ris: RIS 관련 OCS 알림
-    - ocs_lis: LIS 관련 OCS 알림
+    - ocs_ris: RIS 관련 OCS 알림 (RIS 작업자, 관리자, 간호사)
+    - ocs_lis: LIS 관련 OCS 알림 (LIS 작업자, 관리자, 간호사)
     - ocs_doctor_{user_id}: 특정 의사의 OCS 알림
-    - ocs_worker_{user_id}: 특정 작업자의 OCS 알림
     """
 
     async def connect(self):
@@ -36,52 +39,31 @@ class OCSConsumer(AsyncWebsocketConsumer):
         # 사용자 역할에 따른 그룹 구독
         self.groups_joined = []
 
-        # 모든 사용자는 자신의 개인 그룹에 가입
-        user_group = f"ocs_user_{self.user.id}"
-        await self.channel_layer.group_add(user_group, self.channel_name)
-        self.groups_joined.append(user_group)
-
         # 역할에 따른 그룹 구독
         role_code = await self._get_user_role()
 
-        if role_code in ['SYSTEMMANAGER', 'ADMIN']:
-            # 관리자는 모든 OCS 알림 수신
-            await self.channel_layer.group_add("ocs_all", self.channel_name)
-            self.groups_joined.append("ocs_all")
-
-        if role_code in ['SYSTEMMANAGER', 'ADMIN']:
-            # 관리자는 역할별 그룹 구독 (모든 알림 수신)
+        if role_code in ['SYSTEMMANAGER', 'ADMIN', 'NURSE']:
+            # 관리자/간호사는 모든 OCS 알림 수신 (RIS + LIS)
             await self.channel_layer.group_add("ocs_ris", self.channel_name)
             self.groups_joined.append("ocs_ris")
             await self.channel_layer.group_add("ocs_lis", self.channel_name)
             self.groups_joined.append("ocs_lis")
 
-        if role_code == 'RIS':
-            # RIS 작업자는 역할별 + 개인별 그룹 구독
+        elif role_code == 'RIS':
+            # RIS 작업자는 역할별 그룹 구독
             await self.channel_layer.group_add("ocs_ris", self.channel_name)
             self.groups_joined.append("ocs_ris")
-            ris_personal_group = f"ocs_ris_{self.user.id}"
-            await self.channel_layer.group_add(ris_personal_group, self.channel_name)
-            self.groups_joined.append(ris_personal_group)
 
-        if role_code == 'LIS':
-            # LIS 작업자는 역할별 + 개인별 그룹 구독
+        elif role_code == 'LIS':
+            # LIS 작업자는 역할별 그룹 구독
             await self.channel_layer.group_add("ocs_lis", self.channel_name)
             self.groups_joined.append("ocs_lis")
-            lis_personal_group = f"ocs_lis_{self.user.id}"
-            await self.channel_layer.group_add(lis_personal_group, self.channel_name)
-            self.groups_joined.append(lis_personal_group)
 
-        if role_code == 'DOCTOR':
+        elif role_code == 'DOCTOR':
             # 의사는 자신의 오더 알림만 수신
             doctor_group = f"ocs_doctor_{self.user.id}"
             await self.channel_layer.group_add(doctor_group, self.channel_name)
             self.groups_joined.append(doctor_group)
-
-        if role_code == 'NURSE':
-            # 간호사는 모든 오더 현황 수신
-            await self.channel_layer.group_add("ocs_all", self.channel_name)
-            self.groups_joined.append("ocs_all")
 
         await self.accept()
         print(f"🔌 OCS WebSocket connected: user={self.user.login_id}, groups={self.groups_joined}")

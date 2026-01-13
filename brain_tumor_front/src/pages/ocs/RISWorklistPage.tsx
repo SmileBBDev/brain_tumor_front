@@ -51,14 +51,19 @@ export default function RISWorklistPage() {
   } = useOCSList(user?.id, { jobRole: 'RIS' });
 
   // OCS 액션 훅
-  // 성공: WebSocket 알림에서 처리, 실패: alert로 표시
+  // 성공/실패 모두 새로고침 (WebSocket 알림과 별개로 즉시 반영)
   const { accept, start } = useOCSActions({
-    onError: (action) => {
-      const messages: Record<string, string> = {
+    onSuccess: () => {
+      refresh();
+    },
+    onError: (action, _error, serverMessage) => {
+      const defaultMessages: Record<string, string> = {
         accept: '접수에 실패했습니다.',
         start: '작업 시작에 실패했습니다.',
       };
-      alert(messages[action] || '작업에 실패했습니다.');
+      const message = serverMessage || defaultMessages[action] || '작업에 실패했습니다.';
+      alert(message);
+      refresh();
     },
   });
 

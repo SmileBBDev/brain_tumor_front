@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthProvider';
 import Pagination from '@/layout/Pagination';
 import { useOCSList } from '@/hooks/useOCSList';
 import { useOCSActions } from '@/hooks/useOCSActions';
+import { useOCSEventCallback } from '@/context/OCSNotificationContext';
 import { LoadingSpinner, EmptyState, useToast } from '@/components/common';
 import {
   OCS_STATUS_LABELS,
@@ -63,13 +64,20 @@ export default function DoctorOrderPage() {
       toast.success(messages[action] || '작업이 완료되었습니다.');
       refresh();
     },
-    onError: (action) => {
-      const messages: Record<string, string> = {
+    onError: (action, _error, serverMessage) => {
+      const defaultMessages: Record<string, string> = {
         confirm: '확정에 실패했습니다.',
         cancel: '취소에 실패했습니다.',
       };
-      toast.error(messages[action] || '작업에 실패했습니다.');
+      const message = serverMessage || defaultMessages[action] || '작업에 실패했습니다.';
+      toast.error(message);
+      refresh();
     },
+  });
+
+  // WebSocket 이벤트 콜백 (전역 Context 사용)
+  useOCSEventCallback({
+    autoRefresh: refresh,
   });
 
   // JobRole 필터 적용된 목록

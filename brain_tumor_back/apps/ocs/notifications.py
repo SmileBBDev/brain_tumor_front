@@ -1,10 +1,20 @@
 """
 OCS 알림 서비스
 - OCS 상태 변경 시 WebSocket을 통해 관련 사용자에게 알림 전송
+
+그룹 구조:
+- ocs_ris: 모든 RIS 관련 알림 (RIS 작업자, 관리자가 구독)
+- ocs_lis: 모든 LIS 관련 알림 (LIS 작업자, 관리자가 구독)
+- ocs_doctor_{id}: 특정 의사가 처방한 오더 알림
 """
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.utils import timezone
+
+
+def _debug_send(group_name, event_type, message):
+    """디버깅용 로그 출력"""
+    print(f"📤 [OCS 알림] group={group_name}, type={event_type}, msg={message[:50]}...")
 
 
 def notify_ocs_status_changed(ocs, from_status, to_status, actor):
@@ -47,14 +57,18 @@ def notify_ocs_status_changed(ocs, from_status, to_status, actor):
         'timestamp': timestamp,
     }
 
-    # 담당 작업자에게 알림 (RIS/LIS 개인별 그룹)
+    # 역할별 그룹에 알림 (RIS/LIS 작업자 + 관리자가 구독)
     job_role_lower = ocs.job_role.lower() if ocs.job_role else ''
-    if job_role_lower in ['ris', 'lis'] and ocs.worker_id:
-        async_to_sync(channel_layer.group_send)(f"ocs_{job_role_lower}_{ocs.worker_id}", event_data)
+    if job_role_lower in ['ris', 'lis']:
+        group_name = f"ocs_{job_role_lower}"
+        _debug_send(group_name, 'ocs_status_changed', message)
+        async_to_sync(channel_layer.group_send)(group_name, event_data)
 
     # 처방 의사에게 알림 (의사 전용 그룹)
     if ocs.doctor_id:
-        async_to_sync(channel_layer.group_send)(f"ocs_doctor_{ocs.doctor_id}", event_data)
+        group_name = f"ocs_doctor_{ocs.doctor_id}"
+        _debug_send(group_name, 'ocs_status_changed', message)
+        async_to_sync(channel_layer.group_send)(group_name, event_data)
 
 
 def notify_ocs_created(ocs, doctor):
@@ -87,15 +101,12 @@ def notify_ocs_created(ocs, doctor):
         'timestamp': timestamp,
     }
 
-    # 담당 작업자에게 알림 (RIS/LIS 개인별 그룹)
-    # 새로 생성된 OCS는 아직 worker가 없으므로 역할별 그룹으로 전송
+    # 역할별 그룹에 알림 (RIS/LIS 작업자 + 관리자가 구독)
     job_role_lower = ocs.job_role.lower() if ocs.job_role else ''
     if job_role_lower in ['ris', 'lis']:
-        if ocs.worker_id:
-            async_to_sync(channel_layer.group_send)(f"ocs_{job_role_lower}_{ocs.worker_id}", event_data)
-        else:
-            # 아직 담당자 미배정 → 역할별 그룹으로 전송 (모든 해당 역할 작업자가 수신)
-            async_to_sync(channel_layer.group_send)(f"ocs_{job_role_lower}", event_data)
+        group_name = f"ocs_{job_role_lower}"
+        _debug_send(group_name, 'ocs_created', message)
+        async_to_sync(channel_layer.group_send)(group_name, event_data)
 
 
 def notify_ocs_cancelled(ocs, actor, reason=''):
@@ -126,11 +137,15 @@ def notify_ocs_cancelled(ocs, actor, reason=''):
         'timestamp': timestamp,
     }
 
-    # 담당 작업자에게 알림 (RIS/LIS 개인별 그룹)
+    # 역할별 그룹에 알림 (RIS/LIS 작업자 + 관리자가 구독)
     job_role_lower = ocs.job_role.lower() if ocs.job_role else ''
-    if job_role_lower in ['ris', 'lis'] and ocs.worker_id:
-        async_to_sync(channel_layer.group_send)(f"ocs_{job_role_lower}_{ocs.worker_id}", event_data)
+    if job_role_lower in ['ris', 'lis']:
+        group_name = f"ocs_{job_role_lower}"
+        _debug_send(group_name, 'ocs_cancelled', message)
+        async_to_sync(channel_layer.group_send)(group_name, event_data)
 
     # 처방 의사에게 알림 (의사 전용 그룹)
     if ocs.doctor_id:
-        async_to_sync(channel_layer.group_send)(f"ocs_doctor_{ocs.doctor_id}", event_data)
+        group_name = f"ocs_doctor_{ocs.doctor_id}"
+        _debug_send(group_name, 'ocs_cancelled', message)
+        async_to_sync(channel_layer.group_send)(group_name, event_data)

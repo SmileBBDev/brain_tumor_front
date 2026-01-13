@@ -129,6 +129,14 @@ class OCSViewSet(viewsets.ModelViewSet):
             return OCSUpdateSerializer
         return OCSDetailSerializer
 
+    def perform_create(self, serializer):
+        """OCS 생성 후 WebSocket 알림 전송"""
+        ocs = serializer.save()
+        # WebSocket 알림
+        print(f"🔔 [OCS] perform_create 호출: ocs_id={ocs.ocs_id}, job_role={ocs.job_role}, doctor={ocs.doctor}")
+        notify_ocs_created(ocs, ocs.doctor)
+        print(f"🔔 [OCS] notify_ocs_created 완료: ocs_id={ocs.ocs_id}")
+
     def perform_destroy(self, instance):
         """Soft Delete"""
         instance.is_deleted = True
@@ -245,7 +253,13 @@ class OCSViewSet(viewsets.ModelViewSet):
         ocs.ocs_status = OCS.OcsStatus.ACCEPTED
         ocs.accepted_at = timezone.now()
         ocs.worker_result = ocs.get_default_worker_result()
+
+        print(f"🔔 [OCS] accept 저장 전: ocs_id={ocs.ocs_id}, worker={ocs.worker}, worker_id={ocs.worker_id}, status={ocs.ocs_status}")
         ocs.save()
+
+        # 저장 후 DB에서 다시 조회하여 확인
+        ocs.refresh_from_db()
+        print(f"🔔 [OCS] accept 저장 후: ocs_id={ocs.ocs_id}, worker={ocs.worker}, worker_id={ocs.worker_id}, status={ocs.ocs_status}")
 
         # 이력 기록
         OCSHistory.objects.create(

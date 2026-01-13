@@ -92,18 +92,26 @@ export function OCSNotificationProvider({ children }: Props) {
 
   // 전역 WebSocket 구독 (한 번만)
   useEffect(() => {
+    console.log('🔌 [OCSNotificationProvider] useEffect 실행:', { isAuthenticated, user: user?.login_id });
+
     if (!isAuthenticated || !user) {
+      console.log('🔌 [OCSNotificationProvider] 인증 안됨, WebSocket 연결 안함');
       return;
     }
 
     // 이미 구독 중이면 스킵
     if (listenerIdRef.current) {
+      console.log('🔌 [OCSNotificationProvider] 이미 구독 중:', listenerIdRef.current);
       return;
     }
 
+    console.log('🔌 [OCSNotificationProvider] WebSocket 구독 시작...');
     // 싱글톤 WebSocket에 전역 구독 등록
     listenerIdRef.current = subscribeOCSSocket({
       onStatusChanged: (event) => {
+        console.log('📥 [OCS] onStatusChanged 수신:', event.message);
+        console.log('📥 [OCS] 등록된 콜백 수:', eventCallbacksRef.current.size);
+
         // Toast 알림 추가
         addNotification({
           type: 'status_changed',
@@ -114,12 +122,16 @@ export function OCSNotificationProvider({ children }: Props) {
         });
 
         // 등록된 모든 콜백 실행
-        eventCallbacksRef.current.forEach((callbacks) => {
+        eventCallbacksRef.current.forEach((callbacks, id) => {
+          console.log('📥 [OCS] 콜백 실행:', id);
           callbacks.onStatusChanged?.(event);
         });
       },
 
       onCreated: (event) => {
+        console.log('📥 [OCS] onCreated 수신:', event.message);
+        console.log('📥 [OCS] 등록된 콜백 수:', eventCallbacksRef.current.size);
+
         addNotification({
           type: 'created',
           message: event.message,
@@ -128,12 +140,16 @@ export function OCSNotificationProvider({ children }: Props) {
           ocsPk: event.ocs_pk,
         });
 
-        eventCallbacksRef.current.forEach((callbacks) => {
+        eventCallbacksRef.current.forEach((callbacks, id) => {
+          console.log('📥 [OCS] 콜백 실행:', id);
           callbacks.onCreated?.(event);
         });
       },
 
       onCancelled: (event) => {
+        console.log('📥 [OCS] onCancelled 수신:', event.message);
+        console.log('📥 [OCS] 등록된 콜백 수:', eventCallbacksRef.current.size);
+
         addNotification({
           type: 'cancelled',
           message: event.message,
@@ -142,7 +158,8 @@ export function OCSNotificationProvider({ children }: Props) {
           ocsPk: event.ocs_pk,
         });
 
-        eventCallbacksRef.current.forEach((callbacks) => {
+        eventCallbacksRef.current.forEach((callbacks, id) => {
+          console.log('📥 [OCS] 콜백 실행:', id);
           callbacks.onCancelled?.(event);
         });
       },
@@ -156,10 +173,12 @@ export function OCSNotificationProvider({ children }: Props) {
       },
     });
 
+    console.log('🔌 [OCSNotificationProvider] WebSocket 구독 완료:', listenerIdRef.current);
     setIsConnected(isOCSSocketConnected());
 
     // cleanup
     return () => {
+      console.log('🔌 [OCSNotificationProvider] WebSocket 구독 해제:', listenerIdRef.current);
       if (listenerIdRef.current) {
         unsubscribeOCSSocket(listenerIdRef.current);
         listenerIdRef.current = null;
@@ -210,25 +229,40 @@ export function useOCSEventCallback(callbacks: EventCallbacks & { autoRefresh?: 
     const id = `callback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     callbackIdRef.current = id;
 
+    console.log('📝 [useOCSEventCallback] 콜백 등록:', id);
+
     // autoRefresh를 각 이벤트에 연결 (ref를 통해 최신 콜백 참조)
     const wrappedCallbacks: EventCallbacks = {
       onStatusChanged: (event) => {
+        console.log('🔄 [useOCSEventCallback] onStatusChanged 실행:', id, event.message);
         callbacksRef.current.onStatusChanged?.(event);
-        callbacksRef.current.autoRefresh?.();
+        if (callbacksRef.current.autoRefresh) {
+          console.log('🔄 [useOCSEventCallback] autoRefresh 호출:', id);
+          callbacksRef.current.autoRefresh();
+        }
       },
       onCreated: (event) => {
+        console.log('🔄 [useOCSEventCallback] onCreated 실행:', id, event.message);
         callbacksRef.current.onCreated?.(event);
-        callbacksRef.current.autoRefresh?.();
+        if (callbacksRef.current.autoRefresh) {
+          console.log('🔄 [useOCSEventCallback] autoRefresh 호출:', id);
+          callbacksRef.current.autoRefresh();
+        }
       },
       onCancelled: (event) => {
+        console.log('🔄 [useOCSEventCallback] onCancelled 실행:', id, event.message);
         callbacksRef.current.onCancelled?.(event);
-        callbacksRef.current.autoRefresh?.();
+        if (callbacksRef.current.autoRefresh) {
+          console.log('🔄 [useOCSEventCallback] autoRefresh 호출:', id);
+          callbacksRef.current.autoRefresh();
+        }
       },
     };
 
     addEventCallback(id, wrappedCallbacks);
 
     return () => {
+      console.log('📝 [useOCSEventCallback] 콜백 해제:', callbackIdRef.current);
       if (callbackIdRef.current) {
         removeEventCallback(callbackIdRef.current);
         callbackIdRef.current = null;

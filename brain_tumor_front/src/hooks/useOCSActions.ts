@@ -16,7 +16,7 @@ import type { WorkerResult, Attachments } from '@/types/ocs';
 
 export interface UseOCSActionsOptions {
   onSuccess?: (action: string, ocsId: number) => void;
-  onError?: (action: string, error: unknown) => void;
+  onError?: (action: string, error: unknown, serverMessage?: string) => void;
   onRefresh?: () => void;
 }
 
@@ -68,9 +68,26 @@ export function useOCSActions(options: UseOCSActionsOptions = {}): UseOCSActions
         callbacksRef.current.onSuccess?.(actionName, ocsId);
         callbacksRef.current.onRefresh?.();
         return true;
-      } catch (error) {
-        console.error(`[useOCSActions] ${actionName} failed:`, error);
-        callbacksRef.current.onError?.(actionName, error);
+      } catch (error: unknown) {
+        // 서버 에러 메시지 추출
+        let errorMessage = '';
+        if (error && typeof error === 'object' && 'response' in error) {
+          const axiosError = error as { response?: { data?: unknown } };
+          const responseData = axiosError.response?.data;
+          if (responseData && typeof responseData === 'object') {
+            // ValidationError 배열 또는 단일 메시지 처리
+            if (Array.isArray(responseData)) {
+              errorMessage = responseData.join(', ');
+            } else if ('detail' in responseData) {
+              errorMessage = String((responseData as { detail: unknown }).detail);
+            } else if ('non_field_errors' in responseData) {
+              const nfe = (responseData as { non_field_errors: unknown }).non_field_errors;
+              errorMessage = Array.isArray(nfe) ? nfe.join(', ') : String(nfe);
+            }
+          }
+        }
+        console.error(`[useOCSActions] ${actionName} failed:`, error, errorMessage);
+        callbacksRef.current.onError?.(actionName, error, errorMessage);
         return false;
       } finally {
         setLoading(false);
