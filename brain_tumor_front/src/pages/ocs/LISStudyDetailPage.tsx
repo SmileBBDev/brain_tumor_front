@@ -892,52 +892,57 @@ export default function LISStudyDetailPage() {
               )}
             </div>
 
-            {/* CSV 업로드 섹션 */}
-            <div className="csv-upload-section">
-              <div className="section-header">
-                <h4>CSV 데이터 가져오기</h4>
-                {canEdit && (
-                  <>
-                    <input
-                      ref={csvInputRef}
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCSVUpload}
-                      style={{ display: 'none' }}
-                      id="csv-upload"
-                    />
-                    <label htmlFor="csv-upload" className="btn btn-sm btn-success">
-                      CSV 업로드
-                    </label>
-                  </>
-                )}
-              </div>
-              <div className="csv-help">
-                <p>CSV 형식: 검사항목, 결과값, 단위, 참고범위, 판정</p>
-                <p className="csv-example">예: WBC,7500,/uL,4000-10000,정상</p>
-              </div>
-              {csvUploadInfo && (
-                <div className="csv-info">
-                  <span className="csv-icon">📊</span>
-                  <span className="csv-filename">{csvUploadInfo.fileName}</span>
-                  <span className="csv-count">{csvUploadInfo.rowCount}개 항목</span>
-                  <span className="csv-date">{formatDate(csvUploadInfo.uploadedAt)}</span>
+            {/* CSV 업로드 섹션 - BLOOD/OTHER만 */}
+            {(testCategory === 'BLOOD' || testCategory === 'OTHER') && (
+              <div className="csv-upload-section">
+                <div className="section-header">
+                  <h4>CSV 데이터 가져오기</h4>
+                  {canEdit && (
+                    <>
+                      <input
+                        ref={csvInputRef}
+                        type="file"
+                        accept=".csv"
+                        onChange={handleCSVUpload}
+                        style={{ display: 'none' }}
+                        id="csv-upload"
+                      />
+                      <label htmlFor="csv-upload" className="btn btn-sm btn-success">
+                        CSV 업로드
+                      </label>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-
-            <div className="result-header">
-              <h4>검사 결과 입력</h4>
-              <div className="result-actions">
-                {canEdit && (
-                  <button className="btn btn-sm btn-primary" onClick={handleAddResult}>
-                    + 항목 추가
-                  </button>
+                <div className="csv-help">
+                  <p>CSV 형식: 검사항목, 결과값, 단위, 참고범위, 판정</p>
+                  <p className="csv-example">예: WBC,7500,/uL,4000-10000,정상</p>
+                </div>
+                {csvUploadInfo && (
+                  <div className="csv-info">
+                    <span className="csv-icon">📊</span>
+                    <span className="csv-filename">{csvUploadInfo.fileName}</span>
+                    <span className="csv-count">{csvUploadInfo.rowCount}개 항목</span>
+                    <span className="csv-date">{formatDate(csvUploadInfo.uploadedAt)}</span>
+                  </div>
                 )}
               </div>
-            </div>
+            )}
 
-            <table className="result-table">
+            {/* 검사 결과 입력 - BLOOD/OTHER만 */}
+            {(testCategory === 'BLOOD' || testCategory === 'OTHER') && (
+              <>
+                <div className="result-header">
+                  <h4>검사 결과 입력</h4>
+                  <div className="result-actions">
+                    {canEdit && (
+                      <button className="btn btn-sm btn-primary" onClick={handleAddResult}>
+                        + 항목 추가
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <table className="result-table">
               <thead>
                 <tr>
                   <th>검사 항목</th>
@@ -1036,8 +1041,10 @@ export default function LISStudyDetailPage() {
                     </tr>
                   ))
                 )}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+              </>
+            )}
           </div>
         )}
 

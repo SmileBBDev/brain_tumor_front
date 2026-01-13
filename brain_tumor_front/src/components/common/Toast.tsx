@@ -90,7 +90,7 @@ export function useToast() {
 
   const success = useCallback(
     (message: string, title?: string) => addToast('success', message, title),
-    [addToast]
+    []
   );
 
   const error = useCallback(
@@ -108,6 +108,10 @@ export function useToast() {
     [addToast]
   );
 
+  const ToastContainerWrapper = (props: Omit<ToastContainerProps, 'toasts' | 'onDismiss'>) => (
+    <ToastContainer toasts={toasts} onDismiss={removeToast} {...props} />
+  );
+
   return {
     toasts,
     addToast,
@@ -116,8 +120,6 @@ export function useToast() {
     error,
     warning,
     info,
-    ToastContainer: (props: Omit<ToastContainerProps, 'toasts' | 'onDismiss'>) => (
-      <ToastContainer toasts={toasts} onDismiss={removeToast} {...props} />
-    ),
+    ToastContainer: ToastContainerWrapper,
   };
 }

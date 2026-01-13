@@ -27,10 +27,10 @@ export default function ClinicPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
 
-  // 의사 역할 확인 (진료 시작 가능 여부)
-  const isDoctor = role === 'DOCTOR';
+  // 진료 시작 가능 역할 확인 (DOCTOR, SYSTEMMANAGER)
+  const canStartEncounter = role === 'DOCTOR' || role === 'SYSTEMMANAGER';
 
   // URL에서 환자 ID 추출
   const patientIdParam = searchParams.get('patientId');
@@ -73,16 +73,19 @@ export default function ClinicPage() {
       const encounterData = await getEncounters({ patient: patientId });
       setEncounters(encounterData.results || []);
 
-      // 오늘 진행 중인 진료 찾기
+      // 오늘 진행 중인 진료 찾기 (in_progress 우선, 없으면 scheduled)
       const today = new Date().toISOString().split('T')[0];
-      const todayEncounter = (encounterData.results || []).find(
+      const todayEncounters = (encounterData.results || []).filter(
         (e: Encounter) => {
-          // admission_date에서 날짜 부분만 추출 (ISO 형식: 2024-01-01T10:00:00Z)
           const admissionDate = e.admission_date?.split('T')[0];
-          return admissionDate === today && e.status === 'in_progress';
+          return admissionDate === today;
         }
       );
-      setActiveEncounter(todayEncounter || null);
+      // in_progress 우선, 없으면 scheduled
+      const activeEnc = todayEncounters.find((e: Encounter) => e.status === 'in_progress')
+        || todayEncounters.find((e: Encounter) => e.status === 'scheduled')
+        || null;
+      setActiveEncounter(activeEnc);
     } catch (err) {
       console.error('Failed to load patient data:', err);
       toast.error('환자 데이터를 불러오는데 실패했습니다.');
@@ -107,14 +110,17 @@ export default function ClinicPage() {
 
   // 진료 시작
   const handleStartEncounter = useCallback(async () => {
-    if (!patient) return;
+    if (!patient || !user?.id) {
+      toast.error('로그인 정보를 확인해주세요.');
+      return;
+    }
 
     try {
       const encounter = await createEncounter({
         patient: patient.id,
         encounter_type: 'outpatient',
         status: 'in_progress',
-        // chief_complaint, attending_doctor, department, admission_date는 백엔드에서 자동 설정됨
+        attending_doctor: user.id,
       });
       setActiveEncounter(encounter);
       toast.success('진료가 시작되었습니다.');
@@ -131,7 +137,7 @@ export default function ClinicPage() {
       toast.error(errorMsg);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient]);
+  }, [patient, user?.id]);
 
   // 진료 종료 (안전 저장)
   const handleEndEncounter = useCallback(async () => {
@@ -249,12 +255,12 @@ export default function ClinicPage() {
             </div>
           )}
           <div className="header-actions">
-            {patient && !activeEncounter && isDoctor && (
+            {patient && !activeEncounter && canStartEncounter && (
               <button className="btn btn-primary" onClick={handleStartEncounter}>
                 진료 시작
               </button>
             )}
-            {patient && activeEncounter && isDoctor && (
+            {patient && activeEncounter && canStartEncounter && (
               <button className="btn btn-success" onClick={handleEndEncounter}>
                 진료 종료
               </button>

@@ -1076,14 +1076,20 @@
 .past-column .clinic-card .calendar-day {
   font-size: 10px;
   min-height: 0;
-  padding: 0;
+  padding: 2px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
 .past-column .clinic-card .day-number {
-  margin-bottom: 0;
+  margin-bottom: 1px;
+}
+
+.past-column .clinic-card .day-events {
+  display: flex;
+  gap: 1px;
 }
 
 .past-column .clinic-card .calendar-legend {
