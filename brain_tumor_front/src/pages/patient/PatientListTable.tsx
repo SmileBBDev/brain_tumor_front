@@ -57,7 +57,11 @@ export default function PatientListTable( {role, patients, onEdit, onDelete} : P
           </tr>
         ) : (
           patients.map(p=>(
-            <tr key={p.id}>
+            <tr
+              key={p.id}
+              className="clickable-row"
+              onClick={() => navigate(`/patients/${p.id}`)}
+            >
               <td>{p.patient_number}</td>
               <td>{p.name}</td>
               <td>{getGenderDisplay(p.gender)}</td>
@@ -67,7 +71,7 @@ export default function PatientListTable( {role, patients, onEdit, onDelete} : P
               <td>{getStatusDisplay(p.status)}</td>
               <td>{new Date(p.created_at).toLocaleDateString('ko-KR')}</td>
               <td>
-                <div className="action-buttons">
+                <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
                   {(role === 'DOCTOR' || isSystemManager) && (
                     <button
                       className="btn small primary"
@@ -76,12 +80,6 @@ export default function PatientListTable( {role, patients, onEdit, onDelete} : P
                       진료
                     </button>
                   )}
-                  <button
-                    className="btn small"
-                    onClick={() => navigate(`/patients/${p.id}`)}
-                  >
-                    상세
-                  </button>
                   {canEdit && (
                     <>
                       <button
