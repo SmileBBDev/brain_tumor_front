@@ -12,6 +12,14 @@ import { useAuth } from '../auth/AuthProvider';
 import { getOCS, startOCS, saveOCSResult, confirmOCS } from '@/services/ocs.api';
 import type { OCSDetail, GeneMutation, ProteinMarker } from '@/types/ocs';
 import { getLISCategory, LIS_CATEGORY_LABELS } from '@/utils/ocs.utils';
+import {
+  type StoredFileInfo,
+  type FileWithData,
+  processFileUpload,
+  loadFilesWithData,
+  removeFileFromStorage,
+  migrateFilesToStorage,
+} from '@/utils/fileStorage';
 import './LISStudyDetailPage.css';
 
 // 탭 타입 - genetic, protein 탭 추가
@@ -24,15 +32,6 @@ interface LabResultItem {
   unit: string;
   refRange: string;
   flag: 'normal' | 'abnormal' | 'critical';
-}
-
-// 업로드 파일 타입
-interface UploadedFile {
-  name: string;
-  size: number;
-  type: string;
-  uploadedAt: string;
-  dataUrl?: string; // Base64로 저장 (실제로는 서버 업로드 필요)
 }
 
 // 임상적 의의 라벨
@@ -94,8 +93,10 @@ export default function LISStudyDetailPage() {
   const [proteinMarkers, setProteinMarkers] = useState<ProteinMarker[]>([]);
   const [proteinSummary, setProteinSummary] = useState('');
 
-  // 파일 업로드
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  // 파일 업로드 (LocalStorage 참조 방식)
+  // uploadedFiles: UI 표시용 (dataUrl 포함)
+  // 저장 시에는 StoredFileInfo로 변환 (dataUrl 제외, storageKey만 저장)
+  const [uploadedFiles, setUploadedFiles] = useState<FileWithData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -131,8 +132,14 @@ export default function LISStudyDetailPage() {
         if (result.notes) {
           setNotes(result.notes as string);
         }
-        if (result.files) {
-          setUploadedFiles(result.files as UploadedFile[]);
+        // 파일 로드 (LocalStorage에서 dataUrl 복원)
+        if (result.files && (result.files as StoredFileInfo[]).length > 0) {
+          const storedFiles = result.files as StoredFileInfo[];
+          // 기존 형식(dataUrl 직접 저장)에서 새 형식으로 마이그레이션
+          const migratedFiles = migrateFilesToStorage(storedFiles, data.id);
+          // LocalStorage에서 dataUrl 로드하여 UI용 데이터 생성
+          const filesWithData = loadFilesWithData(migratedFiles);
+          setUploadedFiles(filesWithData);
         }
         // CSV 업로드 정보
         if (result.csvUploadInfo) {
@@ -261,25 +268,34 @@ export default function LISStudyDetailPage() {
     setProteinMarkers(proteinMarkers.filter((_, i) => i !== index));
   };
 
-  // 파일 업로드 핸들러
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 파일 업로드 핸들러 (LocalStorage에 저장)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || !ocs) return;
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newFile: UploadedFile = {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          uploadedAt: new Date().toISOString(),
-          dataUrl: reader.result as string,
+    // 파일별로 LocalStorage에 저장 후 상태 업데이트
+    const uploadPromises = Array.from(files).map(async (file) => {
+      try {
+        const storedInfo = await processFileUpload(file, ocs.id);
+        // UI용 dataUrl도 함께 로드
+        const fileWithData: FileWithData = {
+          ...storedInfo,
+          dataUrl: localStorage.getItem(storedInfo.storageKey) || undefined,
         };
-        setUploadedFiles((prev) => [...prev, newFile]);
-      };
-      reader.readAsDataURL(file);
+        return fileWithData;
+      } catch (error) {
+        console.error('파일 업로드 실패:', file.name, error);
+        alert(`파일 업로드 실패: ${file.name}\n${(error as Error).message}`);
+        return null;
+      }
     });
+
+    const results = await Promise.all(uploadPromises);
+    const successfulUploads = results.filter((r): r is FileWithData => r !== null);
+
+    if (successfulUploads.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...successfulUploads]);
+    }
 
     // 입력 초기화
     if (fileInputRef.current) {
@@ -287,8 +303,12 @@ export default function LISStudyDetailPage() {
     }
   };
 
-  // 파일 삭제
+  // 파일 삭제 (LocalStorage에서도 삭제)
   const handleRemoveFile = (index: number) => {
+    const fileToRemove = uploadedFiles[index];
+    if (fileToRemove?.storageKey) {
+      removeFileFromStorage(fileToRemove.storageKey);
+    }
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
@@ -444,16 +464,28 @@ export default function LISStudyDetailPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  // 파일 목록을 저장용으로 변환 (dataUrl 제외, storageKey만 포함)
+  const getFilesForStorage = (): StoredFileInfo[] => {
+    return uploadedFiles.map(({ name, size, type, uploadedAt, storageKey }) => ({
+      name,
+      size,
+      type,
+      uploadedAt,
+      storageKey: storageKey || '',
+    }));
+  };
+
   // worker_result 데이터 생성
   const buildWorkerResult = () => {
     const result: Record<string, unknown> = {
       _template: 'LIS',
-      _version: '1.0',
+      _version: '1.1',  // 버전 업데이트 (LocalStorage 파일 저장 방식)
       test_type: testCategory,
       labResults,
       interpretation,
       notes,
-      files: uploadedFiles,
+      // 파일: dataUrl 제외, storageKey만 저장
+      files: getFilesForStorage(),
       csvUploadInfo: csvUploadInfo || null,
     };
 
@@ -726,14 +758,12 @@ export default function LISStudyDetailPage() {
         >
           검사 정보
         </button>
-        {(testCategory === 'BLOOD' || testCategory === 'OTHER') && (
-          <button
-            className={activeTab === 'result' ? 'active' : ''}
-            onClick={() => setActiveTab('result')}
-          >
-            검사 결과
-          </button>
-        )}
+        <button
+          className={activeTab === 'result' ? 'active' : ''}
+          onClick={() => setActiveTab('result')}
+        >
+          검사 결과
+        </button>
         {testCategory === 'GENETIC' && (
           <button
             className={activeTab === 'genetic' ? 'active' : ''}

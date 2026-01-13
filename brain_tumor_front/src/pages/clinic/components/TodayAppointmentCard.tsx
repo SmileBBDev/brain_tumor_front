@@ -278,7 +278,7 @@ export default function TodayAppointmentCard({ compact = false }: TodayAppointme
           border-radius: 6px;
         }
         .appointment-body {
-          max-height: 300px;
+          max-height: 500px;
           overflow-y: auto;
           padding: 0;
         }
