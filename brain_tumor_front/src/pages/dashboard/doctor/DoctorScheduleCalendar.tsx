@@ -237,15 +237,13 @@ export function DoctorScheduleCalendar() {
                 const isTodayCell = day ? isToday(day) : false;
                 const isSelected = day === selectedDay;
 
+                // Tint 클래스 결정 (의사 캘린더는 파란색 계열)
+                const tintClass = scheduleCount > 0 ? 'tint-doctor' : '';
+
                 return (
                   <div
                     key={idx}
-                    className={`calendar-day ${day ? 'clickable' : 'empty'} ${isTodayCell ? 'today' : ''} ${isSelected ? 'selected' : ''} ${scheduleCount > 0 ? 'has-schedule' : ''}`}
-                    style={
-                      scheduleCount > 0 && !isTodayCell && !isSelected
-                        ? { backgroundColor: SCHEDULE_BG_COLORS[primaryType!] }
-                        : undefined
-                    }
+                    className={`calendar-day ${day ? 'clickable' : 'empty'} ${isTodayCell ? 'today' : ''} ${isSelected ? 'selected' : ''} ${tintClass}`}
                     onClick={() => handleDayClick(day)}
                   >
                     {day && (
@@ -255,12 +253,12 @@ export function DoctorScheduleCalendar() {
                         </span>
                         {/* 복수 일정시 Badge 표시 */}
                         {scheduleCount > 1 && (
-                          <span className="schedule-badge">{scheduleCount}</span>
+                          <span className="schedule-badge doctor">{scheduleCount}</span>
                         )}
                         {/* 단일 일정시 유형 표시 */}
                         {scheduleCount === 1 && primaryType && (
                           <span
-                            className="schedule-indicator"
+                            className="schedule-type-dot"
                             style={{ backgroundColor: SCHEDULE_TYPE_COLORS[primaryType] }}
                           />
                         )}
@@ -420,74 +418,103 @@ export function DoctorScheduleCalendar() {
         }
         .calendar-day.clickable:hover {
           background: var(--bg-main, #f4f6f9);
-          transform: scale(1.02);
-        }
-        .calendar-day.has-schedule:hover {
-          filter: brightness(0.95);
         }
 
-        /* 오늘 날짜 - 항상 식별 가능 */
+        /* ============================================
+           Tint 방식: ::before pseudo-element + inset
+           의사 캘린더는 파란색 계열
+           ============================================ */
+        .calendar-day::before {
+          content: "";
+          position: absolute;
+          inset: 4px;
+          border-radius: 6px;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        /* 의사 일정 tint - 파란색 계열 */
+        .calendar-day.tint-doctor::before {
+          background: rgba(91, 141, 239, 0.12);
+        }
+        .calendar-day.tint-doctor:hover::before {
+          background: rgba(91, 141, 239, 0.18);
+        }
+
+        /* ============================================
+           오늘 날짜 - 얇은 링 (box-shadow inset)
+           배경 fill 없음, 텍스트 색상 유지
+           ============================================ */
         .calendar-day.today {
-          background: var(--primary, #5b6fd6) !important;
-          color: white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(91, 111, 214, 0.4);
+          box-shadow: inset 0 0 0 2px rgba(91, 111, 214, 0.5);
         }
-        .calendar-day.today:hover {
-          background: var(--primary-dark, #4a5bc4) !important;
-        }
-        .calendar-day.today .schedule-badge {
-          background: white;
+        .calendar-day.today .day-number {
           color: var(--primary, #5b6fd6);
+          font-weight: 600;
         }
 
-        /* 선택된 날짜 */
+        /* ============================================
+           선택된 날짜 - outline only (배경 fill 없음)
+           ============================================ */
         .calendar-day.selected {
-          background: var(--info, #5b8def) !important;
-          color: white;
-          box-shadow: 0 0 0 2px var(--info, #5b8def), 0 4px 12px rgba(91, 141, 239, 0.3);
+          outline: 2px solid #5b8def;
+          outline-offset: -2px;
+          box-shadow: 0 4px 12px rgba(91, 141, 239, 0.25);
+          z-index: 1;
         }
-        .calendar-day.selected:hover {
-          background: #4a7dd8 !important;
+        .calendar-day.selected .day-number {
+          color: #5b8def;
+          font-weight: 700;
         }
-        .calendar-day.selected .schedule-badge {
-          background: white;
-          color: var(--info, #5b8def);
+        /* 선택 + 오늘 동시: 선택 outline이 오늘 링 위에 표시 */
+        .calendar-day.selected.today {
+          box-shadow: inset 0 0 0 2px rgba(91, 111, 214, 0.5), 0 4px 12px rgba(91, 141, 239, 0.25);
         }
 
         /* 날짜 숫자 */
         .day-number {
           font-weight: 400;
           line-height: 1;
+          position: relative;
+          z-index: 1;
         }
         .day-number.bold {
-          font-weight: 700;
+          font-weight: 600;
         }
 
-        /* 일정 개수 Badge */
+        /* ============================================
+           일정 개수 Badge - 작은 크기, 우측 상단
+           의사 캘린더는 파란색
+           ============================================ */
         .schedule-badge {
           position: absolute;
           top: 2px;
           right: 2px;
-          min-width: 16px;
-          height: 16px;
-          padding: 0 4px;
-          background: var(--primary, #5b6fd6);
+          min-width: 14px;
+          height: 14px;
+          padding: 0 3px;
+          background: #9ca3af;
           color: white;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 600;
-          border-radius: 8px;
+          border-radius: 7px;
           display: flex;
           align-items: center;
           justify-content: center;
+          z-index: 2;
+        }
+        .schedule-badge.doctor {
+          background: #5b8def;
         }
 
-        /* 단일 일정 표시 */
-        .schedule-indicator {
-          width: 6px;
-          height: 6px;
+        /* 단일 일정 유형 표시 dot */
+        .schedule-type-dot {
+          width: 5px;
+          height: 5px;
           border-radius: 50%;
-          margin-top: 4px;
+          margin-top: 3px;
+          position: relative;
+          z-index: 1;
         }
 
         /* 범례 */

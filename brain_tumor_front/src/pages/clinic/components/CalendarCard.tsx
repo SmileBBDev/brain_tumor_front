@@ -1,7 +1,14 @@
 /**
  * 환자 일정 캘린더 카드
- * - 환자의 진료 일정을 달력 형태로 표시
- * - 의사 일정도 함께 표시 (다른 색상)
+ * - 환자의 진료 일정을 달력 형태로 표시 (노랑 계열 tint)
+ * - 의사 일정도 함께 표시 (파랑 계열 tint)
+ *
+ * UX 규칙:
+ * - 배경은 "연한 tint"로만 (inset 적용)
+ * - 선택(Selected): outline + shadow
+ * - 오늘(Today): 얇은 링(ring)
+ * - 복수 일정: 작은 badge
+ * - 큰 도형/원으로 덮기 금지
  */
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Encounter } from '@/types/encounter';
@@ -34,7 +41,6 @@ export default function CalendarCard({
       setDoctorSchedules(data);
     } catch (err) {
       console.error('Failed to load doctor schedules:', err);
-      // 실패해도 환자 일정은 표시
     }
   }, [currentDate]);
 
@@ -43,24 +49,21 @@ export default function CalendarCard({
   }, [loadDoctorSchedules]);
 
   // 현재 월의 첫째 날과 마지막 날
-  const { firstDay, lastDay: _lastDay, daysInMonth } = useMemo(() => {
+  const { firstDay, daysInMonth } = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const first = new Date(year, month, 1);
     const last = new Date(year, month + 1, 0);
     return {
       firstDay: first.getDay(),
-      lastDay: last.getDate(),
       daysInMonth: last.getDate(),
     };
   }, [currentDate]);
 
-  // 진료 날짜 추출 헬퍼 (admission_date 사용, encounter_date는 폴백)
+  // 진료 날짜 추출 헬퍼
   const getEncounterDate = (e: Encounter): string | null => {
-    // admission_date: "2026-01-13T09:00:00Z" 또는 "2026-01-13"
     const dateStr = e.admission_date || e.encounter_date;
     if (!dateStr) return null;
-    // ISO 형식에서 날짜 부분만 추출 (YYYY-MM-DD)
     return dateStr.slice(0, 10);
   };
 
@@ -78,7 +81,7 @@ export default function CalendarCard({
 
   // 날짜별 진료 맵
   const encountersByDate = useMemo(() => {
-    const map: Record<string, Encounter[]> = {};
+    const map: Record<number, Encounter[]> = {};
     monthEncounters.forEach((e) => {
       const dateStr = getEncounterDate(e);
       if (!dateStr) return;
@@ -99,7 +102,6 @@ export default function CalendarCard({
       const start = new Date(s.start);
       const end = new Date(s.end);
 
-      // 일정이 걸치는 모든 날짜에 추가
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         if (d.getFullYear() === year && d.getMonth() === month) {
           const day = d.getDate();
@@ -113,17 +115,15 @@ export default function CalendarCard({
     return map;
   }, [doctorSchedules, currentDate]);
 
-  // 이전 달
+  // 네비게이션
   const prevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
   };
 
-  // 다음 달
   const nextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
   };
 
-  // 오늘로 이동
   const goToToday = () => {
     setCurrentDate(new Date());
   };
@@ -134,17 +134,8 @@ export default function CalendarCard({
   // 달력 그리드 생성
   const calendarDays = useMemo(() => {
     const days: (number | null)[] = [];
-
-    // 첫째 주 빈 칸
-    for (let i = 0; i < firstDay; i++) {
-      days.push(null);
-    }
-
-    // 날짜
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
-    }
-
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(i);
     return days;
   }, [firstDay, daysInMonth]);
 
@@ -164,24 +155,36 @@ export default function CalendarCard({
     return dateStr === selectedDate;
   };
 
+  // 환자 일정의 우선 상태 (tint 강도 결정)
+  const getPrimaryPatientStatus = (day: number): string | null => {
+    const dayEncounters = encountersByDate[day];
+    if (!dayEncounters || dayEncounters.length === 0) return null;
+
+    const priority = ['in_progress', 'scheduled', 'completed', 'cancelled'];
+    for (const status of priority) {
+      if (dayEncounters.some(e => e.status === status)) return status;
+    }
+    return dayEncounters[0].status || 'scheduled';
+  };
+
   // 날짜 클릭 핸들러
   const handleDayClick = (day: number) => {
-    if (!day || !encountersByDate[day]) return;
+    if (!day) return;
+
+    const hasPatientSchedule = encountersByDate[day] && encountersByDate[day].length > 0;
+    if (!hasPatientSchedule) return;
 
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
     if (selectedDate === dateStr) {
-      // 이미 선택된 날짜 클릭 시 선택 해제
       onDateSelect?.(null);
     } else {
       onDateSelect?.(dateStr);
     }
   };
 
-  // 해당 날짜에 일정이 있는지 (환자 또는 의사)
-  const hasEvents = (day: number): boolean => {
-    return !!(encountersByDate[day] || doctorSchedulesByDate[day]);
-  };
+  // 이번 달 일정 여부 체크
+  const hasNoSchedules = monthEncounters.length === 0 && doctorSchedules.length === 0;
 
   return (
     <div className="clinic-card">
@@ -218,61 +221,77 @@ export default function CalendarCard({
 
         {/* 날짜 그리드 */}
         <div className="calendar-grid">
-          {calendarDays.map((day, idx) => (
-            <div
-              key={idx}
-              className={`calendar-day ${day ? '' : 'empty'} ${day && isToday(day) ? 'today' : ''} ${
-                day && hasEvents(day) ? 'has-event' : ''
-              } ${day && encountersByDate[day as number] ? 'clickable' : ''} ${day && isSelected(day) ? 'selected' : ''}`}
-              onClick={() => day && handleDayClick(day)}
-            >
-              {day && (
-                <>
-                  <span className="day-number">{day}</span>
-                  <div className="day-events">
-                    {/* 환자 진료 일정 */}
-                    {encountersByDate[day]?.slice(0, 2).map((e, i) => (
-                      <div
-                        key={`enc-${i}`}
-                        className={`event-dot ${e.status}`}
-                        title={e.diagnosis || '진료'}
-                      />
-                    ))}
-                    {/* 의사 개인 일정 */}
-                    {doctorSchedulesByDate[day]?.slice(0, 1).map((s) => (
-                      <div
-                        key={`sch-${s.id}`}
-                        className="event-dot doctor-schedule"
-                        style={{ backgroundColor: s.color }}
-                        title={s.title}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+          {calendarDays.map((day, idx) => {
+            const patientCount = day ? (encountersByDate[day]?.length || 0) : 0;
+            const doctorCount = day ? (doctorSchedulesByDate[day]?.length || 0) : 0;
+            const patientStatus = day ? getPrimaryPatientStatus(day) : null;
+            const isTodayCell = day ? isToday(day) : false;
+            const isSelectedCell = day ? isSelected(day) : false;
+            const hasPatientSchedule = patientCount > 0;
+            const hasDoctorSchedule = doctorCount > 0;
+
+            // 상태에 따른 tint class
+            let tintClass = '';
+            if (patientStatus === 'in_progress') tintClass = 'tint-patient-active';
+            else if (patientStatus === 'scheduled') tintClass = 'tint-patient';
+            else if (patientStatus === 'completed') tintClass = 'tint-completed';
+            else if (patientStatus === 'cancelled') tintClass = 'tint-cancelled';
+            else if (hasDoctorSchedule) tintClass = 'tint-doctor';
+
+            return (
+              <div
+                key={idx}
+                className={`day-cell ${day ? '' : 'empty'} ${isTodayCell ? 'today' : ''} ${isSelectedCell ? 'selected' : ''} ${hasPatientSchedule ? 'clickable' : ''} ${tintClass}`}
+                onClick={() => day && handleDayClick(day)}
+              >
+                {day && (
+                  <>
+                    <span className={`day-num ${patientCount > 0 || doctorCount > 0 ? 'has-event' : ''}`}>
+                      {day}
+                    </span>
+
+                    {/* Badge 표시 - 환자(노랑) / 의사(파랑) 분리 */}
+                    {(patientCount > 0 || doctorCount > 0) && (
+                      <div className="badge-row">
+                        {patientCount > 0 && (
+                          <span className="badge badge-patient" title={`환자 ${patientCount}`}>
+                            {patientCount}
+                          </span>
+                        )}
+                        {doctorCount > 0 && (
+                          <span className="badge badge-doctor" title={`의사 ${doctorCount}`}>
+                            {doctorCount}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* 범례 */}
         <div className="calendar-legend">
-          <div className="legend-item">
-            <span className="event-dot scheduled"></span>
-            <span>예약</span>
+          <div className="legend-row">
+            <span className="legend-label">환자</span>
+            <div className="legend-item"><span className="legend-box tint-patient"></span>예약</div>
+            <div className="legend-item"><span className="legend-box tint-patient-active"></span>진료중</div>
+            <div className="legend-item"><span className="legend-box tint-completed"></span>완료</div>
           </div>
-          <div className="legend-item">
-            <span className="event-dot in_progress"></span>
-            <span>진행</span>
-          </div>
-          <div className="legend-item">
-            <span className="event-dot completed"></span>
-            <span>완료</span>
-          </div>
-          <div className="legend-item">
-            <span className="event-dot doctor-schedule" style={{ backgroundColor: '#9ca3af' }}></span>
-            <span>의사일정</span>
+          <div className="legend-row">
+            <span className="legend-label">의사</span>
+            <div className="legend-item"><span className="legend-box tint-doctor"></span>일정</div>
           </div>
         </div>
+
+        {/* Empty State */}
+        {hasNoSchedules && (
+          <div className="empty-state">
+            이번 달에 등록된 진료 일정이 없습니다.
+          </div>
+        )}
       </div>
 
       <style>{`
@@ -315,87 +334,193 @@ export default function CalendarCard({
           color: var(--text-sub, #6b7280);
           padding: 4px;
         }
-        .weekday.sun { color: var(--danger, #e56b6f); }
-        .weekday.sat { color: var(--info, #5b8def); }
+        .weekday.sun { color: #e56b6f; }
+        .weekday.sat { color: #5b8def; }
+
+        /* ========== 캘린더 그리드 ========== */
         .calendar-grid {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
           gap: 2px;
         }
-        .calendar-day {
+
+        /* ========== 날짜 셀 기본 ========== */
+        .day-cell {
+          position: relative;
           aspect-ratio: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          font-size: 12px;
-          border-radius: 4px;
-          cursor: default;
-          position: relative;
+          font-size: 13px;
+          border-radius: 8px;
           color: var(--text-main, #1f2937);
+          cursor: default;
         }
-        .calendar-day.empty {
+        .day-cell.empty {
           background: transparent;
         }
-        .calendar-day.today {
-          background: var(--primary, #5b6fd6);
-          color: white;
-        }
-        .calendar-day.has-event .day-number {
-          font-weight: 600;
-        }
-        .calendar-day.clickable {
+        .day-cell.clickable {
           cursor: pointer;
         }
-        .calendar-day.clickable:hover {
-          background: var(--bg-main, #f4f6f9);
+        .day-cell.clickable:hover {
+          background: rgba(0, 0, 0, 0.04);
         }
-        .calendar-day.selected {
-          background: var(--info, #5b8def);
+
+        /* ========== Tint (inset pseudo-element) ========== */
+        .day-cell::before {
+          content: "";
+          position: absolute;
+          inset: 4px;
+          border-radius: 6px;
+          pointer-events: none;
+        }
+
+        /* 환자 - 예약 (노랑 12%) */
+        .day-cell.tint-patient::before {
+          background: rgba(245, 158, 11, 0.12);
+        }
+
+        /* 환자 - 진료중 (노랑 28%) */
+        .day-cell.tint-patient-active::before {
+          background: rgba(245, 158, 11, 0.28);
+        }
+
+        /* 완료 (초록 12%) */
+        .day-cell.tint-completed::before {
+          background: rgba(16, 185, 129, 0.12);
+        }
+
+        /* 취소 (회색 10%) */
+        .day-cell.tint-cancelled::before {
+          background: rgba(107, 114, 128, 0.10);
+        }
+
+        /* 의사 일정만 (파랑 12%) */
+        .day-cell.tint-doctor::before {
+          background: rgba(91, 141, 239, 0.12);
+        }
+
+        /* ========== 오늘 (Today) - 얇은 링 ========== */
+        .day-cell.today {
+          box-shadow: inset 0 0 0 2px rgba(91, 111, 214, 0.5);
+        }
+        .day-cell.today .day-num {
+          font-weight: 700;
+          color: #5b6fd6;
+        }
+
+        /* ========== 선택 (Selected) - outline + shadow ========== */
+        .day-cell.selected {
+          outline: 2px solid #5b8def;
+          outline-offset: -2px;
+          box-shadow: 0 4px 12px rgba(91, 141, 239, 0.25);
+          z-index: 1;
+        }
+
+        /* 선택 + 오늘 겹칠 때 */
+        .day-cell.selected.today {
+          box-shadow: inset 0 0 0 2px rgba(91, 111, 214, 0.5), 0 4px 12px rgba(91, 141, 239, 0.25);
+        }
+
+        /* ========== 날짜 숫자 ========== */
+        .day-num {
+          position: relative;
+          z-index: 1;
+          font-weight: 400;
+          line-height: 1;
+        }
+        .day-num.has-event {
+          font-weight: 600;
+        }
+
+        /* ========== Badge ========== */
+        .badge-row {
+          position: absolute;
+          top: 3px;
+          right: 3px;
+          display: flex;
+          gap: 1px;
+          z-index: 2;
+        }
+        .badge {
+          min-width: 14px;
+          height: 14px;
+          padding: 0 3px;
+          font-size: 9px;
+          font-weight: 600;
+          border-radius: 7px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           color: white;
         }
-        .calendar-day.selected:hover {
-          background: var(--info, #5b8def);
+        .badge-patient {
+          background: #f59e0b;
         }
-        .day-number {
-          margin-bottom: 2px;
+        .badge-doctor {
+          background: #5b8def;
         }
-        .day-events {
-          display: flex;
-          gap: 2px;
-        }
-        .event-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-        }
-        .event-dot.scheduled {
-          background: var(--warning, #f2a65a);
-        }
-        .event-dot.in_progress {
-          background: var(--info, #5b8def);
-        }
-        .event-dot.completed {
-          background: var(--success, #5fb3a2);
-        }
-        .event-dot.doctor-schedule {
-          border: 1px solid rgba(255, 255, 255, 0.5);
-        }
+
+        /* ========== 범례 ========== */
         .calendar-legend {
-          display: flex;
-          justify-content: center;
-          gap: 16px;
           margin-top: 12px;
-          padding-top: 8px;
+          padding-top: 10px;
           border-top: 1px solid var(--border, #e5e7eb);
-          flex-wrap: wrap;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .legend-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .legend-label {
+          font-size: 10px;
+          font-weight: 600;
+          color: var(--text-main, #1f2937);
+          min-width: 28px;
         }
         .legend-item {
           display: flex;
           align-items: center;
           gap: 4px;
-          font-size: 11px;
+          font-size: 10px;
           color: var(--text-sub, #6b7280);
+        }
+        .legend-box {
+          position: relative;
+          width: 16px;
+          height: 16px;
+          border-radius: 4px;
+          border: 1px solid rgba(0,0,0,0.08);
+        }
+        .legend-box::before {
+          content: "";
+          position: absolute;
+          inset: 2px;
+          border-radius: 2px;
+        }
+        .legend-box.tint-patient::before {
+          background: rgba(245, 158, 11, 0.12);
+        }
+        .legend-box.tint-patient-active::before {
+          background: rgba(245, 158, 11, 0.28);
+        }
+        .legend-box.tint-completed::before {
+          background: rgba(16, 185, 129, 0.12);
+        }
+        .legend-box.tint-doctor::before {
+          background: rgba(91, 141, 239, 0.12);
+        }
+
+        /* ========== Empty State ========== */
+        .empty-state {
+          padding: 20px;
+          text-align: center;
+          color: var(--text-sub, #6b7280);
+          font-size: 12px;
         }
       `}</style>
     </div>
