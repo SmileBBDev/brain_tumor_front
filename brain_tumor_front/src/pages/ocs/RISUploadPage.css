@@ -782,3 +782,88 @@
     gap: 4px;
   }
 }
+
+/* 외부기관 선택 모드 */
+.ris-upload-page .institution-mode-options {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ris-upload-page .institution-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  color: #495057;
+}
+
+.ris-upload-page .institution-mode-option:hover {
+  border-color: #9b59b6;
+  background: #faf5fc;
+}
+
+.ris-upload-page .institution-mode-option.selected {
+  border-color: #9b59b6;
+  background: #f5eef8;
+  color: #8e44ad;
+}
+
+.ris-upload-page .institution-mode-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #9b59b6;
+  cursor: pointer;
+}
+
+/* Orthanc 업로드 버튼 */
+.ris-upload-page .orthanc-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  background: #3498db;
+  color: #fff;
+}
+
+.ris-upload-page .orthanc-btn:hover {
+  background: #2980b9;
+}
+
+.ris-upload-page .orthanc-btn:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+}
+
+/* Orthanc 버튼 상태별 색상 */
+.ris-upload-page .orthanc-btn.success {
+  background: #27ae60;
+}
+
+.ris-upload-page .orthanc-btn.error {
+  background: #e74c3c;
+}
+
+@media (max-width: 768px) {
+  .ris-upload-page .institution-mode-options {
+    flex-direction: column;
+  }
+
+  .ris-upload-page .upload-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ris-upload-page .upload-actions button {
+    width: 100%;
+    max-width: 280px;
+  }
+}

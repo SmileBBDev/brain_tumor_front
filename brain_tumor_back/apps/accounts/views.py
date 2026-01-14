@@ -161,3 +161,35 @@ class ChangePasswordView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+# ========== External Institution Views ==========
+
+# 7. 외부기관(EXTERNAL 역할) 사용자 목록 조회
+class ExternalInstitutionListView(APIView):
+    """
+    외부기관(EXTERNAL 역할) 사용자 목록 조회
+
+    GET: EXTERNAL 역할의 활성 사용자 목록 반환
+    - 기관명(name), 기관코드(login_id) 형태로 제공
+    - RIS 업로드 페이지에서 외부기관 선택 드롭다운용
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        external_users = User.objects.filter(
+            role__code='EXTERNAL',
+            is_active=True
+        ).select_related('role').order_by('name')
+
+        institutions = [
+            {
+                'id': user.id,
+                'name': user.name,  # 기관명
+                'code': user.login_id,  # 기관코드 (login_id를 코드로 사용)
+                'email': user.email or '',
+            }
+            for user in external_users
+        ]
+
+        return Response(institutions)
+

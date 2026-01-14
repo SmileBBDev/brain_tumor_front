@@ -6,6 +6,7 @@ from .views import (
     UserToggleActiveView,
     MyProfileView,
     ChangePasswordView,
+    ExternalInstitutionListView,
 )
 
 # 사용자 관리 API 엔드포인트 정의
@@ -16,6 +17,9 @@ urlpatterns = [
     # 내 정보 (MyPage)
     path("me/", MyProfileView.as_view(), name="my-profile"),
     path("me/change-password/", ChangePasswordView.as_view(), name="change-password"),
+
+    # 외부기관(EXTERNAL 역할) 목록 조회
+    path("external-institutions/", ExternalInstitutionListView.as_view(), name="external-institutions"),
 
     # 특정 사용자 상세 조회, 수정, 삭제 (관리자)
     path("<int:pk>/", UserDetailView.as_view(), name="user-detail"),

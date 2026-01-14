@@ -178,6 +178,7 @@ def setup_roles():
         ('PATIENT', 'Patient', '환자'),
         ('RIS', 'RIS', '영상과'),
         ('LIS', 'LIS', '검사과'),
+        ('EXTERNAL', 'External', '외부기관'),
     ]
 
     created_count = 0
@@ -407,6 +408,47 @@ def setup_test_users():
             'departmentId': 31,
             'title': '진단검사의학과 임상병리사',
         }),
+        # EXTERNAL 역할 사용자 (외부기관) - 외부 영상의학과, 검진센터 등
+        ('ext_snuh', 'ext_snuh001', '서울대학교병원', 'contact@snuh.org', 'EXTERNAL', False, {
+            'birthDate': None,
+            'phoneMobile': '02-2072-2114',
+            'phoneOffice': '02-2072-2114',
+            'hireDate': None,
+            'departmentId': None,
+            'title': '외부기관 - 서울대학교병원',
+        }),
+        ('ext_amc', 'ext_amc001', '서울아산병원', 'contact@amc.seoul.kr', 'EXTERNAL', False, {
+            'birthDate': None,
+            'phoneMobile': '1688-7575',
+            'phoneOffice': '02-3010-3114',
+            'hireDate': None,
+            'departmentId': None,
+            'title': '외부기관 - 서울아산병원',
+        }),
+        ('ext_smc', 'ext_smc001', '삼성서울병원', 'contact@samsung.com', 'EXTERNAL', False, {
+            'birthDate': None,
+            'phoneMobile': '1599-3114',
+            'phoneOffice': '02-3410-2114',
+            'hireDate': None,
+            'departmentId': None,
+            'title': '외부기관 - 삼성서울병원',
+        }),
+        ('ext_yuhs', 'ext_yuhs001', '세브란스병원', 'contact@yuhs.ac', 'EXTERNAL', False, {
+            'birthDate': None,
+            'phoneMobile': '1599-1004',
+            'phoneOffice': '02-2228-0114',
+            'hireDate': None,
+            'departmentId': None,
+            'title': '외부기관 - 세브란스병원',
+        }),
+        ('ext_cnuh', 'ext_cnuh001', '전남대학교병원', 'contact@cnuh.co.kr', 'EXTERNAL', False, {
+            'birthDate': None,
+            'phoneMobile': '062-220-5114',
+            'phoneOffice': '062-220-5114',
+            'hireDate': None,
+            'departmentId': None,
+            'title': '외부기관 - 전남대학교병원',
+        }),
     ]
 
     created_count = 0
@@ -583,7 +625,7 @@ def load_menu_permission_seed():
 
     # 최상위 메뉴
     menu_admin, _ = create_menu(1, code='ADMIN', path=None, icon='settings', order=7, is_active=True)
-    menu_ai, _ = create_menu(2, code='AI_SUMMARY', path=None, icon='brain', order=6, is_active=True)
+    menu_ai, _ = create_menu(2, code='AI', path=None, icon=None, group_label='AI 분석', order=6, is_active=True)
     menu_dashboard, _ = create_menu(3, code='DASHBOARD', path='/dashboard', icon='home', order=1, is_active=True)
     menu_imaging, _ = create_menu(4, code='IMAGING', path=None, icon=None, group_label='영상', order=4, is_active=True)
     menu_lab, _ = create_menu(5, code='LAB', path=None, icon=None, group_label='검사', order=5, is_active=True)
@@ -643,10 +685,13 @@ def load_menu_permission_seed():
     # LIS Result Upload 메뉴 (LAB 그룹)
     create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', icon='upload', order=5, is_active=True, parent=menu_lab)
 
-    # AI 추론 요청 메뉴 (AI_SUMMARY 하위) - AI_REQUEST_LIST는 사이드바에 표시하지 않음 (breadcrumb_only)
-    menu_ai_request, _ = create_menu(33, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', breadcrumb_only=False, order=1, is_active=True, parent=menu_ai)
-    create_menu(34, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
-    create_menu(35, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=3, is_active=True, parent=menu_ai_request)
+    # AI 하위 메뉴 (IMAGING, LAB과 동일한 패턴)
+    create_menu(33, code='AI_VIEWER', path='/ai', icon='brain', order=1, is_active=True, parent=menu_ai)
+    menu_ai_request, _ = create_menu(34, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=2, is_active=True, parent=menu_ai)
+    create_menu(35, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=1, is_active=True, parent=menu_ai_request)
+    create_menu(44, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
+    create_menu(42, code='AI_PROCESS_STATUS', path='/ai/process-status', icon='chart-bar', order=3, is_active=True, parent=menu_ai)
+    create_menu(43, code='AI_MODELS', path='/ai/models', icon='cpu', order=4, is_active=True, parent=menu_ai)
 
     # 진료 보고서 메뉴
     menu_report, _ = create_menu(38, code='REPORT', path=None, icon='file-text', group_label='보고서', order=8, is_active=True)
@@ -730,11 +775,14 @@ def load_menu_permission_seed():
         (14, 'DEFAULT', '영상 조회'),
         (15, 'DEFAULT', '판독 Worklist'),
         # AI
-        (2, 'DEFAULT', 'AI 분석 요약'),
-        (33, 'DEFAULT', 'AI 분석 요청'),
-        (33, 'DOCTOR', 'AI 분석 요청'),
-        (34, 'DEFAULT', 'AI 분석 요청 생성'),
-        (35, 'DEFAULT', 'AI 분석 요청 상세'),
+        (2, 'DEFAULT', 'AI 분석'),
+        (33, 'DEFAULT', 'AI 분석 뷰어'),
+        (34, 'DEFAULT', 'AI 요청 목록'),
+        (34, 'DOCTOR', 'AI 분석 요청'),
+        (35, 'DEFAULT', 'AI 요청 생성'),
+        (44, 'DEFAULT', 'AI 요청 상세'),
+        (42, 'DEFAULT', 'AI 처리 현황'),
+        (43, 'DEFAULT', 'AI 모델 정보'),
         # LAB
         (5, 'DEFAULT', '검사'),
         (17, 'DEFAULT', '검사 조회'),  # 검사 결과 조회 → 검사 조회
@@ -783,14 +831,14 @@ def load_menu_permission_seed():
             'OCS_RIS', 'OCS_RIS_DETAIL', 'OCS_LIS', 'OCS_LIS_DETAIL',
             'IMAGING', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD',
             'LAB', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'LIS_PROCESS_STATUS',
-            'AI_SUMMARY', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL',
+            'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'AI_PROCESS_STATUS', 'AI_MODELS',
             'REPORT', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL',
             'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG', 'ADMIN_SYSTEM_MONITOR'
         ],
-        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI_SUMMARY', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'REPORT', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL'],
+        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'REPORT', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL'],
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW'],  # PATIENT_CARE 제거 (DOCTOR, SYSTEMMANAGER만), NURSE_RECEPTION은 Dashboard로 통합됨
-        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD'],
-        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS'],
+        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST'],
+        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST'],
     }
 
     for role_code, menu_codes in role_menu_permissions.items():

@@ -104,69 +104,70 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Patient Selection */
-.patient-selection .search-box {
+/* Patient Selection - Searchable Dropdown */
+.patient-selection .searchable-dropdown {
   display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.patient-selection .search-box input {
-  flex: 1;
+.patient-selection .searchable-dropdown label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.patient-selection .search-input {
   padding: 0.75rem 1rem;
   border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 1rem;
 }
 
-.patient-selection .search-box input:focus {
+.patient-selection .search-input:focus {
   outline: none;
   border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.patient-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.patient-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.25rem;
-  border: 1px solid #e5e7eb;
+.patient-selection .searchable-select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
   border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s;
+  font-size: 0.95rem;
+  min-height: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #fff;
 }
 
-.patient-card:hover {
+.patient-selection .searchable-select:focus {
+  outline: none;
   border-color: #2563eb;
-  background: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.patient-card .patient-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.patient-selection .searchable-select option {
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.patient-card .patient-name {
-  font-weight: 600;
-  font-size: 1rem;
+.patient-selection .searchable-select option:hover {
+  background-color: #f0f9ff;
 }
 
-.patient-card .patient-number {
-  color: #666;
+.patient-selection .searchable-select option:checked {
+  background: linear-gradient(0deg, #2563eb 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.patient-selection .search-info {
   font-size: 0.875rem;
-}
-
-.patient-card .patient-details {
-  display: flex;
-  gap: 1rem;
   color: #666;
-  font-size: 0.875rem;
+  margin-top: 0.5rem;
 }
 
 .empty-result {

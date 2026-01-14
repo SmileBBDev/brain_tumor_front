@@ -80,3 +80,19 @@ export const updateUser = async (
 export const deleteUser = async (id: number) => {
   await api.delete(`/users/${id}/toggle-active/`);
 };
+
+// ========== 외부기관 (EXTERNAL) API ==========
+
+/* 외부기관 정보 타입 */
+export interface ExternalInstitution {
+  id: number;
+  name: string;  // 기관명
+  code: string;  // 기관코드
+  email: string;
+}
+
+/* 외부기관 목록 조회 */
+export const fetchExternalInstitutions = async (): Promise<ExternalInstitution[]> => {
+  const res = await api.get<ExternalInstitution[]>('/users/external-institutions/');
+  return res.data;
+};

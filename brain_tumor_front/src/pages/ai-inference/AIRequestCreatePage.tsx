@@ -4,12 +4,11 @@
  * - 모델 선택 및 데이터 검증
  * - 추론 요청 생성
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-// useAuth import removed - not used
 import { usePatientAvailableModels, useCreateAIRequest } from '@/hooks';
 import { LoadingSpinner, useToast } from '@/components/common';
-import { searchPatients } from '@/services/patient.api';
+import { getPatients, searchPatients } from '@/services/patient.api';
 import type { AvailableModel, DataValidationResult } from '@/services/ai.api';
 import './AIRequestCreatePage.css';
 
@@ -31,9 +30,9 @@ export default function AIRequestCreatePage() {
 
   // 상태
   const [step, setStep] = useState<'patient' | 'model' | 'confirm'>('patient');
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Patient[]>([]);
-  const [searching, setSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedModel, setSelectedModel] = useState<AvailableModel | null>(null);
   const [priority, setPriority] = useState<string>('normal');
@@ -45,39 +44,45 @@ export default function AIRequestCreatePage() {
   );
   const { create, validate, creating, validating, error } = useCreateAIRequest();
 
+  // 환자 목록 로드 (컴포넌트 마운트 시 1회만 실행)
+  useEffect(() => {
+    const loadPatients = async () => {
+      setPatientsLoading(true);
+      try {
+        const response = await getPatients({ page: 1, page_size: 1000 });
+        const patientList = Array.isArray(response) ? response : response.results || [];
+        setPatients(patientList);
+      } catch (err) {
+        console.error('Failed to load patients:', err);
+      } finally {
+        setPatientsLoading(false);
+      }
+    };
+    loadPatients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 초기 환자 ID로 환자 정보 조회
   useEffect(() => {
-    if (initialPatientId) {
-      const fetchPatient = async () => {
-        try {
-          const results = await searchPatients({ id: Number(initialPatientId) });
-          if (results.length > 0) {
-            setSelectedPatient(results[0]);
-            setStep('model');
-          }
-        } catch (err) {
-          console.error('Failed to fetch patient:', err);
-        }
-      };
-      fetchPatient();
+    if (initialPatientId && patients.length > 0) {
+      const patient = patients.find(p => p.id === Number(initialPatientId));
+      if (patient) {
+        setSelectedPatient(patient);
+        setStep('model');
+      }
     }
-  }, [initialPatientId]);
+  }, [initialPatientId, patients]);
 
-  // 환자 검색
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-
-    setSearching(true);
-    try {
-      const results = await searchPatients({ q: searchQuery });
-      setSearchResults(results);
-    } catch (err) {
-      console.error('Failed to search patients:', err);
-      toast.error('환자 검색에 실패했습니다.');
-    } finally {
-      setSearching(false);
-    }
-  }, [searchQuery, toast]);
+  // 검색어로 필터링된 환자 목록
+  const filteredPatients = useMemo(() => {
+    if (!searchQuery.trim()) return patients;
+    const query = searchQuery.toLowerCase();
+    return patients.filter(
+      (patient) =>
+        patient.name.toLowerCase().includes(query) ||
+        patient.patient_number.toLowerCase().includes(query)
+    );
+  }, [patients, searchQuery]);
 
   // 환자 선택
   const handleSelectPatient = useCallback((patient: Patient) => {
@@ -176,45 +181,47 @@ export default function AIRequestCreatePage() {
       {/* Step 1: 환자 선택 */}
       {step === 'patient' && (
         <section className="step-content patient-selection">
-          <div className="search-box">
+          <div className="searchable-dropdown">
+            <label>환자 선택</label>
             <input
               type="text"
+              className="search-input"
               placeholder="환자명 또는 환자번호로 검색"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
-            <button className="btn btn-primary" onClick={handleSearch} disabled={searching}>
-              {searching ? '검색 중...' : '검색'}
-            </button>
+            {patientsLoading ? (
+              <LoadingSpinner text="환자 목록을 불러오는 중..." />
+            ) : (
+              <select
+                className="searchable-select"
+                size={10}
+                value={selectedPatient?.id || ''}
+                onChange={(e) => {
+                  const patient = patients.find(p => p.id === Number(e.target.value));
+                  if (patient) {
+                    handleSelectPatient(patient);
+                  }
+                }}
+              >
+                <option value="">환자를 선택하세요</option>
+                {filteredPatients.map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.patient_number} - {patient.name} ({patient.gender === 'M' ? '남' : '여'}, {patient.birth_date})
+                  </option>
+                ))}
+              </select>
+            )}
+            {searchQuery && filteredPatients.length === 0 && !patientsLoading && (
+              <div className="empty-result">
+                <p>검색 결과가 없습니다.</p>
+              </div>
+            )}
+            <div className="search-info">
+              총 {filteredPatients.length}명의 환자
+              {searchQuery && ` (검색어: "${searchQuery}")`}
+            </div>
           </div>
-
-          {searching ? (
-            <LoadingSpinner text="환자를 검색하는 중..." />
-          ) : searchResults.length > 0 ? (
-            <div className="patient-list">
-              {searchResults.map((patient) => (
-                <div
-                  key={patient.id}
-                  className="patient-card"
-                  onClick={() => handleSelectPatient(patient)}
-                >
-                  <div className="patient-info">
-                    <span className="patient-name">{patient.name}</span>
-                    <span className="patient-number">{patient.patient_number}</span>
-                  </div>
-                  <div className="patient-details">
-                    <span>{patient.birth_date}</span>
-                    <span>{patient.gender === 'M' ? '남' : '여'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : searchQuery && !searching ? (
-            <div className="empty-result">
-              <p>검색 결과가 없습니다.</p>
-            </div>
-          ) : null}
         </section>
       )}
 

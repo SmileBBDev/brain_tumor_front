@@ -16,7 +16,12 @@ import {
   createExternalPatient,
   type CreateExternalPatientRequest,
 } from '@/services/patient.api';
+import {
+  fetchExternalInstitutions,
+  type ExternalInstitution,
+} from '@/services/users.api';
 import { api } from '@/services/api';
+import { EP } from '@/api/endpoints';
 import type { OCSListItem } from '@/types/ocs';
 import './RISUploadPage.css';
 
@@ -47,13 +52,16 @@ interface PatientOption {
   patient_number: string;
 }
 
-// 외부 기관 정보 (선택적)
+// 외부 기관 정보 (선택적) - 수동 입력용
 interface ExternalInstitutionInfo {
   institutionName: string;
   institutionCode: string;
   contactNumber: string;
   address: string;
 }
+
+// 외부기관 선택 모드
+type InstitutionMode = 'select' | 'manual';
 
 // 촬영 정보 (선택적)
 interface ImagingExecutionInfo {
@@ -171,13 +179,22 @@ export default function RISUploadPage() {
   // 추가 정보 섹션 토글
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
 
-  // 외부 기관 정보 (선택적)
+  // 외부기관 선택/수동입력 모드
+  const [institutionMode, setInstitutionMode] = useState<InstitutionMode>('select');
+  const [externalInstitutions, setExternalInstitutions] = useState<ExternalInstitution[]>([]);
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState<number | null>(null);
+  const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(false);
+
+  // 외부 기관 정보 (수동 입력용)
   const [institutionInfo, setInstitutionInfo] = useState<ExternalInstitutionInfo>({
     institutionName: '',
     institutionCode: '',
     contactNumber: '',
     address: '',
   });
+
+  // Orthanc 업로드 상태
+  const [orthancUploadStatus, setOrthancUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   // 촬영 수행 정보 (선택적)
   const [executionInfo, setExecutionInfo] = useState<ImagingExecutionInfo>({
@@ -210,6 +227,22 @@ export default function RISUploadPage() {
       }
     };
     loadPatients();
+  }, []);
+
+  // 외부기관 목록 로드
+  useEffect(() => {
+    const loadInstitutions = async () => {
+      setIsLoadingInstitutions(true);
+      try {
+        const data = await fetchExternalInstitutions();
+        setExternalInstitutions(data);
+      } catch (error) {
+        console.error('외부기관 목록 로드 실패:', error);
+      } finally {
+        setIsLoadingInstitutions(false);
+      }
+    };
+    loadInstitutions();
   }, []);
 
   // RIS OCS 목록 로드
@@ -355,19 +388,71 @@ export default function RISUploadPage() {
   };
 
   // 외부 기관 정보 구성
-  const buildExternalData = (): RISExternalSourceData => ({
-    institution_name: institutionInfo.institutionName || undefined,
-    institution_code: institutionInfo.institutionCode || undefined,
-    institution_contact: institutionInfo.contactNumber || undefined,
-    institution_address: institutionInfo.address || undefined,
-    performed_date: executionInfo.performedDate || undefined,
-    performed_by: executionInfo.performedBy || undefined,
-    modality: executionInfo.modality || undefined,
-    body_part: executionInfo.bodyPart || undefined,
-    equipment_certification_number: qualityInfo.equipmentCertificationNumber || undefined,
-    qc_status: qualityInfo.qcStatus || undefined,
-    is_verified: qualityInfo.isVerified ? 'true' : 'false',
-  });
+  const buildExternalData = (): RISExternalSourceData => {
+    // 외부기관 선택 모드이면 선택된 기관 정보 사용
+    let instName = institutionInfo.institutionName;
+    let instCode = institutionInfo.institutionCode;
+
+    if (institutionMode === 'select' && selectedInstitutionId) {
+      const selectedInst = externalInstitutions.find(i => i.id === selectedInstitutionId);
+      if (selectedInst) {
+        instName = selectedInst.name;
+        instCode = selectedInst.code;
+      }
+    }
+
+    return {
+      institution_name: instName || undefined,
+      institution_code: instCode || undefined,
+      institution_contact: institutionInfo.contactNumber || undefined,
+      institution_address: institutionInfo.address || undefined,
+      performed_date: executionInfo.performedDate || undefined,
+      performed_by: executionInfo.performedBy || undefined,
+      modality: executionInfo.modality || undefined,
+      body_part: executionInfo.bodyPart || undefined,
+      equipment_certification_number: qualityInfo.equipmentCertificationNumber || undefined,
+      qc_status: qualityInfo.qcStatus || undefined,
+      is_verified: qualityInfo.isVerified ? 'true' : 'false',
+    };
+  };
+
+  // Orthanc에 파일 업로드
+  const handleOrthancUpload = async () => {
+    if (!selectedFile) {
+      addLog('Orthanc', 0, 'error', 'DICOM 파일을 먼저 선택해주세요.');
+      return;
+    }
+
+    // DICOM 파일인지 확인
+    const extension = '.' + selectedFile.name.split('.').pop()?.toLowerCase();
+    if (!['.dcm', '.dicom'].includes(extension)) {
+      addLog(selectedFile.name, selectedFile.size, 'error', 'DICOM 파일(.dcm, .dicom)만 Orthanc에 업로드할 수 있습니다.');
+      return;
+    }
+
+    setOrthancUploadStatus('uploading');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      await api.post(EP.orthanc.uploadPatient, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setOrthancUploadStatus('success');
+      addLog(selectedFile.name, selectedFile.size, 'success', 'Orthanc PACS에 업로드 완료');
+
+      // 3초 후 상태 초기화
+      setTimeout(() => setOrthancUploadStatus('idle'), 3000);
+    } catch (error: any) {
+      setOrthancUploadStatus('error');
+      const errorMsg = error.response?.data?.error || 'Orthanc 업로드 중 오류가 발생했습니다.';
+      addLog(selectedFile.name, selectedFile.size, 'error', errorMsg);
+
+      setTimeout(() => setOrthancUploadStatus('idle'), 3000);
+    }
+  };
 
   // 실제 업로드/등록
   const handleUpload = async () => {
@@ -488,11 +573,14 @@ export default function RISUploadPage() {
     setSelectedFile(null);
     setUploadStatus('idle');
     setProgressPercent(0);
+    setOrthancUploadStatus('idle');
     // 새 환자 정보 초기화
     setNewPatientName('');
     setNewPatientBirthDate('');
     setNewPatientGender('M');
     setNewPatientPhone('');
+    // 외부기관 선택 초기화
+    setSelectedInstitutionId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -830,8 +918,22 @@ export default function RISUploadPage() {
                 onClick={handleUpload}
                 disabled={!isUploadEnabled || uploadStatus !== 'idle'}
               >
-                {uploadStatus === 'uploading' || uploadStatus === 'parsing' ? '처리 중...' : '업로드 시작'}
+                {uploadStatus === 'uploading' || uploadStatus === 'parsing' ? '처리 중...' : 'OCS 등록'}
               </button>
+              {/* Orthanc PACS 업로드 버튼 (DICOM 파일만) */}
+              {selectedFile && (
+                <button
+                  className="orthanc-btn"
+                  onClick={handleOrthancUpload}
+                  disabled={orthancUploadStatus === 'uploading' || uploadStatus !== 'idle'}
+                  title="DICOM 파일을 Orthanc PACS에 저장합니다"
+                >
+                  {orthancUploadStatus === 'uploading' ? 'Orthanc 저장 중...' :
+                   orthancUploadStatus === 'success' ? 'Orthanc 저장 완료!' :
+                   orthancUploadStatus === 'error' ? '저장 실패' :
+                   'Orthanc에 저장'}
+                </button>
+              )}
               {selectedFile && (
                 <button className="cancel-btn" onClick={handleCancel} disabled={uploadStatus !== 'idle'}>
                   취소
@@ -860,44 +962,126 @@ export default function RISUploadPage() {
             {/* 외부 기관 정보 */}
             <div className="info-group">
               <h4>외부 기관 정보</h4>
-              <div className="form-grid">
-                <div className="form-field">
-                  <label>기관명</label>
+
+              {/* 기관 선택 모드 */}
+              <div className="institution-mode-options">
+                <label className={`institution-mode-option ${institutionMode === 'select' ? 'selected' : ''}`}>
                   <input
-                    type="text"
-                    placeholder="예: 서울대학교병원 영상의학과"
-                    value={institutionInfo.institutionName}
-                    onChange={(e) => setInstitutionInfo({ ...institutionInfo, institutionName: e.target.value })}
+                    type="radio"
+                    name="institutionMode"
+                    value="select"
+                    checked={institutionMode === 'select'}
+                    onChange={() => {
+                      setInstitutionMode('select');
+                      setInstitutionInfo({ institutionName: '', institutionCode: '', contactNumber: '', address: '' });
+                    }}
                   />
-                </div>
-                <div className="form-field">
-                  <label>기관 코드</label>
+                  <span>등록된 기관 선택</span>
+                </label>
+                <label className={`institution-mode-option ${institutionMode === 'manual' ? 'selected' : ''}`}>
                   <input
-                    type="text"
-                    placeholder="예: SNUH-RAD-001"
-                    value={institutionInfo.institutionCode}
-                    onChange={(e) => setInstitutionInfo({ ...institutionInfo, institutionCode: e.target.value })}
+                    type="radio"
+                    name="institutionMode"
+                    value="manual"
+                    checked={institutionMode === 'manual'}
+                    onChange={() => {
+                      setInstitutionMode('manual');
+                      setSelectedInstitutionId(null);
+                    }}
                   />
-                </div>
-                <div className="form-field">
-                  <label>연락처</label>
-                  <input
-                    type="tel"
-                    placeholder="예: 02-1234-5678"
-                    value={institutionInfo.contactNumber}
-                    onChange={(e) => setInstitutionInfo({ ...institutionInfo, contactNumber: e.target.value })}
-                  />
-                </div>
-                <div className="form-field full-width">
-                  <label>주소</label>
-                  <input
-                    type="text"
-                    placeholder="예: 서울특별시 종로구 대학로 101"
-                    value={institutionInfo.address}
-                    onChange={(e) => setInstitutionInfo({ ...institutionInfo, address: e.target.value })}
-                  />
-                </div>
+                  <span>직접 입력</span>
+                </label>
               </div>
+
+              {institutionMode === 'select' ? (
+                /* 등록된 기관 드롭다운 */
+                <div className="form-grid">
+                  <div className="form-field full-width">
+                    <label>외부기관 선택</label>
+                    <select
+                      className="main-select"
+                      value={selectedInstitutionId || ''}
+                      onChange={(e) => setSelectedInstitutionId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">외부기관을 선택하세요</option>
+                      {isLoadingInstitutions ? (
+                        <option disabled>로딩 중...</option>
+                      ) : externalInstitutions.length === 0 ? (
+                        <option disabled>등록된 외부기관이 없습니다</option>
+                      ) : (
+                        externalInstitutions.map((inst) => (
+                          <option key={inst.id} value={inst.id}>
+                            {inst.name} ({inst.code})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    {selectedInstitutionId && (
+                      <p className="form-hint">
+                        선택된 기관: {externalInstitutions.find(i => i.id === selectedInstitutionId)?.name}
+                      </p>
+                    )}
+                  </div>
+                  <div className="form-field">
+                    <label>연락처 (선택)</label>
+                    <input
+                      type="tel"
+                      placeholder="예: 02-1234-5678"
+                      value={institutionInfo.contactNumber}
+                      onChange={(e) => setInstitutionInfo({ ...institutionInfo, contactNumber: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>주소 (선택)</label>
+                    <input
+                      type="text"
+                      placeholder="예: 서울특별시 종로구 대학로 101"
+                      value={institutionInfo.address}
+                      onChange={(e) => setInstitutionInfo({ ...institutionInfo, address: e.target.value })}
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* 직접 입력 */
+                <div className="form-grid">
+                  <div className="form-field">
+                    <label>기관명</label>
+                    <input
+                      type="text"
+                      placeholder="예: 서울대학교병원 영상의학과"
+                      value={institutionInfo.institutionName}
+                      onChange={(e) => setInstitutionInfo({ ...institutionInfo, institutionName: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>기관 코드</label>
+                    <input
+                      type="text"
+                      placeholder="예: SNUH-RAD-001"
+                      value={institutionInfo.institutionCode}
+                      onChange={(e) => setInstitutionInfo({ ...institutionInfo, institutionCode: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>연락처</label>
+                    <input
+                      type="tel"
+                      placeholder="예: 02-1234-5678"
+                      value={institutionInfo.contactNumber}
+                      onChange={(e) => setInstitutionInfo({ ...institutionInfo, contactNumber: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-field full-width">
+                    <label>주소</label>
+                    <input
+                      type="text"
+                      placeholder="예: 서울특별시 종로구 대학로 101"
+                      value={institutionInfo.address}
+                      onChange={(e) => setInstitutionInfo({ ...institutionInfo, address: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 촬영 수행 정보 */}
