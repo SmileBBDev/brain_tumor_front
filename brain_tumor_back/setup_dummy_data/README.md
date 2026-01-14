@@ -33,33 +33,35 @@ Brain Tumor CDSS 프로젝트의 개발/테스트용 더미 데이터 생성 시
 
 ```
 setup_dummy_data/
-├── main.py                          # 통합 실행 래퍼 (진입점)
-├── __main__.py                      # python -m setup_dummy_data 지원
-├── __init__.py                      # 패키지 초기화
-├── setup_dummy_data_1_base.py       # 기본 데이터 (필수)
-├── setup_dummy_data_2_add.py        # 추가 데이터 (선택)
-├── setup_dummy_data_3_prescriptions.py  # 처방 데이터 (선택)
-├── DB_SETUP_GUIDE.md                # DB 설정 가이드
-└── README.md                        # 이 문서
+├── main.py                              # 통합 실행 래퍼 (진입점)
+├── __main__.py                          # python -m setup_dummy_data 지원
+├── __init__.py                          # 패키지 초기화
+├── setup_dummy_data_1_base.py           # 기본 데이터 (역할, 사용자, 메뉴/권한)
+├── setup_dummy_data_2_clinical.py       # 임상 데이터 (환자, 진료, OCS, AI, 치료, 경과, 처방)
+├── setup_dummy_data_3_extended.py       # 확장 데이터 (대량 진료/OCS, 오늘 진료, 일정)
+├── DB_SETUP_GUIDE.md                    # DB 설정 가이드
+└── README.md                            # 이 문서
 ```
 
 ### 계층 구조
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      main.py (통합 래퍼)                      │
-├─────────────────────────────────────────────────────────────┤
-│  1_base.py    │    2_add.py     │   3_prescriptions.py     │
-│  (기본 데이터)  │   (추가 데이터)   │     (처방 데이터)         │
-├───────────────┼─────────────────┼──────────────────────────┤
-│  - DB 생성     │  - 치료 계획     │  - 처방전                 │
-│  - 마이그레이션 │  - 경과 추적     │  - 처방 항목              │
-│  - 역할/사용자  │  - AI 요청      │                          │
-│  - 메뉴/권한   │                 │                          │
-│  - 환자/진료   │                 │                          │
-│  - OCS/영상   │                 │                          │
-│  - AI 모델    │                 │                          │
-└───────────────┴─────────────────┴──────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           main.py (통합 래퍼)                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│    1_base.py        │    2_clinical.py       │    3_extended.py             │
+│    (기본)            │    (임상)               │    (확장)                    │
+├─────────────────────┼────────────────────────┼──────────────────────────────┤
+│  - DB 생성           │ - 환자 50명             │ - 확장 진료 150건            │
+│  - 마이그레이션       │ - 진료 20건             │ - 확장 OCS RIS 100건         │
+│  - 역할 7개          │ - OCS (RIS 30건)        │ - 확장 OCS LIS 80건          │
+│  - 사용자 10명       │ - OCS (LIS 20건)        │ - 오늘 예약 진료             │
+│  - 메뉴/권한         │ - AI 모델 3개           │ - 공유 일정                  │
+│                     │ - 치료 계획 15건         │ - 개인 일정                  │
+│                     │ - 경과 추적 25건         │                              │
+│                     │ - AI 요청 10건           │                              │
+│                     │ - 처방 20건              │                              │
+└─────────────────────┴────────────────────────┴──────────────────────────────┘
 ```
 
 ---
@@ -82,22 +84,28 @@ else:
 ### 2. 계층적 의존성 (Layered Dependencies)
 
 ```
-1_base (기본) ──► 2_add (추가) ──► 3_prescriptions (처방)
-     │                │                    │
-     ▼                ▼                    ▼
-  역할/사용자       치료계획              처방전
-  메뉴/권한        경과추적              처방항목
-  환자/진료        AI요청
-  OCS/영상
-  AI모델
+1_base (기본) ──► 2_clinical (임상) ──► 3_extended (확장)
+     │                   │                    │
+     ▼                   ▼                    ▼
+  역할/사용자           환자                 대량 진료
+  메뉴/권한            진료/OCS              오늘 진료
+                      AI모델                 일정
+                      치료/경과
+                      처방
 ```
 
 각 스크립트는 이전 단계의 데이터에 의존합니다.
 
-### 3. 목표 수량 기반 생성
+### 3. 데이터 일관성
+
+- **환자 데이터**: `setup_dummy_data_2_clinical.py`에서 통합 관리 (50명)
+- **OCS 데이터**: 담당 의사-환자 관계(진료 기록)에 기반하여 생성
+- **동명이인 금지**: 모든 사용자/환자 이름은 고유
+
+### 4. 목표 수량 기반 생성
 
 ```python
-def create_dummy_patients(target_count=30, force=False):
+def create_dummy_patients(target_count=50, force=False):
     existing = Patient.objects.filter(is_deleted=False).count()
 
     # 이미 목표 수량 이상이면 SKIP
@@ -109,7 +117,7 @@ def create_dummy_patients(target_count=30, force=False):
     to_create = target_count - existing
 ```
 
-### 4. 트랜잭션 안전성
+### 5. 트랜잭션 안전성
 
 ```python
 from django.db import transaction
@@ -144,8 +152,8 @@ python setup_dummy_data/main.py
 | `--reset` | 기존 데이터 삭제 후 새로 생성 |
 | `--force` | 목표 수량 이상이어도 강제 추가 |
 | `--base` | 기본 데이터만 생성 (1_base) |
-| `--add` | 추가 데이터만 생성 (2_add) |
-| `--prescriptions` | 처방 데이터만 생성 (3_prescriptions) |
+| `--clinical` | 임상 데이터만 생성 (2_clinical) |
+| `--extended` | 확장 데이터만 생성 (3_extended) |
 | `--menu` | 메뉴/권한만 업데이트 |
 | `-y, --yes` | 확인 없이 자동 실행 |
 
@@ -155,14 +163,33 @@ python setup_dummy_data/main.py
 # 전체 초기화 후 재생성
 python -m setup_dummy_data --reset
 
+# 확인 없이 자동 초기화
+python -m setup_dummy_data --reset -y
+
 # 메뉴/권한만 업데이트 (네비게이션 반영)
 python -m setup_dummy_data --menu
 
 # 기본 데이터만 강제 추가
 python -m setup_dummy_data --base --force
 
-# 처방 데이터 초기화 후 재생성
-python -m setup_dummy_data --prescriptions --reset
+# 임상 데이터만 생성
+python -m setup_dummy_data --clinical
+
+# 확장 데이터만 생성
+python -m setup_dummy_data --extended
+```
+
+### 개별 스크립트 실행
+
+```bash
+# 기본 데이터만 (역할, 사용자, 메뉴/권한)
+python setup_dummy_data/setup_dummy_data_1_base.py [--reset] [--force]
+
+# 임상 데이터만 (환자, 진료, OCS, AI, 치료, 경과, 처방)
+python setup_dummy_data/setup_dummy_data_2_clinical.py [--reset] [--force]
+
+# 확장 데이터만 (대량 진료/OCS, 오늘 진료, 일정)
+python setup_dummy_data/setup_dummy_data_3_extended.py [--reset] [--force]
 ```
 
 ---
@@ -173,14 +200,14 @@ python -m setup_dummy_data --prescriptions --reset
 
 ```python
 def main():
-    # 1. 기본 데이터
+    # 1. 기본 데이터 (역할, 사용자, 메뉴/권한)
     run_script('setup_dummy_data_1_base.py', args)
 
-    # 2. 추가 데이터
-    run_script('setup_dummy_data_2_add.py', args)
+    # 2. 임상 데이터 (환자, 진료, OCS, AI, 치료, 경과, 처방)
+    run_script('setup_dummy_data_2_clinical.py', args)
 
-    # 3. 처방 데이터
-    run_script('setup_dummy_data_3_prescriptions.py', args)
+    # 3. 확장 데이터 (대량 진료/OCS, 오늘 진료, 일정)
+    run_script('setup_dummy_data_3_extended.py', args)
 
     # 4. 추가 사용자 (admin2, nurse2...)
     create_additional_users()
@@ -200,38 +227,53 @@ create_database_if_not_exists()  # DB 자동 생성
 run_migrations()                  # makemigrations + migrate
 
 # ========== 1단계: 기본 설정 ==========
-setup_roles()           # 역할 정의
+setup_roles()           # 역할 7개 정의
 setup_superuser()       # 시스템 관리자
-setup_test_users()      # 테스트 사용자
+setup_test_users()      # 테스트 사용자 10명
 
 # ========== 2단계: 메뉴/권한 ==========
 setup_menus_and_permissions()
-    ├── permissions_data[]     # 권한 정의
-    ├── create_menu()          # 메뉴 생성
-    ├── menu_labels_data[]     # 메뉴 라벨
-    └── role_menu_permissions  # 역할별 권한
-
-# ========== 3단계: 비즈니스 데이터 ==========
-create_dummy_patients()      # 환자 30명
-create_dummy_encounters()    # 진료 기록
-create_dummy_ocs()           # OCS (RIS/LIS)
-create_dummy_imaging()       # 영상 검사
-setup_ai_models()            # AI 모델
 ```
 
-### setup_dummy_data_2_add.py - 추가 데이터
+### setup_dummy_data_2_clinical.py - 임상 데이터
 
 ```python
-create_treatment_plans()     # 치료 계획 15건
-create_follow_ups()          # 경과 추적 25건
-create_ai_requests()         # AI 요청 10건
+# ========== 선행 조건 확인 ==========
+check_prerequisites()  # 사용자, 의사 존재 확인
+
+# ========== 환자/진료/OCS ==========
+create_dummy_patients()           # 환자 50명
+create_dummy_encounters()         # 진료 20건
+create_dummy_imaging_with_ocs()   # OCS RIS 30건 + ImagingStudy
+create_dummy_lis_orders()         # OCS LIS 20건
+create_ai_models()                # AI 모델 3개
+
+# ========== 치료/경과/AI ==========
+create_dummy_treatment_plans()    # 치료 계획 15건
+create_dummy_followups()          # 경과 추적 25건
+create_dummy_ai_requests()        # AI 요청 10건
+
+# ========== 처방 ==========
+create_dummy_prescriptions()      # 처방 20건 + 항목 ~60건
 ```
 
-### setup_dummy_data_3_prescriptions.py - 처방 데이터
+### setup_dummy_data_3_extended.py - 확장 데이터
 
 ```python
-create_prescriptions()       # 처방전 20건
-# 자동으로 처방 항목 60건 생성
+# ========== 선행 조건 확인 ==========
+check_prerequisites()  # 사용자, 환자 존재 확인
+
+# ========== 대량 데이터 ==========
+create_extended_encounters()  # 확장 진료 150건
+create_extended_ocs_ris()     # 확장 OCS RIS 100건
+create_extended_ocs_lis()     # 확장 OCS LIS 80건
+
+# ========== 오늘 진료 ==========
+create_today_encounters()     # 오늘 예약 환자
+
+# ========== 일정 ==========
+create_shared_schedules()     # 공유 일정
+create_personal_schedules()   # 개인 일정
 ```
 
 ---
@@ -251,38 +293,39 @@ python -m setup_dummy_data
     ┌────▼────────────────────────────────────┐
     │ 1_base.py                               │
     │  ├─► DB 생성 (없으면)                    │
-    │  ├─► 마이그레이션 (makemigrations+migrate)│
+    │  ├─► 마이그레이션                        │
     │  ├─► 역할 7개                            │
-    │  ├─► 사용자 15명                         │
-    │  ├─► 메뉴 40개                           │
-    │  ├─► 권한 매핑                           │
-    │  ├─► 환자 30명                           │
-    │  ├─► 진료 23건                           │
-    │  ├─► OCS 60건 (RIS 30, LIS 30)          │
-    │  ├─► 영상 30건                           │
-    │  └─► AI 모델 3개                         │
+    │  ├─► 사용자 10명                         │
+    │  └─► 메뉴/권한                           │
     └────┬────────────────────────────────────┘
          │
     ┌────▼────────────────────────────────────┐
-    │ 2_add.py                                │
+    │ 2_clinical.py                           │
+    │  ├─► 환자 50명                           │
+    │  ├─► 진료 20건                           │
+    │  ├─► OCS RIS 30건 + ImagingStudy        │
+    │  ├─► OCS LIS 20건                        │
+    │  ├─► AI 모델 3개                         │
     │  ├─► 치료 계획 15건                      │
     │  ├─► 경과 추적 25건                      │
-    │  └─► AI 요청 10건                        │
+    │  ├─► AI 요청 10건                        │
+    │  └─► 처방 20건 + 항목 ~60건              │
     └────┬────────────────────────────────────┘
          │
     ┌────▼────────────────────────────────────┐
-    │ 3_prescriptions.py                      │
-    │  └─► 처방 20건 + 항목 61건               │
+    │ 3_extended.py                           │
+    │  ├─► 확장 진료 150건                     │
+    │  ├─► 확장 OCS RIS 100건                  │
+    │  ├─► 확장 OCS LIS 80건                   │
+    │  ├─► 오늘 예약 진료                      │
+    │  ├─► 공유 일정                           │
+    │  └─► 개인 일정                           │
     └────┬────────────────────────────────────┘
          │
     ┌────▼────────────────────────────────────┐
-    │ 추가 사용자 생성                         │
-    │  └─► admin2,3 / nurse2,3 / ris2,3 등    │
-    └────┬────────────────────────────────────┘
-         │
-    ┌────▼────────────────────────────────────┐
-    │ 환자 계정 연결                           │
-    │  └─► patient1~3 ↔ P202600001~003       │
+    │ main.py (추가 작업)                      │
+    │  ├─► 추가 사용자 생성                    │
+    │  └─► 환자 계정 연결                      │
     └────┬────────────────────────────────────┘
          │
          ▼
@@ -320,25 +363,6 @@ menu_new, _ = create_menu(
     order=9,                     # 정렬 순서
     is_active=True
 )
-menu_new_list, _ = create_menu(
-    43,
-    code='NEW_FEATURE_LIST',
-    path='/new-feature',
-    icon='list',
-    order=1,
-    is_active=True,
-    parent=menu_new              # 상위 메뉴
-)
-```
-
-### 메뉴 라벨 추가
-
-```python
-menu_labels_data = [
-    # 기존 라벨들...
-    (42, 'DEFAULT', '새 기능'),
-    (43, 'DEFAULT', '새 기능 목록'),
-]
 ```
 
 ### 역할별 권한 매핑
@@ -354,32 +378,18 @@ role_menu_permissions = {
         # 기존 권한들...
         'NEW_FEATURE_LIST',  # 필요시 추가
     ],
-    # 다른 역할들...
 }
-```
-
-### 새 앱 추가 시
-
-1. `migrations/__init__.py` 파일 생성:
-```bash
-mkdir apps/newapp/migrations
-touch apps/newapp/migrations/__init__.py
-```
-
-2. `config/urls.py`에 URL 등록:
-```python
-path("api/newapp/", include("apps.newapp.urls")),
-```
-
-3. `setup_dummy_data` 실행:
-```bash
-python -m setup_dummy_data
-# makemigrations가 자동으로 새 앱의 마이그레이션 생성
 ```
 
 ---
 
 ## 테스트 계정
+
+### 비밀번호 규칙
+
+> **규칙: `{login_id}001`**
+>
+> 예시: `admin` → `admin001`, `doctor1` → `doctor1001`
 
 ### 기본 계정
 
@@ -387,29 +397,29 @@ python -m setup_dummy_data
 |------|----------|----------|------|
 | SYSTEMMANAGER | system | system001 | 시스템 관리자 (전체 권한) |
 | ADMIN | admin | admin001 | 병원 관리자 |
-| DOCTOR | doctor1~5 | doctor001~005 | 의사 5명 |
-| NURSE | nurse1 | nurse001 | 간호사 |
-| PATIENT | patient1 | patient001 | 환자 |
-| RIS | ris1 | ris001 | 영상과 |
-| LIS | lis1 | lis001 | 검사과 |
+| DOCTOR | doctor1~5 | doctor1001~doctor5001 | 의사 5명 |
+| NURSE | nurse1 | nurse1001 | 간호사 |
+| PATIENT | patient1 | patient1001 | 환자 |
+| RIS | ris1 | ris1001 | 영상과 |
+| LIS | lis1 | lis1001 | 검사과 |
 
 ### 추가 계정 (main.py에서 생성)
 
 | 역할 | 로그인 ID | 비밀번호 |
 |------|----------|----------|
-| ADMIN | admin2, admin3 | admin001 |
-| NURSE | nurse2, nurse3 | nurse001 |
-| RIS | ris2, ris3 | ris001 |
-| LIS | lis2, lis3 | lis001 |
-| PATIENT | patient2, patient3 | patient001 |
+| ADMIN | admin2, admin3 | admin2001, admin3001 |
+| NURSE | nurse2, nurse3 | nurse2001, nurse3001 |
+| RIS | ris2, ris3 | ris2001, ris3001 |
+| LIS | lis2, lis3 | lis2001, lis3001 |
+| PATIENT | patient2, patient3 | patient2001, patient3001 |
 
 ### 환자 계정 연결
 
 | 계정 | 환자번호 | 환자명 |
 |------|----------|--------|
-| patient1 | P202600001 | 김철수 |
-| patient2 | P202600002 | 이영희 |
-| patient3 | P202600003 | 박민수 |
+| patient1 | P202600001 | 김동현 |
+| patient2 | P202600002 | 이수정 |
+| patient3 | P202600003 | 박정훈 |
 
 ---
 
@@ -420,13 +430,6 @@ python -m setup_dummy_data
 ```bash
 # 수동으로 마이그레이션 실행
 python manage.py makemigrations --skip-checks
-python manage.py migrate --skip-checks
-```
-
-### 특정 앱 마이그레이션만
-
-```bash
-python manage.py makemigrations accounts reports --skip-checks
 python manage.py migrate --skip-checks
 ```
 

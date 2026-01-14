@@ -48,7 +48,7 @@ class Encounter(models.Model):
         on_delete=models.PROTECT,
         related_name='encounters_as_doctor',
         verbose_name='담당 의사',
-        limit_choices_to={'role__code': 'DOCTOR'}
+        limit_choices_to={'role__code__in': ['DOCTOR', 'SYSTEMMANAGER']}
     )
     department = models.CharField(
         max_length=20,

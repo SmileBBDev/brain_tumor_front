@@ -116,6 +116,9 @@ pip install --upgrade pip
 pip install -r requirements.txt <br/>
 daphne -b 127.0.0.1 -p 8000 config.asgi:application
 
+
+pip freeze > requirements.txt
+
 * 실행성공 :  http://localhost:8000
 
 

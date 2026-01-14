@@ -368,9 +368,11 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                 </div>
               )}
 
-              {/* 보고서 탭 */}
-              {activeTab === 'report' && (
-                <div className="report-tab-section" ref={reportRef}>
+              {/* 보고서 탭 - 항상 렌더링하되, 인쇄용으로도 사용 */}
+              <div
+                className={`report-tab-section ${activeTab !== 'report' ? 'screen-hidden' : ''}`}
+                ref={reportRef}
+              >
                   {/* 보고서 헤더 */}
                   <div className="report-tab-header">
                     <h3>검사 결과 보고서</h3>
@@ -616,8 +618,7 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                     <p>본 보고서는 의료 목적으로만 사용되어야 하며, 의료 전문가의 해석이 필요합니다.</p>
                     <p className="print-date">출력일시: {new Date().toLocaleString('ko-KR')}</p>
                   </div>
-                </div>
-              )}
+              </div>
             </div>
 
             {/* 액션 버튼 */}

@@ -394,45 +394,93 @@
   margin: 12px 0;
 }
 
+/* 화면에서만 숨김 (인쇄 시에는 표시) */
+.report-tab-section.screen-hidden {
+  display: none;
+}
+
 /* 인쇄 스타일 */
 @media print {
-  /* 모달 오버레이와 배경 숨김 */
+  /* 모든 요소 기본 숨기기 (visibility 사용 - display:none은 자식 표시 불가) */
+  body *:not(.modal-overlay):not(.modal-overlay *) {
+    visibility: hidden !important;
+  }
+
+  /* 모달과 그 자식들만 표시 */
+  .modal-overlay,
+  .modal-overlay * {
+    visibility: visible !important;
+  }
+
+  /* 모달 오버레이 - 전체 화면으로 */
   .modal-overlay {
-    position: static;
-    background: none;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    z-index: 99999 !important;
+    overflow: visible !important;
   }
 
   .modal-content {
-    position: static;
-    box-shadow: none;
-    max-width: 100%;
-    max-height: 100%;
-    overflow: visible;
-    border: none;
-    padding: 0;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
   }
 
-  /* 탭 메뉴, 헤더, 푸터 숨김 */
+  /* 모달 헤더, 푸터, 탭 메뉴 숨김 */
   .modal-header,
   .modal-footer,
   .tab-menu {
-    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
 
   /* 인쇄 버튼 숨김 */
   .print-btn {
-    display: none !important;
+    visibility: hidden !important;
   }
 
-  /* 보고서 탭만 표시 */
-  .modal-body > *:not(.report-tab-section) {
-    display: none !important;
+  /* 모달 바디 - 보고서 탭만 표시 */
+  .modal-body {
+    padding: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
   }
 
-  .report-tab-section {
+  /* 다른 탭 내용 숨김 */
+  .modal-body > .info-grid,
+  .modal-body > .result-section,
+  .modal-body > .history-section {
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* 보고서 탭 표시 */
+  .report-tab-section,
+  .report-tab-section.screen-hidden {
+    visibility: visible !important;
     display: block !important;
-    padding: 20px;
-    background: white;
+    padding: 20px !important;
+    background: white !important;
+    width: 100% !important;
+  }
+
+  .report-tab-section * {
+    visibility: visible !important;
   }
 
   .report-tab-header {
@@ -455,6 +503,15 @@
     background: #f5f5f5 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* 색상 유지 */
+  .flag-badge,
+  .result-status-badge,
+  .report-type-badge,
+  .priority-tag {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

@@ -17,4 +17,5 @@ urlpatterns = [
     # 환자별 AI 조회
     path('patients/<int:pk>/requests/', PatientAIViewSet.as_view({'get': 'requests'}), name='patient-ai-requests'),
     path('patients/<int:pk>/available-models/', PatientAIViewSet.as_view({'get': 'available_models'}), name='patient-available-models'),
+    path('patients/<int:pk>/ocs-for-model/', PatientAIViewSet.as_view({'get': 'ocs_for_model'}), name='patient-ocs-for-model'),
 ]

@@ -40,23 +40,34 @@ python -m setup_dummy_data 실행 시 순서:
    │   ├─ [2단계] 역할 7개 생성
    │   ├─ [3단계] 슈퍼유저 생성 (system/system001)
    │   ├─ [4단계] 테스트 사용자 10명 생성
-   │   ├─ [5단계] 메뉴/권한 시드 데이터
-   │   ├─ [6단계] 환자 30명
-   │   ├─ [7단계] 진료 20건
-   │   ├─ [8단계] OCS(RIS) 30건 + ImagingStudy
-   │   ├─ [9단계] OCS(LIS) 20건
-   │   └─ [10단계] AI 모델 3개
+   │   └─ [5단계] 메뉴/권한 시드 데이터
    │
-   ├─► setup_dummy_data_2_add.py 호출
+   ├─► setup_dummy_data_2_clinical.py 호출
    │   │
-   │   ├─ [1단계] 치료 계획 15건 + 세션
-   │   ├─ [2단계] 경과 추적 25건
-   │   └─ [3단계] AI 요청 10건
+   │   ├─ [0단계] 선행 조건 확인 (사용자, 의사 존재)
+   │   ├─ [1단계] 환자 50명 생성
+   │   ├─ [2단계] 진료 20건 생성
+   │   ├─ [3단계] OCS(RIS) 30건 + ImagingStudy 생성
+   │   ├─ [4단계] OCS(LIS) 20건 생성
+   │   ├─ [5단계] AI 모델 3개 생성
+   │   ├─ [6단계] 치료 계획 15건 + 세션 생성
+   │   ├─ [7단계] 경과 추적 25건 생성
+   │   ├─ [8단계] AI 요청 10건 생성
+   │   └─ [9단계] 처방전 20건 + 처방 항목 ~60건 생성
    │
-   └─► setup_dummy_data_3_prescriptions.py 호출
-       │
-       ├─ [0단계] 선행 조건 확인 (사용자, 환자 존재)
-       └─ [1단계] 처방전 20건 + 처방 항목 ~60건
+   ├─► setup_dummy_data_3_extended.py 호출
+   │   │
+   │   ├─ [0단계] 선행 조건 확인 (사용자, 환자 존재)
+   │   ├─ [1단계] 확장 진료(Encounter) 150건 생성
+   │   ├─ [2단계] 확장 OCS(RIS) 100건 생성
+   │   ├─ [3단계] 확장 OCS(LIS) 80건 생성
+   │   ├─ [4단계] 오늘 날짜 진료 데이터 생성
+   │   ├─ [5단계] 공유 일정 생성
+   │   └─ [6단계] 개인 일정 생성
+   │
+   ├─► 추가 사용자 생성 (main.py 내부)
+   │
+   └─► 환자 계정-데이터 연결 (main.py 내부)
 
 2. 최종 통계 출력
 결론: 빈 DB에서 시작해도 모든 것이 자동으로 셋업됩니다.
@@ -93,19 +104,20 @@ python -m setup_dummy_data 실행 시 순서:
 brain_tumor_back/
 └── setup_dummy_data/
     ├── __init__.py
-    ├── __main__.py                     # python -m setup_dummy_data 진입점
-    ├── main.py                         # 통합 래퍼 (1_base + 2_add + 3_prescriptions 순차 실행)
-    ├── setup_dummy_data_1_base.py      # 기본 데이터
-    ├── setup_dummy_data_2_add.py       # 추가 데이터 (치료/경과/AI)
-    ├── setup_dummy_data_3_prescriptions.py  # 처방 데이터
-    └── DB_SETUP_GUIDE.md               # 이 파일
+    ├── __main__.py                          # python -m setup_dummy_data 진입점
+    ├── main.py                              # 통합 래퍼 (순차 실행)
+    ├── setup_dummy_data_1_base.py           # 기본 데이터 (역할, 사용자, 메뉴/권한)
+    ├── setup_dummy_data_2_clinical.py       # 임상 데이터 (환자, 진료, OCS, AI, 치료, 경과, 처방)
+    ├── setup_dummy_data_3_extended.py       # 확장 데이터 (대량 진료/OCS, 오늘 진료, 일정)
+    ├── README.md                            # 상세 문서
+    └── DB_SETUP_GUIDE.md                    # 이 파일
 ```
 
 ---
 
 ## 상세 설명
 
-### setup_dummy_data_1_base.py (핵심 시스템 데이터)
+### setup_dummy_data_1_base.py (기본 시스템 데이터)
 > **필수 데이터** - 앱 동작에 반드시 필요
 
 - **DB 자동 생성** (없는 경우)
@@ -114,22 +126,19 @@ brain_tumor_back/
 - 슈퍼유저 (system / system001)
 - 테스트 사용자 10명 (admin, doctor1~5, nurse1, patient1, ris1, lis1)
 - 메뉴/권한 시드 데이터 (ENCOUNTER_LIST 포함)
-- 환자 30명
-- 진료(Encounter) 20건
-- OCS (RIS) 30건 + ImagingStudy
-- OCS (LIS) 20건
-- AI 모델 3개 (M1, MG, MM)
 
-### setup_dummy_data_2_add.py (임상 추가 데이터)
+### setup_dummy_data_2_clinical.py (임상 데이터)
 > **선택 데이터** - 임상 시나리오 테스트용
 
+- **선행 조건 자동 확인** (사용자, 의사 존재 여부)
+- 환자 50명 (기본 30명 + 확장 20명 통합 관리)
+- 진료(Encounter) 20건
+- OCS (RIS) 30건 + ImagingStudy (담당 의사만 요청)
+- OCS (LIS) 20건 (담당 의사만 요청)
+- AI 모델 3개 (M1, MG, MM)
 - 치료 계획 15건 + 치료 세션
 - 경과 추적 25건
 - AI 추론 요청 10건
-
-### setup_dummy_data_3_prescriptions.py (처방 데이터)
-> **선택 데이터** - 처방 기능 테스트용
-
 - 처방전 20건 (DRAFT, ISSUED, DISPENSED, CANCELLED 상태 분포)
 - 처방 항목 ~60건 (뇌종양 관련 약품)
   - 항암제: Temozolomide, Bevacizumab, Lomustine
@@ -139,6 +148,17 @@ brain_tumor_back/
   - 구역/구토 관리: Ondansetron, Metoclopramide
   - 위장 보호: Esomeprazole, Famotidine
   - 기타 보조: Megestrol, Methylphenidate
+
+### setup_dummy_data_3_extended.py (확장 데이터)
+> **선택 데이터** - 대량 데이터 및 일정 테스트용
+
+- **선행 조건 자동 확인** (사용자, 의사, 환자 존재 여부)
+- 확장 진료(Encounter) 150건
+- 확장 OCS (RIS) 100건 (담당 의사만 요청)
+- 확장 OCS (LIS) 80건 (담당 의사만 요청)
+- 오늘 날짜 기준 진료 데이터 생성 (실시간 대기 환자 목록 테스트용)
+- 공유 일정 (Admin이 관리하는 권한별 공유 일정)
+- 개인 일정 (모든 사용자의 개인 일정)
 
 ---
 
@@ -160,11 +180,11 @@ python -m setup_dummy_data --force
 # 기본 데이터만 생성
 python -m setup_dummy_data --base
 
-# 추가 데이터만 생성
-python -m setup_dummy_data --add
+# 임상 데이터만 생성
+python -m setup_dummy_data --clinical
 
-# 처방 데이터만 생성
-python -m setup_dummy_data --prescriptions
+# 확장 데이터만 생성
+python -m setup_dummy_data --extended
 
 # 메뉴/권한만 업데이트 (네비게이션 바 반영)
 python -m setup_dummy_data --menu
@@ -175,11 +195,11 @@ python -m setup_dummy_data --menu
 # 기본 데이터만
 python setup_dummy_data/setup_dummy_data_1_base.py [--reset] [--force]
 
-# 추가 데이터만
-python setup_dummy_data/setup_dummy_data_2_add.py [--reset] [--force]
+# 임상 데이터만
+python setup_dummy_data/setup_dummy_data_2_clinical.py [--reset] [--force]
 
-# 처방 데이터만
-python setup_dummy_data/setup_dummy_data_3_prescriptions.py [--reset] [--force]
+# 확장 데이터만
+python setup_dummy_data/setup_dummy_data_3_extended.py [--reset] [--force]
 ```
 
 ---
@@ -196,6 +216,7 @@ python manage.py shell
 >>> from apps.ocs.models import OCS, OCSHistory
 >>> from apps.encounters.models import Encounter
 >>> from apps.patients.models import Patient
+>>> from apps.schedules.models import SharedSchedule, PersonalSchedule
 
 # 순서대로 삭제 (의존성 역순)
 >>> AIInferenceLog.objects.all().delete()
@@ -211,27 +232,40 @@ python manage.py shell
 >>> OCS.objects.all().delete()
 >>> Encounter.objects.all().delete()
 >>> Patient.objects.all().delete()
+>>> PersonalSchedule.objects.all().delete()
+>>> SharedSchedule.objects.all().delete()
 ```
 
 ---
 
 ## 생성되는 데이터 통계
 
-| 항목 | 수량 |
-|------|------|
-| 메뉴 | ~30개 |
-| 권한 | ~30개 |
-| 환자 | 30명 |
-| 진료 | 20건 |
-| OCS (RIS) | 30건 |
-| OCS (LIS) | 20건 |
-| 영상 검사 | 30건 |
-| 치료 계획 | 15건 |
-| 경과 기록 | 25건 |
-| **처방전** | **20건** |
-| **처방 항목** | **~60건** |
-| AI 모델 | 3개 |
-| AI 요청 | 10건 |
+| 항목 | 기본/임상 | 확장 | 합계 |
+|------|----------|------|------|
+| 메뉴 | ~30개 | - | ~30개 |
+| 권한 | ~30개 | - | ~30개 |
+| 환자 | 50명 | - | 50명 |
+| 진료 | 20건 | 150건 | 170건 |
+| OCS (RIS) | 30건 | 100건 | 130건 |
+| OCS (LIS) | 20건 | 80건 | 100건 |
+| 영상 검사 | 30건 | - | 30건 |
+| 치료 계획 | 15건 | - | 15건 |
+| 경과 기록 | 25건 | - | 25건 |
+| 처방전 | 20건 | - | 20건 |
+| 처방 항목 | ~60건 | - | ~60건 |
+| AI 모델 | 3개 | - | 3개 |
+| AI 요청 | 10건 | - | 10건 |
+| 공유 일정 | - | ~15건 | ~15건 |
+| 개인 일정 | - | ~50건 | ~50건 |
+
+---
+
+## 데이터 일관성 규칙
+
+1. **환자 통합 관리**: 모든 환자 데이터는 `setup_dummy_data_2_clinical.py`에서 관리 (50명)
+2. **OCS 담당의 관계**: OCS 요청은 반드시 해당 환자의 담당 의사가 요청
+3. **동명이인 금지**: 모든 사용자/환자 이름은 고유해야 함
+4. **데이터 생성 순서**: 역할 → 사용자 → 환자 → 진료 → OCS 순서 준수
 
 ---
 

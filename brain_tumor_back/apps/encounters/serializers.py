@@ -146,8 +146,8 @@ class EncounterCreateSerializer(serializers.ModelSerializer):
 
     def validate_attending_doctor(self, value):
         """담당 의사 유효성 검사"""
-        if value and value.role.code != 'DOCTOR':
-            raise serializers.ValidationError("의사만 담당 의사로 지정할 수 있습니다.")
+        if value and value.role.code not in ['DOCTOR', 'SYSTEMMANAGER']:
+            raise serializers.ValidationError("의사 또는 시스템 관리자만 담당 의사로 지정할 수 있습니다.")
         return value
 
     def validate(self, data):
@@ -172,9 +172,9 @@ class EncounterCreateSerializer(serializers.ModelSerializer):
 
         request = self.context.get('request')
 
-        # attending_doctor가 없으면 현재 로그인한 사용자로 설정 (의사인 경우)
+        # attending_doctor가 없으면 현재 로그인한 사용자로 설정 (의사 또는 시스템관리자인 경우)
         if 'attending_doctor' not in validated_data or validated_data['attending_doctor'] is None:
-            if request and request.user and request.user.role.code == 'DOCTOR':
+            if request and request.user and request.user.role.code in ['DOCTOR', 'SYSTEMMANAGER']:
                 validated_data['attending_doctor'] = request.user
             else:
                 raise serializers.ValidationError({'attending_doctor': '담당 의사를 지정해야 합니다.'})
@@ -217,8 +217,8 @@ class EncounterUpdateSerializer(serializers.ModelSerializer):
 
     def validate_attending_doctor(self, value):
         """담당 의사 유효성 검사"""
-        if value.role.code != 'DOCTOR':
-            raise serializers.ValidationError("의사만 담당 의사로 지정할 수 있습니다.")
+        if value.role.code not in ['DOCTOR', 'SYSTEMMANAGER']:
+            raise serializers.ValidationError("의사 또는 시스템 관리자만 담당 의사로 지정할 수 있습니다.")
         return value
 
     def validate(self, data):

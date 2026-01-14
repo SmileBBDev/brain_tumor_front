@@ -1,30 +1,32 @@
 #!/usr/bin/env python
 """
-Brain Tumor CDSS - 더미 데이터 설정 스크립트 (1/3) - 기본 데이터
+Brain Tumor CDSS - 더미 데이터 설정 스크립트 (2/3) - 임상 데이터
 
-이 스크립트는 시스템 기본 데이터를 생성합니다:
-- DB 자동 생성 (없는 경우)
-- 마이그레이션 자동 실행
-- 역할 7개 (SYSTEMMANAGER, ADMIN, DOCTOR, NURSE, PATIENT, RIS, LIS)
-- 슈퍼유저 (system/system001)
-- 테스트 사용자 10명
-- 메뉴/권한 시드 데이터
+이 스크립트는 임상 관련 더미 데이터를 생성합니다:
+- 환자 50명
+- 진료(Encounter) 20건
+- OCS (RIS) 30건 + ImagingStudy
+- OCS (LIS) 20건
+- AI 모델 3개
+- 환자 주의사항
+- 치료 계획 15건 + 세션
+- 경과 추적 25건
+- AI 추론 요청 10건
+- 처방전 20건 + 처방 항목 ~60건
 
 사용법:
-    python setup_dummy_data_1_base.py          # 기존 데이터 유지, 부족분만 추가
-    python setup_dummy_data_1_base.py --reset  # 기존 데이터 삭제 후 새로 생성
-    python setup_dummy_data_1_base.py --menu   # 메뉴/권한만 업데이트
+    python setup_dummy_data_2_clinical.py          # 기존 데이터 유지, 부족분만 추가
+    python setup_dummy_data_2_clinical.py --reset  # 임상 데이터만 삭제 후 새로 생성
+    python setup_dummy_data_2_clinical.py --force  # 목표 수량 이상이어도 강제 추가
 
-다음 단계:
-    python setup_dummy_data_2_clinical.py  # 임상 데이터 (환자, 진료, OCS, 치료, 경과, 처방)
-    python setup_dummy_data_3_extended.py  # 확장 데이터 (오늘 진료, 대량 데이터, 스케줄)
+선행 조건:
+    python setup_dummy_data_1_base.py     # 기본 더미 데이터 (역할/사용자/메뉴)
 """
 
 import os
 import sys
-import subprocess
 from pathlib import Path
-from datetime import timedelta
+from datetime import timedelta, time as dt_time
 import random
 import argparse
 
@@ -32,132 +34,11 @@ import argparse
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 os.chdir(PROJECT_ROOT)
 
-
-def create_database_if_not_exists():
-    """데이터베이스가 없으면 생성 (Django 초기화 전에 실행)"""
-    print("\n[0단계] 데이터베이스 존재 확인...")
-
-    from dotenv import load_dotenv
-    import environ
-
-    env_path = PROJECT_ROOT / 'dbconn.env'
-    load_dotenv(env_path)
-
-    env = environ.Env()
-
-    db_name = env('MYSQL_DB', default='brain_tumor')
-    db_user = env('MYSQL_USER', default='root')
-    db_password = env('MYSQL_PASSWORD', default='')
-    db_host = env('MYSQL_HOST', default='localhost')
-    db_port = env('MYSQL_PORT', default='3306')
-
-    try:
-        import pymysql
-    except ImportError:
-        print("[WARNING] pymysql이 설치되지 않았습니다.")
-        print("  pip install pymysql")
-        return False
-
-    try:
-        # DB 없이 MySQL 서버에 연결
-        conn = pymysql.connect(
-            host=db_host,
-            port=int(db_port),
-            user=db_user,
-            password=db_password,
-            charset='utf8mb4'
-        )
-
-        cursor = conn.cursor()
-
-        # DB 존재 확인
-        cursor.execute(f"SHOW DATABASES LIKE '{db_name}'")
-        result = cursor.fetchone()
-
-        if result:
-            print(f"[OK] 데이터베이스 '{db_name}' 이미 존재")
-        else:
-            # DB 생성
-            print(f"[INFO] 데이터베이스 '{db_name}' 생성 중...")
-            cursor.execute(f"CREATE DATABASE `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            conn.commit()
-            print(f"[OK] 데이터베이스 '{db_name}' 생성 완료")
-
-        cursor.close()
-        conn.close()
-        return True
-
-    except pymysql.Error as e:
-        print(f"[ERROR] MySQL 연결 실패: {e}")
-        print(f"  Host: {db_host}:{db_port}")
-        print(f"  User: {db_user}")
-        print("  MySQL 서버가 실행 중인지 확인하세요.")
-        return False
-
-
-def run_migrations():
-    """마이그레이션 생성 및 실행"""
-    print("\n[1단계] 마이그레이션 실행...")
-
-    # 마이그레이션 파일 생성 (makemigrations) - --skip-checks로 URL 체크 건너뛰기
-    try:
-        print("  makemigrations 실행 중...")
-        result = subprocess.run(
-            [sys.executable, 'manage.py', 'makemigrations', '--skip-checks'],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            if 'No changes detected' in result.stdout:
-                print("  [OK] 변경사항 없음")
-            else:
-                print("  [OK] 마이그레이션 파일 생성 완료")
-                if result.stdout:
-                    # 생성된 마이그레이션 파일 출력
-                    for line in result.stdout.strip().split('\n'):
-                        if line.strip():
-                            print(f"    {line}")
-        else:
-            print(f"  [WARNING] makemigrations 실패 - 계속 진행합니다")
-            if result.stderr:
-                print(f"    {result.stderr[:300]}")
-    except Exception as e:
-        print(f"  [WARNING] makemigrations 실행 실패: {e}")
-
-    # 마이그레이션 적용 (migrate) - --skip-checks로 URL 체크 건너뛰기
-    try:
-        print("  migrate 실행 중...")
-        result = subprocess.run(
-            [sys.executable, 'manage.py', 'migrate', '--no-input', '--skip-checks'],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            print("[OK] 마이그레이션 완료")
-            return True
-        else:
-            print(f"[ERROR] 마이그레이션 실패")
-            if result.stderr:
-                print(result.stderr[:500])
-            return False
-    except Exception as e:
-        print(f"[ERROR] 마이그레이션 실행 실패: {e}")
-        return False
-
-
-# DB 생성 및 마이그레이션 (Django 초기화 전)
-if __name__ == '__main__' or True:  # import 시에도 실행
-    if not create_database_if_not_exists():
-        print("[WARNING] DB 자동 생성 실패 - 계속 진행합니다.")
-
-    if not run_migrations():
-        print("[WARNING] 마이그레이션 실패 - 계속 진행합니다.")
-
-# Django 설정 (DB 생성 후)
+# Django 설정 (sys.path에 프로젝트 루트 추가)
 sys.path.insert(0, str(PROJECT_ROOT))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+# Django 초기화
 import django
 django.setup()
 
@@ -165,743 +46,46 @@ from django.utils import timezone
 from django.db import IntegrityError, transaction
 
 
-def setup_roles():
-    """기본 역할 생성"""
-    print("\n[1단계] 기본 역할 설정...")
+# ============================================================
+# 선행 조건 확인
+# ============================================================
 
-    from apps.accounts.models import Role
-
-    roles = [
-        ('SYSTEMMANAGER', 'System Manager', '시스템 관리자'),
-        ('ADMIN', 'Admin', '병원 관리자'),
-        ('DOCTOR', 'Doctor', '의사'),
-        ('NURSE', 'Nurse', '간호사'),
-        ('PATIENT', 'Patient', '환자'),
-        ('RIS', 'RIS', '영상과'),
-        ('LIS', 'LIS', '검사과'),
-        ('EXTERNAL', 'External', '외부기관'),
-    ]
-
-    created_count = 0
-    for code, name, description in roles:
-        role, created = Role.objects.get_or_create(
-            code=code,
-            defaults={'name': name, 'description': description, 'is_active': True}
-        )
-        if created:
-            created_count += 1
-            print(f"  생성: {code}")
-        else:
-            print(f"  존재: {code}")
-
-    print(f"[OK] 역할 설정 완료 ({created_count}개 생성)")
-    return True
-
-
-def setup_superuser():
-    """슈퍼유저 생성"""
-    print("\n[2단계] 슈퍼유저 확인...")
+def check_prerequisites():
+    """선행 조건 확인"""
+    print("\n[0단계] 선행 조건 확인...")
 
     from django.contrib.auth import get_user_model
     from apps.accounts.models import Role
 
     User = get_user_model()
 
-    if User.objects.filter(is_superuser=True).exists():
-        superuser = User.objects.filter(is_superuser=True).first()
-        print(f"[OK] 슈퍼유저 이미 존재: {superuser.login_id}")
-        return True
-
-    print("슈퍼유저가 없습니다. 기본 슈퍼유저를 생성합니다.")
-
-    # Role 가져오기
-    system_role = Role.objects.filter(code='SYSTEMMANAGER').first()
-
-    try:
-        superuser = User(
-            login_id='system',
-            name='시스템관리자',
-            is_superuser=True,
-            is_staff=True,
-            is_active=True,
-            role=system_role
-        )
-        superuser.set_password('system001')
-        superuser.save()
-        print(f"[OK] 슈퍼유저 생성: system / system001")
-        return True
-    except Exception as e:
-        print(f"[ERROR] 슈퍼유저 생성 실패: {e}")
+    # 역할 확인
+    if not Role.objects.exists():
+        print("[ERROR] 역할(Role)이 없습니다.")
+        print("  먼저 실행하세요: python setup_dummy_data_1_base.py")
         return False
 
+    # 사용자 확인
+    if not User.objects.exists():
+        print("[ERROR] 사용자가 없습니다.")
+        print("  먼저 실행하세요: python setup_dummy_data_1_base.py")
+        return False
 
-def setup_test_users():
-    """테스트 사용자 생성 (UserProfile 포함)"""
-    print("\n[3단계] 테스트 사용자 설정...")
+    # DOCTOR 역할 사용자 확인
+    if not User.objects.filter(role__code='DOCTOR').exists():
+        print("[WARNING] DOCTOR 역할 사용자가 없습니다. 첫 번째 사용자를 사용합니다.")
 
-    from django.contrib.auth import get_user_model
-    from apps.accounts.models import Role, UserProfile
-    from datetime import date
-
-    User = get_user_model()
-
-    # (login_id, password, name, email, role_code, is_staff, profile_data)
-    # 비밀번호 규칙: {login_id}001 (예: admin → admin001, doctor1 → doctor1001)
-    test_users = [
-        ('admin', 'admin001', '병원관리자', 'admin@neuronova.hospital', 'ADMIN', True, {
-            'birthDate': date(1975, 3, 15),
-            'phoneMobile': '010-1234-0001',
-            'phoneOffice': '02-1234-1001',
-            'hireDate': date(2010, 1, 1),
-            'departmentId': 1,
-            'title': '병원 관리자',
-        }),
-        ('doctor1', 'doctor1001', '김철수', 'doctor1@neuronova.hospital', 'DOCTOR', False, {
-            'birthDate': date(1978, 5, 20),
-            'phoneMobile': '010-2345-1001',
-            'phoneOffice': '02-1234-2001',
-            'hireDate': date(2015, 3, 1),
-            'departmentId': 10,
-            'title': '신경외과 전문의',
-        }),
-        ('doctor2', 'doctor2001', '이영희', 'doctor2@neuronova.hospital', 'DOCTOR', False, {
-            'birthDate': date(1982, 8, 12),
-            'phoneMobile': '010-3456-2001',
-            'phoneOffice': '02-1234-2002',
-            'hireDate': date(2018, 6, 15),
-            'departmentId': 10,
-            'title': '신경외과 부교수',
-        }),
-        ('doctor3', 'doctor3001', '박민수', 'doctor3@neuronova.hospital', 'DOCTOR', False, {
-            'birthDate': date(1985, 11, 8),
-            'phoneMobile': '010-4567-3001',
-            'phoneOffice': '02-1234-2003',
-            'hireDate': date(2020, 2, 1),
-            'departmentId': 11,
-            'title': '신경과 전문의',
-        }),
-        ('doctor4', 'doctor4001', '최지은', 'doctor4@neuronova.hospital', 'DOCTOR', False, {
-            'birthDate': date(1988, 2, 25),
-            'phoneMobile': '010-5678-4001',
-            'phoneOffice': '02-1234-2004',
-            'hireDate': date(2021, 9, 1),
-            'departmentId': 12,
-            'title': '영상의학과 전문의',
-        }),
-        ('doctor5', 'doctor5001', '정현우', 'doctor5@neuronova.hospital', 'DOCTOR', False, {
-            'birthDate': date(1990, 7, 3),
-            'phoneMobile': '010-6789-5001',
-            'phoneOffice': '02-1234-2005',
-            'hireDate': date(2022, 3, 1),
-            'departmentId': 10,
-            'title': '신경외과 레지던트 4년차',
-        }),
-        ('nurse1', 'nurse1001', '홍수진', 'nurse1@neuronova.hospital', 'NURSE', False, {
-            'birthDate': date(1992, 4, 18),
-            'phoneMobile': '010-7890-6001',
-            'phoneOffice': '02-1234-3001',
-            'hireDate': date(2019, 5, 1),
-            'departmentId': 20,
-            'title': '신경외과 병동 수간호사',
-        }),
-        ('nurse2', 'nurse2001', '김미영', 'nurse2@neuronova.hospital', 'NURSE', False, {
-            'birthDate': date(1994, 7, 12),
-            'phoneMobile': '010-7890-6002',
-            'phoneOffice': '02-1234-3002',
-            'hireDate': date(2020, 3, 1),
-            'departmentId': 20,
-            'title': '신경외과 병동 간호사',
-        }),
-        ('nurse3', 'nurse3001', '박지현', 'nurse3@neuronova.hospital', 'NURSE', False, {
-            'birthDate': date(1996, 11, 25),
-            'phoneMobile': '010-7890-6003',
-            'phoneOffice': '02-1234-3003',
-            'hireDate': date(2021, 9, 1),
-            'departmentId': 21,
-            'title': '신경과 외래 간호사',
-        }),
-        # PATIENT 역할 사용자 (5명) - 환자 테이블과 연결됨
-        ('patient1', 'patient1001', '김동현', 'patient1@example.com', 'PATIENT', False, {
-            'birthDate': date(1981, 1, 15),
-            'phoneMobile': '010-1234-5678',
-            'phoneOffice': None,
-            'hireDate': None,
-            'departmentId': None,
-            'title': None,
-        }),
-        ('patient2', 'patient2001', '이수정', 'patient2@example.com', 'PATIENT', False, {
-            'birthDate': date(1988, 3, 20),
-            'phoneMobile': '010-2345-6789',
-            'phoneOffice': None,
-            'hireDate': None,
-            'departmentId': None,
-            'title': None,
-        }),
-        ('patient3', 'patient3001', '박정훈', 'patient3@example.com', 'PATIENT', False, {
-            'birthDate': date(1974, 5, 8),
-            'phoneMobile': '010-3456-7890',
-            'phoneOffice': None,
-            'hireDate': None,
-            'departmentId': None,
-            'title': None,
-        }),
-        ('patient4', 'patient4001', '최민정', 'patient4@example.com', 'PATIENT', False, {
-            'birthDate': date(1997, 6, 25),
-            'phoneMobile': '010-4567-8901',
-            'phoneOffice': None,
-            'hireDate': None,
-            'departmentId': None,
-            'title': None,
-        }),
-        ('patient5', 'patient5001', '정승호', 'patient5@example.com', 'PATIENT', False, {
-            'birthDate': date(1965, 9, 12),
-            'phoneMobile': '010-5678-9012',
-            'phoneOffice': None,
-            'hireDate': None,
-            'departmentId': None,
-            'title': None,
-        }),
-        ('ris1', 'ris1001', '강민호', 'ris1@neuronova.hospital', 'RIS', False, {
-            'birthDate': date(1987, 6, 22),
-            'phoneMobile': '010-9012-8001',
-            'phoneOffice': '02-1234-4001',
-            'hireDate': date(2017, 8, 1),
-            'departmentId': 30,
-            'title': '영상의학과 방사선사',
-        }),
-        ('ris2', 'ris2001', '이준혁', 'ris2@neuronova.hospital', 'RIS', False, {
-            'birthDate': date(1990, 3, 15),
-            'phoneMobile': '010-9012-8002',
-            'phoneOffice': '02-1234-4002',
-            'hireDate': date(2019, 6, 1),
-            'departmentId': 30,
-            'title': '영상의학과 방사선사',
-        }),
-        ('ris3', 'ris3001', '최수빈', 'ris3@neuronova.hospital', 'RIS', False, {
-            'birthDate': date(1993, 8, 28),
-            'phoneMobile': '010-9012-8003',
-            'phoneOffice': '02-1234-4003',
-            'hireDate': date(2021, 2, 1),
-            'departmentId': 30,
-            'title': '영상의학과 방사선사',
-        }),
-        ('lis1', 'lis1001', '윤서연', 'lis1@neuronova.hospital', 'LIS', False, {
-            'birthDate': date(1991, 12, 5),
-            'phoneMobile': '010-0123-9001',
-            'phoneOffice': '02-1234-5001',
-            'hireDate': date(2020, 4, 15),
-            'departmentId': 31,
-            'title': '진단검사의학과 임상병리사',
-        }),
-        ('lis2', 'lis2001', '정다은', 'lis2@neuronova.hospital', 'LIS', False, {
-            'birthDate': date(1989, 5, 10),
-            'phoneMobile': '010-0123-9002',
-            'phoneOffice': '02-1234-5002',
-            'hireDate': date(2018, 9, 1),
-            'departmentId': 31,
-            'title': '진단검사의학과 임상병리사',
-        }),
-        ('lis3', 'lis3001', '한승우', 'lis3@neuronova.hospital', 'LIS', False, {
-            'birthDate': date(1995, 1, 20),
-            'phoneMobile': '010-0123-9003',
-            'phoneOffice': '02-1234-5003',
-            'hireDate': date(2022, 1, 1),
-            'departmentId': 31,
-            'title': '진단검사의학과 임상병리사',
-        }),
-        # EXTERNAL 역할 사용자 (외부기관) - 외부 영상의학과, 검진센터 등
-        ('ext_snuh', 'ext_snuh001', '서울대학교병원', 'contact@snuh.org', 'EXTERNAL', False, {
-            'birthDate': None,
-            'phoneMobile': '02-2072-2114',
-            'phoneOffice': '02-2072-2114',
-            'hireDate': None,
-            'departmentId': None,
-            'title': '외부기관 - 서울대학교병원',
-        }),
-        ('ext_amc', 'ext_amc001', '서울아산병원', 'contact@amc.seoul.kr', 'EXTERNAL', False, {
-            'birthDate': None,
-            'phoneMobile': '1688-7575',
-            'phoneOffice': '02-3010-3114',
-            'hireDate': None,
-            'departmentId': None,
-            'title': '외부기관 - 서울아산병원',
-        }),
-        ('ext_smc', 'ext_smc001', '삼성서울병원', 'contact@samsung.com', 'EXTERNAL', False, {
-            'birthDate': None,
-            'phoneMobile': '1599-3114',
-            'phoneOffice': '02-3410-2114',
-            'hireDate': None,
-            'departmentId': None,
-            'title': '외부기관 - 삼성서울병원',
-        }),
-        ('ext_yuhs', 'ext_yuhs001', '세브란스병원', 'contact@yuhs.ac', 'EXTERNAL', False, {
-            'birthDate': None,
-            'phoneMobile': '1599-1004',
-            'phoneOffice': '02-2228-0114',
-            'hireDate': None,
-            'departmentId': None,
-            'title': '외부기관 - 세브란스병원',
-        }),
-        ('ext_cnuh', 'ext_cnuh001', '전남대학교병원', 'contact@cnuh.co.kr', 'EXTERNAL', False, {
-            'birthDate': None,
-            'phoneMobile': '062-220-5114',
-            'phoneOffice': '062-220-5114',
-            'hireDate': None,
-            'departmentId': None,
-            'title': '외부기관 - 전남대학교병원',
-        }),
-    ]
-
-    created_count = 0
-    profile_count = 0
-
-    for login_id, password, name, email, role_code, is_staff, profile_data in test_users:
-        user = User.objects.filter(login_id=login_id).first()
-
-        if user:
-            print(f"  존재: {login_id}")
-            # 기존 사용자에도 프로필이 없으면 생성
-            if not hasattr(user, 'profile') or not UserProfile.objects.filter(user=user).exists():
-                UserProfile.objects.create(user=user, **profile_data)
-                profile_count += 1
-                print(f"    → 프로필 추가: {login_id}")
-            continue
-
-        try:
-            role = Role.objects.filter(code=role_code).first()
-            user = User(
-                login_id=login_id,
-                name=name,
-                email=email,
-                is_staff=is_staff,
-                is_active=True,
-                role=role
-            )
-            user.set_password(password)
-            user.save()
-
-            # UserProfile 생성
-            UserProfile.objects.create(user=user, **profile_data)
-
-            created_count += 1
-            profile_count += 1
-            print(f"  생성: {login_id} / {password} (프로필 포함)")
-        except Exception as e:
-            print(f"  오류 ({login_id}): {e}")
-
-    print(f"[OK] 테스트 사용자 설정 완료 ({created_count}개 생성, 프로필 {profile_count}개)")
+    print("[OK] 선행 조건 충족")
     return True
 
 
-def load_menu_permission_seed():
-    """
-    메뉴/권한 시드 데이터 로드
+# ============================================================
+# 환자 데이터 (from 1_base.py - 7,8,9,10단계)
+# ============================================================
 
-    메뉴 그룹 구조:
-    ├── DASHBOARD
-    ├── PATIENT: PATIENT_LIST, PATIENT_DETAIL, PATIENT_CARE, ENCOUNTER_LIST
-    ├── OCS: OCS_STATUS, OCS_CREATE, OCS_MANAGE
-    ├── IMAGING: IMAGE_VIEWER, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD, RIS_RESULT_UPLOAD
-    ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
-    ├── AI_SUMMARY: AI_REQUEST_LIST, AI_REQUEST_CREATE, AI_REQUEST_DETAIL
-    └── ADMIN: ADMIN_USER, ADMIN_USER_DETAIL, ADMIN_ROLE, ADMIN_MENU_PERMISSION, ADMIN_AUDIT_LOG, ADMIN_SYSTEM_MONITOR
-    """
-    print("\n[1단계] 메뉴/권한 시드 데이터 로드...")
-
-    from apps.menus.models import Menu
-    from apps.accounts.models import Permission, Role
-
-    # 변경 사항 추적을 위한 딕셔너리
-    changes = {
-        'Permission': {'before': 0, 'created': 0},
-        'Menu': {'before': 0, 'created': 0},
-        'MenuPermission': {'before': 0, 'created': 0},
-        'MenuLabel': {'before': 0, 'created': 0},
-    }
-
-    changes['Permission']['before'] = Permission.objects.count()
-    changes['Menu']['before'] = Menu.objects.count()
-
-    print(f"  기존 데이터: 메뉴 {changes['Menu']['before']}개, 권한 {changes['Permission']['before']}개")
-    print("  메뉴/권한 데이터 동기화 중...")
-
-    # ========== 권한 데이터 ==========
-    permissions_data = [
-        ('DASHBOARD', '대시보드', '대시보드 화면 접근'),
-        ('PATIENT', '환자', '환자 메뉴'),
-        ('PATIENT_LIST', '환자 목록', '환자 목록 화면'),
-        ('PATIENT_DETAIL', '환자 상세', '환자 상세 화면'),
-        ('PATIENT_CARE', '환자 진료', '환자 진료 화면 접근'),
-        ('ENCOUNTER_LIST', '진료 예약', '진료 예약/목록 화면'),
-        ('OCS', '검사 오더', '검사 오더 메뉴'),
-        ('OCS_STATUS', '검사 현황', '검사 오더 현황 조회 (간호사/관리자용)'),
-        ('OCS_CREATE', '오더 생성', '검사 오더 생성 화면'),
-        ('OCS_MANAGE', '오더 관리', '의사용 검사 오더 관리'),
-        ('OCS_PROCESS_STATUS', 'OCS 처리 현황', 'RIS/LIS 통합 처리 현황 대시보드'),
-        ('OCS_RIS', '영상 워크리스트', 'RIS 작업자용 영상 오더 처리'),
-        ('OCS_RIS_DETAIL', '영상 검사 상세', 'RIS 영상 검사 상세 페이지'),
-        ('RIS_DASHBOARD', '판독 현황 대시보드', 'RIS 전체 판독 현황 대시보드'),
-        ('RIS_RESULT_UPLOAD', '영상 결과 업로드', '외부 영상 결과 업로드 화면'),
-        ('OCS_LIS', '검사 워크리스트', 'LIS 작업자용 검사 오더 처리'),
-        ('OCS_LIS_DETAIL', '검사 결과 상세', 'LIS 검사 결과 상세 페이지'),
-        ('LIS_PROCESS_STATUS', '결과 처리 상태', 'LIS 업로드 데이터 처리 상태 모니터링'),
-        ('IMAGING', '영상', '영상 메뉴'),
-        ('IMAGE_VIEWER', '영상 조회', '영상 조회 화면'),
-        ('RIS_WORKLIST', '판독 Worklist', 'RIS 판독 Worklist 화면'),
-        ('LAB', '검사', '검사 메뉴'),
-        ('LAB_RESULT_VIEW', '검사 결과 조회', '검사 결과 조회 화면'),
-        ('LAB_RESULT_UPLOAD', '검사 결과 업로드', '검사 결과 업로드 화면'),
-        ('AI', 'AI 분석', 'AI 분석 메뉴'),
-        ('AI_VIEWER', 'AI 분석 뷰어', 'AI 분석 뷰어 화면'),
-        ('AI_REQUEST_LIST', 'AI 요청 목록', 'AI 추론 요청 목록'),
-        ('AI_REQUEST_CREATE', 'AI 요청 생성', 'AI 추론 요청 생성'),
-        ('AI_REQUEST_DETAIL', 'AI 요청 상세', 'AI 추론 요청 상세'),
-        ('AI_PROCESS_STATUS', 'AI 처리 현황', 'AI 처리 현황 대시보드'),
-        ('AI_MODELS', 'AI 모델 정보', 'AI 모델 목록 및 정보'),
-        ('ADMIN', '관리자', '관리자 메뉴'),
-        ('ADMIN_USER', '사용자 관리', '사용자 관리 화면'),
-        ('ADMIN_USER_DETAIL', '사용자 관리 상세', '사용자 상세 화면'),
-        ('ADMIN_ROLE', '역할 관리', '역할 관리 화면'),
-        ('ADMIN_MENU_PERMISSION', '메뉴 권한 관리', '메뉴 권한 관리 화면'),
-        ('ADMIN_AUDIT_LOG', '접근 감사 로그', '접근 감사 로그 화면'),
-        ('ADMIN_SYSTEM_MONITOR', '시스템 모니터링', '시스템 모니터링 화면'),
-        # 진료 보고서
-        ('REPORT', '진료 보고서', '진료 보고서 메뉴'),
-        ('REPORT_LIST', '보고서 목록', '보고서 목록 화면'),
-        ('REPORT_CREATE', '보고서 작성', '보고서 작성 화면'),
-        ('REPORT_DETAIL', '보고서 상세', '보고서 상세 화면'),
-        # 환자 전용 메뉴 (MY_CARE)
-        ('MY_CARE', '내 진료', '환자 전용 내 진료 메뉴'),
-        ('MY_SUMMARY', '내 정보', '환자 전용 내 정보 요약'),
-        ('MY_VISITS', '진료 기록', '환자 전용 진료 기록 조회'),
-        ('MY_IMAGING', '영상 결과', '환자 전용 영상 검사 결과 조회'),
-        ('MY_LAB', '검사 결과', '환자 전용 검사 결과 조회'),
-        ('ABOUT_HOSPITAL', '병원 소개', '병원 안내 페이지'),
-    ]
-
-    permission_map = {}
-    for code, name, description in permissions_data:
-        perm, created = Permission.objects.get_or_create(
-            code=code,
-            defaults={'name': name, 'description': description}
-        )
-        permission_map[code] = perm
-        if created:
-            changes['Permission']['created'] += 1
-
-    print(f"  권한 생성: {changes['Permission']['created']}개")
-
-    # ========== 메뉴 데이터 ==========
-    # 업데이트 추적 리스트
-    menu_updates = []
-
-    # 메뉴 생성 헬퍼 함수 (기존 레코드도 parent_id, order 업데이트)
-    def create_menu(menu_id, **kwargs):
-        menu, created = Menu.objects.get_or_create(id=menu_id, defaults=kwargs)
-        if created:
-            changes['Menu']['created'] += 1
-        else:
-            # 기존 레코드 업데이트 (parent, order 등)
-            update_fields = []
-            update_details = []
-            if 'parent' in kwargs and menu.parent != kwargs['parent']:
-                menu.parent = kwargs['parent']
-                update_fields.append('parent')
-            if 'parent_id' in kwargs and menu.parent_id != kwargs['parent_id']:
-                menu.parent_id = kwargs['parent_id']
-                update_fields.append('parent_id')
-            if 'order' in kwargs and menu.order != kwargs['order']:
-                old_order = menu.order
-                menu.order = kwargs['order']
-                update_fields.append('order')
-                update_details.append(f"order: {old_order} → {kwargs['order']}")
-            if 'breadcrumb_only' in kwargs and menu.breadcrumb_only != kwargs['breadcrumb_only']:
-                old_val = menu.breadcrumb_only
-                menu.breadcrumb_only = kwargs['breadcrumb_only']
-                update_fields.append('breadcrumb_only')
-                update_details.append(f"breadcrumb_only: {old_val} → {kwargs['breadcrumb_only']}")
-            if 'is_active' in kwargs and menu.is_active != kwargs['is_active']:
-                old_val = menu.is_active
-                menu.is_active = kwargs['is_active']
-                update_fields.append('is_active')
-                update_details.append(f"is_active: {old_val} → {kwargs['is_active']}")
-            if update_fields:
-                menu.save(update_fields=update_fields)
-                changes['Menu']['updated'] = changes['Menu'].get('updated', 0) + 1
-                menu_updates.append({'code': menu.code, 'details': update_details or update_fields})
-        return menu, created
-
-    # 최상위 메뉴
-    menu_admin, _ = create_menu(1, code='ADMIN', path=None, icon='settings', order=7, is_active=True)
-    menu_ai, _ = create_menu(2, code='AI', path=None, icon=None, group_label='AI 분석', order=6, is_active=True)
-    menu_dashboard, _ = create_menu(3, code='DASHBOARD', path='/dashboard', icon='home', order=1, is_active=True)
-    menu_imaging, _ = create_menu(4, code='IMAGING', path=None, icon=None, group_label='영상', order=4, is_active=True)
-    menu_lab, _ = create_menu(5, code='LAB', path=None, icon=None, group_label='검사', order=5, is_active=True)
-    menu_ocs, _ = create_menu(6, code='OCS', path=None, icon=None, group_label='검사 오더', order=3, is_active=True)
-    menu_patient, _ = create_menu(7, code='PATIENT', path=None, icon=None, group_label='환자', order=2, is_active=True)
-
-    # Admin 하위
-    create_menu(8, code='ADMIN_AUDIT_LOG', path='/admin/audit', order=4, is_active=True, parent=menu_admin)
-    create_menu(9, code='ADMIN_MENU_PERMISSION', path='/admin/permissions', order=3, is_active=True, parent=menu_admin)
-    create_menu(10, code='ADMIN_ROLE', path='/admin/roles', order=2, is_active=True, parent=menu_admin)
-    create_menu(11, code='ADMIN_SYSTEM_MONITOR', path='/admin/monitor', order=5, is_active=True, parent=menu_admin)
-    create_menu(12, code='ADMIN_USER', path='/admin/users', order=1, is_active=True, parent=menu_admin)
-    menu_admin_user_detail, _ = create_menu(13, code='ADMIN_USER_DETAIL', path='/admin/users/:id', breadcrumb_only=True, order=1, is_active=True, parent_id=12)
-
-    # Imaging 하위
-    create_menu(14, code='IMAGE_VIEWER', path='/imaging', icon='image', order=1, is_active=True, parent=menu_imaging)
-    # RIS_WORKLIST 비활성화 - OCS_RIS와 중복되므로 사용하지 않음
-    create_menu(15, code='RIS_WORKLIST', path='/ris/worklist', icon='x-ray', order=2, is_active=False, parent=menu_imaging)
-
-    # Lab 하위
-    create_menu(17, code='LAB_RESULT_VIEW', path='/lab', icon='book', order=1, is_active=True, parent=menu_lab)
-
-    # OCS 하위 (검사 오더)
-    menu_ocs_status, _ = create_menu(19, code='OCS_STATUS', path='/ocs/status', icon='clipboard', order=1, is_active=True, parent=menu_ocs)
-    # OCS_MANAGE 비활성화 - OCS_STATUS로 통합됨
-    menu_ocs_manage, _ = create_menu(23, code='OCS_MANAGE', path='/ocs/manage', icon='file-medical', order=3, is_active=False, parent=menu_ocs)
-    # OCS_CREATE는 OCS_STATUS의 하위 메뉴로 변경
-    create_menu(18, code='OCS_CREATE', path='/ocs/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_ocs_status)
-    # OCS 통합 처리 현황 (RIS + LIS 통합)
-    create_menu(37, code='OCS_PROCESS_STATUS', path='/ocs/process-status', icon='chart-pie', order=4, is_active=True, parent=menu_ocs)
-
-    # Patient 하위
-    create_menu(20, code='PATIENT_LIST', path='/patients', order=1, is_active=True, parent=menu_patient)
-    create_menu(21, code='PATIENT_DETAIL', path='/patients/:patientId', breadcrumb_only=True, order=1, is_active=True, parent_id=20)
-    create_menu(22, code='PATIENT_CARE', path='/patientsCare', order=2, is_active=True, parent=menu_patient)
-    create_menu(36, code='ENCOUNTER_LIST', path='/encounters', order=3, is_active=True, parent=menu_patient)
-
-    # OCS_RIS: IMAGING 그룹 (영상과용)
-    menu_ocs_ris, _ = create_menu(24, code='OCS_RIS', path='/ocs/ris', icon='x-ray', order=3, is_active=True, parent=menu_imaging)
-
-    # OCS_LIS: LAB 그룹 (검사과용)
-    menu_ocs_lis, _ = create_menu(25, code='OCS_LIS', path='/ocs/lis', icon='flask', order=3, is_active=True, parent=menu_lab)
-
-    # OCS 상세 페이지 메뉴 (breadcrumb_only)
-    create_menu(26, code='OCS_RIS_DETAIL', path='/ocs/ris/:ocsId', icon='x-ray', breadcrumb_only=True, order=1, is_active=True, parent=menu_ocs_ris)
-    create_menu(27, code='OCS_LIS_DETAIL', path='/ocs/lis/:ocsId', icon='flask', breadcrumb_only=True, order=1, is_active=True, parent=menu_ocs_lis)
-
-    # RIS Dashboard 메뉴 (IMAGING 그룹) - process-status로 경로 통일
-    create_menu(30, code='RIS_DASHBOARD', path='/ocs/ris/process-status', icon='chart-bar', order=4, is_active=True, parent=menu_imaging)
-
-    # RIS Result Upload 메뉴 (IMAGING 그룹)
-    create_menu(32, code='RIS_RESULT_UPLOAD', path='/ris/upload', icon='upload', order=5, is_active=True, parent=menu_imaging)
-
-    # LIS Process Status 메뉴 (LAB 그룹)
-    create_menu(31, code='LIS_PROCESS_STATUS', path='/ocs/lis/process-status', icon='tasks', order=4, is_active=True, parent=menu_lab)
-
-    # LIS Result Upload 메뉴 (LAB 그룹)
-    create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', icon='upload', order=5, is_active=True, parent=menu_lab)
-
-    # AI 하위 메뉴
-    create_menu(50, code='AI_VIEWER', path='/ai/viewer', icon='eye', order=1, is_active=True, parent=menu_ai)
-    menu_ai_request, _ = create_menu(34, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=2, is_active=True, parent=menu_ai)
-    create_menu(35, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=1, is_active=True, parent=menu_ai_request)
-    create_menu(44, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
-    create_menu(42, code='AI_PROCESS_STATUS', path='/ai/process-status', icon='chart-bar', order=3, is_active=True, parent=menu_ai)
-    create_menu(43, code='AI_MODELS', path='/ai/models', icon='cpu', order=4, is_active=True, parent=menu_ai)
-
-    # 진료 보고서 메뉴
-    menu_report, _ = create_menu(38, code='REPORT', path=None, icon='file-text', group_label='보고서', order=8, is_active=True)
-    menu_report_list, _ = create_menu(39, code='REPORT_LIST', path='/reports', icon='list', order=1, is_active=True, parent=menu_report)
-    create_menu(40, code='REPORT_CREATE', path='/reports/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_report_list)
-    create_menu(41, code='REPORT_DETAIL', path='/reports/:id', breadcrumb_only=True, order=3, is_active=True, parent=menu_report_list)
-
-    # 환자 전용 메뉴 (MY_CARE) - PATIENT 역할만 접근
-    menu_my_care, _ = create_menu(45, code='MY_CARE', path=None, icon='user', group_label='내 진료', order=9, is_active=True)
-    create_menu(46, code='MY_SUMMARY', path='/my/summary', icon='info-circle', order=1, is_active=True, parent=menu_my_care)
-    create_menu(47, code='MY_VISITS', path='/my/visits', icon='calendar', order=2, is_active=True, parent=menu_my_care)
-    create_menu(48, code='MY_IMAGING', path='/my/imaging', icon='x-ray', order=3, is_active=True, parent=menu_my_care)
-    create_menu(49, code='MY_LAB', path='/my/lab', icon='flask', order=4, is_active=True, parent=menu_my_care)
-    create_menu(51, code='ABOUT_HOSPITAL', path='/about-hospital', icon='hospital', order=5, is_active=True, parent=menu_my_care)
-
-    print(f"  메뉴 생성: {changes['Menu']['created']}개 (전체: {Menu.objects.count()}개)")
-    if menu_updates:
-        print(f"  메뉴 업데이트: {len(menu_updates)}개")
-        for update in menu_updates:
-            details = ', '.join(update['details']) if isinstance(update['details'][0], str) else ', '.join(update['details'])
-            print(f"    - {update['code']}: {details}")
-
-    # ========== 메뉴-권한 매핑 (MenuPermission) ==========
-    from apps.menus.models import MenuPermission
-
-    changes['MenuPermission']['before'] = MenuPermission.objects.count()
-
-    # path가 있는 모든 메뉴에 대해 동일 code의 권한 매핑 (breadcrumb_only 포함)
-    for menu in Menu.objects.filter(path__isnull=False):
-        if menu.code in permission_map:
-            _, created = MenuPermission.objects.get_or_create(
-                menu=menu,
-                permission=permission_map[menu.code]
-            )
-            if created:
-                changes['MenuPermission']['created'] += 1
-
-    print(f"  메뉴-권한 매핑: {changes['MenuPermission']['created']}개 (전체: {MenuPermission.objects.count()}개)")
-
-    # ========== 메뉴 라벨 (MenuLabel) ==========
-    from apps.menus.models import MenuLabel
-
-    changes['MenuLabel']['before'] = MenuLabel.objects.count()
-
-    menu_labels_data = [
-        # DASHBOARD
-        (3, 'DEFAULT', '대시보드'),
-        (3, 'DOCTOR', '의사 대시보드'),
-        (3, 'NURSE', '간호 대시보드'),
-        # PATIENT
-        (7, 'DEFAULT', '환자'),
-        (20, 'DEFAULT', '환자 목록'),
-        (21, 'DEFAULT', '환자 상세'),
-        (22, 'DEFAULT', '환자 진료'),
-        (36, 'DEFAULT', '진료 예약'),
-        # OCS (검사 오더)
-        (6, 'DEFAULT', '검사 오더'),
-        (6, 'DOCTOR', '검사 오더'),
-        (6, 'NURSE', '검사 현황'),
-        (19, 'DEFAULT', '검사 현황'),  # 간호사/관리자용 - 전체 조회
-        (18, 'DEFAULT', '오더 생성'),
-        (23, 'DEFAULT', '오더 관리'),  # 의사용 - 본인 오더 관리
-        (23, 'DOCTOR', '내 오더 관리'),
-        (24, 'DEFAULT', '영상 워크리스트'),
-        (25, 'DEFAULT', '검사 워크리스트'),
-        (26, 'DEFAULT', '영상 검사 상세'),
-        (27, 'DEFAULT', '검사 결과 상세'),
-        (37, 'DEFAULT', 'OCS 처리 현황'),
-        (37, 'DOCTOR', '검사 처리 현황'),
-        (37, 'NURSE', '검사 처리 현황'),
-        (37, 'ADMIN', 'OCS 통합 현황'),
-        # 간호사
-        (28, 'DEFAULT', '진료 접수 현황'),
-        (28, 'NURSE', '진료 접수'),
-        # LIS Alert
-        (29, 'DEFAULT', '검사 결과 Alert'),
-        (29, 'LIS', '결과 Alert'),
-        # RIS Dashboard
-        (30, 'DEFAULT', '영상 판독 상세'),
-        (30, 'RIS', '영상 판독 상세'),
-        # RIS Result Upload
-        (32, 'DEFAULT', '영상 결과 업로드'),
-        (32, 'RIS', '영상 결과 업로드'),
-        # LIS Process Status
-        (31, 'DEFAULT', 'LIS 검사 상세'),
-        (31, 'LIS', 'LIS 검사 상세'),
-        # IMAGING
-        (4, 'DEFAULT', '영상'),
-        (14, 'DEFAULT', '영상 조회'),
-        (15, 'DEFAULT', '판독 Worklist'),
-        # AI
-        (2, 'DEFAULT', 'AI 분석'),
-        (34, 'DEFAULT', 'AI 요청 목록'),
-        (34, 'DOCTOR', 'AI 분석 요청'),
-        (35, 'DEFAULT', 'AI 요청 생성'),
-        (44, 'DEFAULT', 'AI 요청 상세'),
-        (42, 'DEFAULT', 'AI 처리 현황'),
-        (43, 'DEFAULT', 'AI 모델 정보'),
-        # LAB
-        (5, 'DEFAULT', '검사'),
-        (17, 'DEFAULT', '검사 조회'),  # 검사 결과 조회 → 검사 조회
-        (16, 'DEFAULT', '검사 결과 업로드'),  # breadcrumb_only - OCS에서 이동
-        # ADMIN
-        (1, 'DEFAULT', '관리자'),
-        (12, 'DEFAULT', '사용자 관리'),
-        (13, 'DEFAULT', '사용자 관리 상세조회'),
-        (10, 'DEFAULT', '역할 권한 관리'),
-        (9, 'DEFAULT', '메뉴 권한 관리'),
-        (8, 'DEFAULT', '접근 감사 로그'),
-        (11, 'DEFAULT', '시스템 모니터링'),
-        # REPORT
-        (38, 'DEFAULT', '보고서'),
-        (39, 'DEFAULT', '보고서 목록'),
-        (40, 'DEFAULT', '보고서 작성'),
-        (41, 'DEFAULT', '보고서 상세'),
-        # MY_CARE (환자 전용)
-        (45, 'DEFAULT', '내 진료'),
-        (45, 'PATIENT', '내 진료'),
-        (46, 'DEFAULT', '내 정보'),
-        (46, 'PATIENT', '내 정보'),
-        (47, 'DEFAULT', '진료 기록'),
-        (47, 'PATIENT', '진료 기록'),
-        (48, 'DEFAULT', '영상 결과'),
-        (48, 'PATIENT', '내 영상 결과'),
-        (49, 'DEFAULT', '검사 결과'),
-        (49, 'PATIENT', '내 검사 결과'),
-    ]
-
-    for menu_id, role, text in menu_labels_data:
-        try:
-            menu = Menu.objects.get(id=menu_id)
-            _, created = MenuLabel.objects.get_or_create(
-                menu=menu,
-                role=role,
-                defaults={'text': text}
-            )
-            if created:
-                changes['MenuLabel']['created'] += 1
-        except Menu.DoesNotExist:
-            pass
-
-    print(f"  메뉴 라벨: {changes['MenuLabel']['created']}개 (전체: {MenuLabel.objects.count()}개)")
-
-    # ========== 역할별 권한 매핑 (RolePermission - Menu 연결) ==========
-    from apps.accounts.models import RolePermission
-
-    # 메뉴 code → Menu 객체 매핑
-    menu_map = {menu.code: menu for menu in Menu.objects.all()}
-
-    role_menu_permissions = {
-        'SYSTEMMANAGER': list(menu_map.keys()),  # 모든 메뉴
-        'ADMIN': [
-            'DASHBOARD', 'PATIENT', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST',
-            'OCS', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS',
-            'OCS_RIS', 'OCS_RIS_DETAIL', 'OCS_LIS', 'OCS_LIS_DETAIL',
-            'IMAGING', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD',
-            'LAB', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'LIS_PROCESS_STATUS',
-            'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'AI_PROCESS_STATUS', 'AI_MODELS',
-            'REPORT', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL',
-            'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG', 'ADMIN_SYSTEM_MONITOR'
-        ],
-        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'REPORT', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL'],
-        'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW'],  # PATIENT_CARE 제거 (DOCTOR, SYSTEMMANAGER만), NURSE_RECEPTION은 Dashboard로 통합됨
-        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST'],
-        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST'],
-        # 환자 전용 메뉴 (MY_CARE 그룹)
-        'PATIENT': ['DASHBOARD', 'MY_CARE', 'MY_SUMMARY', 'MY_VISITS', 'MY_IMAGING', 'MY_LAB', 'ABOUT_HOSPITAL'],
-    }
-
-    for role_code, menu_codes in role_menu_permissions.items():
-        try:
-            role = Role.objects.get(code=role_code)
-            # 기존 RolePermission 삭제 후 새로 생성
-            RolePermission.objects.filter(role=role).delete()
-            created_count = 0
-            for menu_code in menu_codes:
-                if menu_code in menu_map:
-                    RolePermission.objects.create(
-                        role=role,
-                        permission=menu_map[menu_code]  # permission 필드가 Menu를 참조
-                    )
-                    created_count += 1
-            print(f"  {role_code}: {created_count}개 메뉴 권한 설정")
-        except Role.DoesNotExist:
-            print(f"  경고: {role_code} 역할이 없습니다")
-
-    # ========== 변경 요약 출력 ==========
-    print("\n  [결과 요약]")
-    for table, counts in changes.items():
-        created = counts['created']
-        if created > 0:
-            print(f"  결과: {table} 테이블에 {created}개가 추가되었습니다.")
-        else:
-            print(f"  결과: {table} 테이블에 변경 없음 (기존 {counts['before']}개)")
-
-    print(f"\n[OK] 메뉴/권한 시드 완료")
-    return True
-
-
-def create_dummy_patients(target_count=30, force=False):
+def create_dummy_patients(target_count=50, force=False):
     """더미 환자 데이터 생성"""
-    print(f"\n[2단계] 환자 데이터 생성 (목표: {target_count}명)...")
+    print(f"\n[1단계] 환자 데이터 생성 (목표: {target_count}명)...")
 
     from apps.patients.models import Patient
     from django.contrib.auth import get_user_model
@@ -919,7 +103,7 @@ def create_dummy_patients(target_count=30, force=False):
         print("[ERROR] 사용자가 없습니다.")
         return False
 
-    # 더미 환자 데이터
+    # 더미 환자 데이터 (50명)
     dummy_patients = [
         {"name": "김철수", "birth_date": timezone.now().date() - timedelta(days=365*45), "gender": "M", "phone": "010-1234-5678", "ssn": "7801011234567", "blood_type": "A+", "allergies": ["페니실린"], "chronic_diseases": ["고혈압"], "address": "서울특별시 강남구 테헤란로 123"},
         {"name": "이영희", "birth_date": timezone.now().date() - timedelta(days=365*38), "gender": "F", "phone": "010-2345-6789", "ssn": "8603151234568", "blood_type": "B+", "allergies": [], "chronic_diseases": ["당뇨"], "address": "서울특별시 서초구 서초대로 456"},
@@ -951,7 +135,7 @@ def create_dummy_patients(target_count=30, force=False):
         {"name": "심유나", "birth_date": timezone.now().date() - timedelta(days=365*35), "gender": "F", "phone": "010-9012-0000", "ssn": "8902158234568", "blood_type": "B+", "allergies": ["설파제"], "chronic_diseases": [], "address": "제주특별자치도 제주시 연동로 1800"},
         {"name": "엄태식", "birth_date": timezone.now().date() - timedelta(days=365*68), "gender": "M", "phone": "010-0123-0000", "ssn": "5607209234568", "blood_type": "AB-", "allergies": ["페니실린", "아스피린"], "chronic_diseases": ["고혈압", "당뇨", "고지혈증"], "address": "강원도 춘천시 중앙로 1900"},
         {"name": "차준영", "birth_date": timezone.now().date() - timedelta(days=365*40), "gender": "M", "phone": "010-1122-3344", "ssn": "8405201234569", "blood_type": "A+", "allergies": [], "chronic_diseases": [], "address": "경상북도 포항시 북구 중앙로 2000"},
-        # 확장 환자 20명 (기존 setup_dummy_data_4_extended.py에서 통합)
+        # 확장 환자 20명
         {"name": "김태현", "birth_date": timezone.now().date() - timedelta(days=365*48), "gender": "M", "phone": "010-1001-1001", "ssn": "7601011001001", "blood_type": "A+", "allergies": [], "chronic_diseases": ["고혈압"], "address": "서울특별시 강서구 강서로 100"},
         {"name": "이수민", "birth_date": timezone.now().date() - timedelta(days=365*32), "gender": "F", "phone": "010-1001-1002", "ssn": "9203151001002", "blood_type": "B+", "allergies": ["페니실린"], "chronic_diseases": [], "address": "서울특별시 동작구 동작대로 200"},
         {"name": "박준호", "birth_date": timezone.now().date() - timedelta(days=365*56), "gender": "M", "phone": "010-1001-1003", "ssn": "6809201001003", "blood_type": "O+", "allergies": [], "chronic_diseases": ["당뇨", "고혈압"], "address": "경기도 안양시 만안구 안양로 300"},
@@ -1007,7 +191,7 @@ def create_dummy_patients(target_count=30, force=False):
 
 def create_dummy_encounters(target_count=20, force=False):
     """더미 진료 데이터 생성"""
-    print(f"\n[3단계] 진료 데이터 생성 (목표: {target_count}건)...")
+    print(f"\n[2단계] 진료 데이터 생성 (목표: {target_count}건)...")
 
     from apps.encounters.models import Encounter
     from apps.patients.models import Patient
@@ -1145,8 +329,7 @@ def create_dummy_encounters(target_count=20, force=False):
     print(f"[OK] 진료 생성: {created_count}건")
 
     # 오늘 예약 진료 3건 생성 (금일 예약 환자 목록 테스트용)
-    print("\n[3-1단계] 오늘 예약 진료 생성...")
-    from datetime import time as dt_time
+    print("\n[2-1단계] 오늘 예약 진료 생성...")
     today_scheduled_count = Encounter.objects.filter(
         admission_date__date=timezone.now().date(),
         status='scheduled'
@@ -1180,7 +363,7 @@ def create_dummy_encounters(target_count=20, force=False):
 
 def create_dummy_imaging_with_ocs(num_orders=30, force=False):
     """더미 영상 검사 데이터 생성 (OCS 통합 버전)"""
-    print(f"\n[4단계] 영상 검사 데이터 생성 - OCS 통합 (목표: {num_orders}건)...")
+    print(f"\n[3단계] 영상 검사 데이터 생성 - OCS 통합 (목표: {num_orders}건)...")
 
     from apps.ocs.models import OCS
     from apps.imaging.models import ImagingStudy
@@ -1320,7 +503,7 @@ def create_dummy_imaging_with_ocs(num_orders=30, force=False):
 
 def create_dummy_lis_orders(num_orders=30, force=False):
     """더미 LIS (검사) 오더 생성"""
-    print(f"\n[5단계] 검사 오더 데이터 생성 - LIS (목표: {num_orders}건)...")
+    print(f"\n[4단계] 검사 오더 데이터 생성 - LIS (목표: {num_orders}건)...")
 
     from apps.ocs.models import OCS
     from apps.patients.models import Patient
@@ -1458,14 +641,14 @@ def create_dummy_lis_orders(num_orders=30, force=False):
             # GENETIC/PROTEIN은 위에서 이미 worker_result 설정됨
             if test_type not in ['GENETIC', 'RNA_SEQ', 'DNA_SEQ', 'GENE_PANEL', 'PROTEIN', 'PROTEIN_PANEL', 'BIOMARKER']:
                 worker_result = {
-                "_template": "LIS",
-                "_version": "1.0",
-                "_confirmed": ocs_status == 'CONFIRMED',
-                "test_results": test_results,
-                "summary": "이상 소견 있음" if is_abnormal else "정상 범위",
-                "interpretation": "추가 검사 권장" if is_abnormal else "특이 소견 없음",
-                "_custom": {}
-            }
+                    "_template": "LIS",
+                    "_version": "1.0",
+                    "_confirmed": ocs_status == 'CONFIRMED',
+                    "test_results": test_results,
+                    "summary": "이상 소견 있음" if is_abnormal else "정상 범위",
+                    "interpretation": "추가 검사 권장" if is_abnormal else "특이 소견 없음",
+                    "_custom": {}
+                }
 
         # 타임스탬프 계산
         base_time = timezone.now() - timedelta(days=days_ago)
@@ -1527,7 +710,7 @@ def create_dummy_lis_orders(num_orders=30, force=False):
 
 def create_ai_models():
     """AI 모델 시드 데이터 생성"""
-    print(f"\n[6단계] AI 모델 데이터 생성...")
+    print(f"\n[5단계] AI 모델 데이터 생성...")
 
     from apps.ai_inference.models import AIModel
 
@@ -1560,7 +743,7 @@ def create_ai_models():
             "description": "RNA 시퀀싱 기반 유전자 분석 모델 (MGMT 메틸화, IDH 변이 등)",
             "ocs_sources": ["LIS"],
             "required_keys": {
-                "LIS": ["RNA_seq"]  # job_type='GENETIC'인 OCS에서 조회
+                "LIS": ["RNA_seq"]
             },
             "version": "1.0.0",
             "is_active": True,
@@ -1577,7 +760,7 @@ def create_ai_models():
             "ocs_sources": ["RIS", "LIS"],
             "required_keys": {
                 "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"],
-                "LIS": ["RNA_seq", "protein"]  # job_type='GENETIC', 'PROTEIN'인 OCS에서 조회
+                "LIS": ["RNA_seq", "protein"]
             },
             "version": "1.0.0",
             "is_active": True,
@@ -1670,70 +853,13 @@ def create_patient_alerts(force=False):
     return True
 
 
-def update_encounters_with_soap(force=False):
-    """기존 진료에 SOAP 데이터 추가"""
-    print("\n[7단계] 진료 SOAP 데이터 업데이트...")
-
-    from apps.encounters.models import Encounter
-
-    # 완료/진행중 진료만 업데이트
-    encounters = Encounter.objects.filter(
-        status__in=['completed', 'in_progress'],
-        subjective='',  # SOAP 데이터가 없는 진료만
-    )
-
-    if not encounters.exists() and not force:
-        print("[SKIP] 업데이트 대상 진료가 없거나 이미 SOAP 데이터가 있습니다.")
-        return True
-
-    soap_samples = [
-        {
-            'subjective': '두통이 2주 전부터 시작되어 점점 심해지고 있습니다. 오심, 구토 동반됨.',
-            'objective': 'V/S: BP 130/85, HR 78, BT 36.5\nNeuro exam: Pupil reflex (+/+), MMT 5/5',
-            'assessment': '두통 - 원인 감별 필요 (Tension type vs. Secondary headache)',
-            'plan': '1. Brain MRI with contrast 처방\n2. 진통제 처방 (Acetaminophen 500mg tid)\n3. 2주 후 F/U',
-        },
-        {
-            'subjective': '왼쪽 팔다리 저림 증상이 3일 전부터 있습니다. 힘이 빠지는 느낌도 있음.',
-            'objective': 'V/S: 안정적\nNeuro exam: Lt. side weakness (MMT 4/5), sensory decreased',
-            'assessment': 'Rt. hemisphere lesion 의심 - Brain tumor vs. Infarction R/O',
-            'plan': '1. Brain CT & MRI 시행\n2. Lab 검사 (CBC, Coag, Chemistry)\n3. 신경외과 협진 의뢰',
-        },
-        {
-            'subjective': '경련이 어제 발생했습니다. 의식 소실 동반, 약 2분간 지속.',
-            'objective': 'V/S: 안정적\nEEG: Abnormal findings at Rt. temporal area',
-            'assessment': 'New onset seizure - Structural lesion 감별 필요',
-            'plan': '1. Anti-epileptic drug 시작 (Levetiracetam 500mg bid)\n2. Brain MRI 시행\n3. 발작 일지 작성 교육',
-        },
-        {
-            'subjective': '정기 추적 검사 방문. 특이 증상 없음.',
-            'objective': 'V/S: 정상\nNeuro exam: No focal neurological deficit',
-            'assessment': 'Brain tumor s/p treatment - Stable disease',
-            'plan': '1. Brain MRI F/U 예약\n2. 현재 투약 유지\n3. 3개월 후 재방문',
-        },
-    ]
-
-    updated_count = 0
-    for encounter in encounters[:15]:  # 최대 15건만 업데이트
-        soap = random.choice(soap_samples)
-        encounter.subjective = soap['subjective']
-        encounter.objective = soap['objective']
-        encounter.assessment = soap['assessment']
-        encounter.plan = soap['plan']
-        encounter.save()
-        updated_count += 1
-
-    print(f"[OK] 진료 SOAP 데이터 업데이트: {updated_count}건")
-    return True
-
-
 def link_patient_user_account():
     """
     PATIENT 역할 사용자를 환자(Patient) 테이블과 연결
 
     patient1~5 계정 → 환자 테이블의 김철수, 이영희, 박민수, 최지은, 정현우와 연결
     """
-    print("\n[추가 단계] 환자 계정-환자 테이블 연결...")
+    print("\n[7단계] 환자 계정-환자 테이블 연결...")
 
     from apps.patients.models import Patient
     from django.contrib.auth import get_user_model
@@ -1784,27 +910,540 @@ def link_patient_user_account():
     return True
 
 
-def reset_base_data():
-    """기본 더미 데이터 삭제 (base 영역만)"""
-    print("\n[RESET] 기본 더미 데이터 삭제 중...")
+# ============================================================
+# 치료/경과/AI 요청 (from 2_add.py)
+# ============================================================
+
+def create_dummy_treatment_plans(num_plans=15, force=False):
+    """더미 치료 계획 데이터 생성"""
+    print(f"\n[8단계] 치료 계획 데이터 생성 (목표: {num_plans}건)...")
+
+    from apps.treatment.models import TreatmentPlan, TreatmentSession
+    from apps.patients.models import Patient
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # 기존 데이터 확인
+    existing_count = TreatmentPlan.objects.count()
+    if existing_count >= num_plans and not force:
+        print(f"[SKIP] 이미 {existing_count}건의 치료 계획이 존재합니다.")
+        return True
+
+    # 필요한 데이터
+    patients = list(Patient.objects.filter(is_deleted=False))
+    doctors = list(User.objects.filter(role__code='DOCTOR'))
+
+    if not patients:
+        print("[ERROR] 환자가 없습니다.")
+        return False
+
+    if not doctors:
+        doctors = list(User.objects.all()[:1])
+
+    # 실제 모델의 choices 사용
+    treatment_types = [choice[0] for choice in TreatmentPlan.TreatmentType.choices]
+    treatment_goals = [choice[0] for choice in TreatmentPlan.TreatmentGoal.choices]
+    statuses = [choice[0] for choice in TreatmentPlan.Status.choices]
+
+    plan_summaries = {
+        'surgery': ['뇌종양 절제술 시행 예정', '내시경 수술 계획', '감압술 시행', '조직 검사 후 치료 방향 결정'],
+        'radiation': ['전뇌 방사선 치료 진행', '정위적 방사선 수술 계획', 'IMRT 치료 시행', '양성자 치료 고려'],
+        'chemotherapy': ['테모졸로마이드 치료 시작', '베바시주맙 치료 진행', '복합 항암 요법 적용', '면역 항암 치료 시행'],
+        'observation': ['정기 MRI 추적 관찰', '증상 모니터링 지속', '경과 관찰 후 치료 결정'],
+        'combined': ['수술 후 방사선+항암 병합', '동시 화학방사선 요법 진행', '복합 치료 프로토콜 적용']
+    }
+
+    created_count = 0
+
+    for i in range(num_plans):
+        patient = random.choice(patients)
+        doctor = random.choice(doctors)
+        treatment_type = random.choice(treatment_types)
+        treatment_goal = random.choice(treatment_goals)
+        status = random.choice(statuses)
+
+        days_ago = random.randint(0, 180)
+        start_date = timezone.now().date() - timedelta(days=days_ago)
+
+        end_date = None
+        actual_start = None
+        actual_end = None
+
+        if status == 'completed':
+            actual_start = start_date
+            actual_end = start_date + timedelta(days=random.randint(14, 90))
+            end_date = actual_end
+        elif status == 'in_progress':
+            actual_start = start_date
+            end_date = start_date + timedelta(days=random.randint(30, 120))
+        elif status == 'cancelled':
+            end_date = start_date + timedelta(days=random.randint(7, 30))
+        elif status == 'planned':
+            end_date = start_date + timedelta(days=random.randint(30, 90))
+
+        try:
+            with transaction.atomic():
+                plan = TreatmentPlan.objects.create(
+                    patient=patient,
+                    treatment_type=treatment_type,
+                    treatment_goal=treatment_goal,
+                    plan_summary=random.choice(plan_summaries[treatment_type]),
+                    planned_by=doctor,
+                    status=status,
+                    start_date=start_date,
+                    end_date=end_date,
+                    actual_start_date=actual_start,
+                    actual_end_date=actual_end,
+                    notes=f"담당의: {doctor.name}" if random.random() < 0.3 else ""
+                )
+
+                # 치료 세션 생성 (방사선, 항암의 경우)
+                if treatment_type in ['radiation', 'chemotherapy'] and status in ['in_progress', 'completed']:
+                    num_sessions = random.randint(3, 8)
+                    session_statuses = [choice[0] for choice in TreatmentSession.Status.choices]
+
+                    for j in range(num_sessions):
+                        session_datetime = timezone.now() - timedelta(days=days_ago - j * 7)
+                        if session_datetime < timezone.now():
+                            session_status = 'completed'
+                        else:
+                            session_status = 'scheduled'
+
+                        TreatmentSession.objects.create(
+                            treatment_plan=plan,
+                            session_number=j + 1,
+                            session_date=session_datetime,
+                            performed_by=doctor if session_status == 'completed' else None,
+                            status=session_status,
+                            session_note=f"{j + 1}회차 치료 진행" if session_status == 'completed' else ""
+                        )
+
+                created_count += 1
+
+        except Exception as e:
+            print(f"  오류: {e}")
+
+    print(f"[OK] 치료 계획 생성: {created_count}건")
+    print(f"  현재 전체 치료 계획: {TreatmentPlan.objects.count()}건")
+    print(f"  현재 전체 치료 세션: {TreatmentSession.objects.count()}건")
+    return True
+
+
+def create_dummy_followups(num_followups=25, force=False):
+    """더미 경과 추적 데이터 생성"""
+    print(f"\n[9단계] 경과 추적 데이터 생성 (목표: {num_followups}건)...")
+
+    from apps.followup.models import FollowUp
+    from apps.patients.models import Patient
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # 기존 데이터 확인
+    existing_count = FollowUp.objects.count()
+    if existing_count >= num_followups and not force:
+        print(f"[SKIP] 이미 {existing_count}건의 경과 기록이 존재합니다.")
+        return True
+
+    # 필요한 데이터
+    patients = list(Patient.objects.filter(is_deleted=False))
+    doctors = list(User.objects.filter(role__code='DOCTOR'))
+
+    if not patients:
+        print("[ERROR] 환자가 없습니다.")
+        return False
+
+    if not doctors:
+        doctors = list(User.objects.all()[:1])
+
+    # 실제 모델의 choices 사용
+    followup_types = [choice[0] for choice in FollowUp.FollowUpType.choices]
+    clinical_statuses = [choice[0] for choice in FollowUp.ClinicalStatus.choices]
+
+    symptoms_list = [
+        ['두통'], ['어지러움'], ['시야 흐림'], ['손발 저림'],
+        [], ['피로감'], ['기억력 저하'], ['수면 장애'],
+        ['오심', '구토'], ['경련']
+    ]
+
+    notes_list = [
+        '전반적으로 안정적인 상태 유지',
+        '영상 소견상 변화 없음',
+        '치료 반응 양호',
+        '경미한 증상 악화 관찰',
+        '추가 검사 필요',
+        '현 치료 계획 유지 권고',
+        '다음 정기 검진 예정',
+        'MRI 추적 검사 예정'
+    ]
+
+    created_count = 0
+
+    for i in range(num_followups):
+        patient = random.choice(patients)
+        doctor = random.choice(doctors)
+        followup_type = random.choice(followup_types)
+        clinical_status = random.choice(clinical_statuses)
+
+        days_ago = random.randint(0, 365)
+        followup_datetime = timezone.now() - timedelta(days=days_ago)
+
+        # 다음 방문일 (50% 확률로 설정)
+        next_followup = None
+        if random.random() < 0.5:
+            next_followup = followup_datetime.date() + timedelta(days=random.randint(30, 90))
+
+        # 바이탈 사인 (JSON 형식)
+        vitals = {}
+        if random.random() < 0.6:
+            vitals = {
+                'bp_systolic': random.randint(110, 140),
+                'bp_diastolic': random.randint(70, 90),
+                'heart_rate': random.randint(60, 100),
+                'temperature': round(random.uniform(36.0, 37.5), 1)
+            }
+
+        try:
+            FollowUp.objects.create(
+                patient=patient,
+                followup_date=followup_datetime,
+                followup_type=followup_type,
+                clinical_status=clinical_status,
+                symptoms=random.choice(symptoms_list) if random.random() < 0.7 else [],
+                kps_score=random.choice([None, 70, 80, 90, 100]),
+                ecog_score=random.choice([None, 0, 1, 2]),
+                vitals=vitals,
+                weight_kg=round(random.uniform(50, 85), 2) if random.random() < 0.6 else None,
+                note=random.choice(notes_list),
+                next_followup_date=next_followup,
+                recorded_by=doctor
+            )
+            created_count += 1
+
+        except Exception as e:
+            print(f"  오류: {e}")
+
+    print(f"[OK] 경과 기록 생성: {created_count}건")
+    print(f"  현재 전체 경과 기록: {FollowUp.objects.count()}건")
+    return True
+
+
+def create_dummy_ai_requests(num_requests=10, force=False):
+    """더미 AI 추론 요청 데이터 생성"""
+    print(f"\n[10단계] AI 추론 요청 데이터 생성 (목표: {num_requests}건)...")
+
+    from apps.ai_inference.models import AIModel, AIInferenceRequest, AIInferenceResult
+    from apps.patients.models import Patient
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # 기존 데이터 확인
+    existing_count = AIInferenceRequest.objects.count()
+    if existing_count >= num_requests and not force:
+        print(f"[SKIP] 이미 {existing_count}건의 AI 요청이 존재합니다.")
+        return True
+
+    # 필요한 데이터
+    patients = list(Patient.objects.filter(is_deleted=False))
+    doctors = list(User.objects.filter(role__code='DOCTOR'))
+    ai_models = list(AIModel.objects.filter(is_active=True))
+
+    if not patients:
+        print("[ERROR] 환자가 없습니다.")
+        return False
+
+    if not doctors:
+        doctors = list(User.objects.all()[:1])
+
+    if not ai_models:
+        print("[ERROR] 활성화된 AI 모델이 없습니다.")
+        print("  AI 모델을 먼저 생성합니다...")
+        create_ai_models()
+        ai_models = list(AIModel.objects.filter(is_active=True))
+        if not ai_models:
+            return False
+
+    # AIInferenceRequest.Status에 맞춤
+    statuses = ['PENDING', 'VALIDATING', 'PROCESSING', 'COMPLETED', 'FAILED']
+    priorities = ['low', 'normal', 'high', 'urgent']
+
+    created_count = 0
+
+    for i in range(num_requests):
+        patient = random.choice(patients)
+        doctor = random.choice(doctors)
+        model = random.choice(ai_models)
+        status = random.choice(statuses)
+
+        days_ago = random.randint(0, 60)
+        requested_at = timezone.now() - timedelta(days=days_ago)
+
+        # 시작/완료 시간 설정
+        started_at = None
+        completed_at = None
+        error_message = None
+
+        if status in ['PROCESSING', 'COMPLETED', 'FAILED']:
+            started_at = requested_at + timedelta(minutes=random.randint(1, 30))
+
+        if status == 'COMPLETED':
+            completed_at = started_at + timedelta(minutes=random.randint(5, 60)) if started_at else None
+        elif status == 'FAILED':
+            completed_at = started_at + timedelta(minutes=random.randint(1, 10)) if started_at else None
+            error_message = random.choice([
+                "입력 데이터 검증 실패",
+                "모델 처리 중 오류 발생",
+                "타임아웃 초과",
+                "필수 데이터 누락"
+            ])
+
+        try:
+            with transaction.atomic():
+                ai_request = AIInferenceRequest.objects.create(
+                    patient=patient,
+                    model=model,
+                    requested_by=doctor,
+                    status=status,
+                    priority=random.choice(priorities),
+                    ocs_references=[],
+                    input_data={"patient_id": patient.id, "model_code": model.code},
+                    started_at=started_at,
+                    completed_at=completed_at,
+                    error_message=error_message,
+                )
+
+                # COMPLETED인 경우 결과도 생성
+                if status == 'COMPLETED':
+                    tumor_detected = random.random() < 0.7
+                    result_data = {
+                        "analysis_type": model.code,
+                        "tumor_detected": tumor_detected,
+                        "tumor_grade": random.choice(['Grade I', 'Grade II', 'Grade III', 'Grade IV']) if tumor_detected else None,
+                        "tumor_location": random.choice(["frontal", "temporal", "parietal", "occipital"]) if tumor_detected else None,
+                        "recommendations": [
+                            "추가 영상 검사 권장" if tumor_detected else "정기 검진 권장",
+                            "전문의 상담 권장"
+                        ],
+                    }
+
+                    review_status = random.choice(['pending', 'approved', 'rejected'])
+                    reviewed_by = doctor if review_status != 'pending' else None
+                    reviewed_at = completed_at + timedelta(hours=random.randint(1, 48)) if reviewed_by else None
+
+                    AIInferenceResult.objects.create(
+                        inference_request=ai_request,
+                        result_data=result_data,
+                        confidence_score=round(random.uniform(0.75, 0.98), 2),
+                        visualization_paths=[],
+                        reviewed_by=reviewed_by,
+                        review_status=review_status,
+                        review_comment="결과 확인함" if reviewed_by else None,
+                        reviewed_at=reviewed_at,
+                    )
+
+                created_count += 1
+
+        except Exception as e:
+            print(f"  오류: {e}")
+
+    print(f"[OK] AI 요청 생성: {created_count}건")
+    print(f"  현재 전체 AI 요청: {AIInferenceRequest.objects.count()}건")
+    return True
+
+
+# ============================================================
+# 처방 데이터 (from 3_prescriptions.py)
+# ============================================================
+
+# 뇌종양 관련 약품 목록
+MEDICATIONS = [
+    # 항암제
+    {"name": "Temozolomide 140mg", "code": "TEM140", "dosage": "140mg", "frequency": "QD", "route": "PO", "instructions": "공복에 복용, 구역질 시 제토제 병용"},
+    {"name": "Temozolomide 250mg", "code": "TEM250", "dosage": "250mg", "frequency": "QD", "route": "PO", "instructions": "공복에 복용, 혈구 수치 모니터링 필요"},
+    {"name": "Bevacizumab 400mg", "code": "BEV400", "dosage": "400mg", "frequency": "QW", "route": "IV", "instructions": "10mg/kg 기준, 30분 이상 점적"},
+    {"name": "Lomustine 100mg", "code": "LOM100", "dosage": "100mg", "frequency": "QOD", "route": "PO", "instructions": "6주 주기, 혈액 검사 필수"},
+    # 부종/뇌압 관리
+    {"name": "Dexamethasone 4mg", "code": "DEX4", "dosage": "4mg", "frequency": "TID", "route": "PO", "instructions": "식후 복용, 점진적 감량 필요"},
+    {"name": "Dexamethasone 8mg", "code": "DEX8", "dosage": "8mg", "frequency": "BID", "route": "IV", "instructions": "응급 시 사용, 점진적 경구 전환"},
+    {"name": "Mannitol 20% 100ml", "code": "MAN100", "dosage": "100ml", "frequency": "QID", "route": "IV", "instructions": "뇌압 상승 시 15분 이상 점적"},
+    # 항경련제
+    {"name": "Levetiracetam 500mg", "code": "LEV500", "dosage": "500mg", "frequency": "BID", "route": "PO", "instructions": "식사와 무관, 갑작스런 중단 금지"},
+    {"name": "Levetiracetam 1000mg", "code": "LEV1000", "dosage": "1000mg", "frequency": "BID", "route": "PO", "instructions": "고용량, 졸음 주의"},
+    {"name": "Valproic acid 500mg", "code": "VPA500", "dosage": "500mg", "frequency": "TID", "route": "PO", "instructions": "간기능 검사 정기적 시행"},
+    {"name": "Phenytoin 100mg", "code": "PHE100", "dosage": "100mg", "frequency": "TID", "route": "PO", "instructions": "혈중 농도 모니터링 필요"},
+    # 진통제
+    {"name": "Acetaminophen 500mg", "code": "ACE500", "dosage": "500mg", "frequency": "QID", "route": "PO", "instructions": "1일 4g 초과 금지"},
+    {"name": "Tramadol 50mg", "code": "TRA50", "dosage": "50mg", "frequency": "TID", "route": "PO", "instructions": "졸음 유발 가능, 운전 주의"},
+    {"name": "Oxycodone 10mg", "code": "OXY10", "dosage": "10mg", "frequency": "BID", "route": "PO", "instructions": "마약성 진통제, 변비 예방 필요"},
+    # 구역/구토 관리
+    {"name": "Ondansetron 8mg", "code": "OND8", "dosage": "8mg", "frequency": "BID", "route": "PO", "instructions": "항암 치료 30분 전 투여"},
+    {"name": "Metoclopramide 10mg", "code": "MET10", "dosage": "10mg", "frequency": "TID", "route": "PO", "instructions": "식전 30분 복용"},
+    # 위장 보호
+    {"name": "Esomeprazole 40mg", "code": "ESO40", "dosage": "40mg", "frequency": "QD", "route": "PO", "instructions": "아침 식전 복용"},
+    {"name": "Famotidine 20mg", "code": "FAM20", "dosage": "20mg", "frequency": "BID", "route": "PO", "instructions": "스테로이드 병용 시 필수"},
+    # 기타 보조
+    {"name": "Megestrol acetate 160mg", "code": "MEG160", "dosage": "160mg", "frequency": "QD", "route": "PO", "instructions": "식욕 부진 시 사용"},
+    {"name": "Methylphenidate 10mg", "code": "MPH10", "dosage": "10mg", "frequency": "BID", "route": "PO", "instructions": "피로감 개선, 오후 투여 피함"},
+]
+
+# 진단명 목록
+DIAGNOSES = [
+    "뇌교종 (Glioma)",
+    "교모세포종 (Glioblastoma, GBM)",
+    "핍지교종 (Oligodendroglioma)",
+    "수막종 (Meningioma)",
+    "뇌전이암 (Brain Metastasis)",
+    "뇌하수체선종 (Pituitary Adenoma)",
+    "청신경초종 (Vestibular Schwannoma)",
+    "두개인두종 (Craniopharyngioma)",
+    "림프종 (Primary CNS Lymphoma)",
+    "상의세포종 (Ependymoma)",
+]
+
+
+def create_dummy_prescriptions(num_prescriptions=20, num_items_per_rx=3, force=False):
+    """더미 처방 데이터 생성"""
+    print(f"\n[11단계] 처방 데이터 생성 (목표: 처방 {num_prescriptions}건, 항목 약 {num_prescriptions * num_items_per_rx}건)...")
+
+    from apps.prescriptions.models import Prescription, PrescriptionItem
+    from apps.patients.models import Patient
+    from apps.encounters.models import Encounter
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # 기존 데이터 확인
+    existing_count = Prescription.objects.count()
+    if existing_count >= num_prescriptions and not force:
+        print(f"[SKIP] 이미 {existing_count}건의 처방이 존재합니다.")
+        return True
+
+    # 필요한 데이터
+    patients = list(Patient.objects.filter(is_deleted=False))
+    doctors = list(User.objects.filter(role__code='DOCTOR'))
+    encounters = list(Encounter.objects.all())
+
+    if not patients:
+        print("[ERROR] 환자가 없습니다.")
+        return False
+
+    if not doctors:
+        doctors = list(User.objects.all()[:1])
+
+    statuses = [choice[0] for choice in Prescription.Status.choices]
+    status_weights = [0.1, 0.5, 0.3, 0.1]  # DRAFT, ISSUED, DISPENSED, CANCELLED
+
+    notes_list = [
+        "다음 진료 시 반응 평가 예정",
+        "부작용 발생 시 즉시 내원",
+        "정기 혈액 검사 필요",
+        "복용법 상세 설명 완료",
+        "외래 2주 후 재방문 예정",
+        "",
+    ]
+
+    prescription_count = 0
+    item_count = 0
+
+    for i in range(num_prescriptions):
+        patient = random.choice(patients)
+        doctor = random.choice(doctors)
+        encounter = random.choice(encounters) if encounters and random.random() < 0.7 else None
+        status = random.choices(statuses, weights=status_weights)[0]
+        diagnosis = random.choice(DIAGNOSES)
+
+        days_ago = random.randint(0, 180)
+        created_at_delta = timedelta(days=days_ago)
+
+        # 타임스탬프 설정
+        issued_at = None
+        dispensed_at = None
+        cancelled_at = None
+        cancel_reason = None
+
+        if status in ['ISSUED', 'DISPENSED']:
+            issued_at = timezone.now() - created_at_delta + timedelta(hours=random.randint(1, 4))
+        if status == 'DISPENSED':
+            dispensed_at = issued_at + timedelta(hours=random.randint(1, 24)) if issued_at else None
+        if status == 'CANCELLED':
+            cancelled_at = timezone.now() - created_at_delta + timedelta(hours=random.randint(1, 8))
+            cancel_reason = random.choice([
+                "환자 요청으로 취소",
+                "처방 내용 변경",
+                "약물 상호작용 우려",
+                "진단 변경",
+            ])
+
+        try:
+            with transaction.atomic():
+                prescription = Prescription.objects.create(
+                    patient=patient,
+                    doctor=doctor,
+                    encounter=encounter,
+                    status=status,
+                    diagnosis=diagnosis,
+                    notes=random.choice(notes_list),
+                    issued_at=issued_at,
+                    dispensed_at=dispensed_at,
+                    cancelled_at=cancelled_at,
+                    cancel_reason=cancel_reason,
+                )
+
+                # 처방 항목 생성 (1~5개)
+                num_items = random.randint(1, 5)
+                selected_meds = random.sample(MEDICATIONS, min(num_items, len(MEDICATIONS)))
+
+                for order, med in enumerate(selected_meds):
+                    duration = random.choice([7, 14, 28, 30, 60, 90])
+
+                    # 빈도에 따른 수량 계산
+                    freq_multiplier = {'QD': 1, 'BID': 2, 'TID': 3, 'QID': 4, 'PRN': 1, 'QOD': 0.5, 'QW': 0.14}
+                    daily_count = freq_multiplier.get(med['frequency'], 1)
+                    quantity = int(duration * daily_count) + random.randint(0, 5)
+
+                    PrescriptionItem.objects.create(
+                        prescription=prescription,
+                        medication_name=med['name'],
+                        medication_code=med['code'],
+                        dosage=med['dosage'],
+                        frequency=med['frequency'],
+                        route=med['route'],
+                        duration_days=duration,
+                        quantity=quantity,
+                        instructions=med['instructions'],
+                        order=order,
+                    )
+                    item_count += 1
+
+                prescription_count += 1
+
+        except Exception as e:
+            print(f"  오류: {e}")
+
+    print(f"[OK] 처방 생성: {prescription_count}건")
+    print(f"[OK] 처방 항목 생성: {item_count}건")
+    print(f"  현재 전체 처방: {Prescription.objects.count()}건")
+    print(f"  현재 전체 처방 항목: {PrescriptionItem.objects.count()}건")
+    return True
+
+
+# ============================================================
+# 데이터 리셋 및 요약
+# ============================================================
+
+def reset_clinical_data():
+    """임상 더미 데이터 삭제"""
+    print("\n[RESET] 임상 더미 데이터 삭제 중...")
 
     from apps.ocs.models import OCS, OCSHistory
     from apps.imaging.models import ImagingStudy
     from apps.encounters.models import Encounter
     from apps.patients.models import Patient, PatientAlert
-    from apps.menus.models import Menu, MenuLabel, MenuPermission
     from apps.ai_inference.models import AIInferenceRequest, AIInferenceResult, AIInferenceLog
     from apps.treatment.models import TreatmentPlan, TreatmentSession
     from apps.followup.models import FollowUp
     from apps.prescriptions.models import Prescription, PrescriptionItem
 
     # 삭제 순서: 의존성 역순
-    # 환자 주의사항 삭제
-    patient_alert_count = PatientAlert.objects.count()
-    PatientAlert.objects.all().delete()
-    print(f"  PatientAlert: {patient_alert_count}건 삭제")
-
-    # 처방 삭제 (Patient 참조)
+    # 처방 삭제
     prescription_item_count = PrescriptionItem.objects.count()
     PrescriptionItem.objects.all().delete()
     print(f"  PrescriptionItem: {prescription_item_count}건 삭제")
@@ -1813,7 +1452,7 @@ def reset_base_data():
     Prescription.objects.all().delete()
     print(f"  Prescription: {prescription_count}건 삭제")
 
-    # AI 로그/결과/요청 삭제 (추가 데이터지만 base 데이터에 의존)
+    # AI 로그/결과/요청 삭제
     ai_log_count = AIInferenceLog.objects.count()
     AIInferenceLog.objects.all().delete()
     print(f"  AIInferenceLog: {ai_log_count}건 삭제")
@@ -1826,7 +1465,7 @@ def reset_base_data():
     AIInferenceRequest.objects.all().delete()
     print(f"  AIInferenceRequest: {ai_request_count}건 삭제")
 
-    # 치료 세션/계획 삭제 (추가 데이터지만 base 데이터에 의존)
+    # 치료 세션/계획 삭제
     treatment_session_count = TreatmentSession.objects.count()
     TreatmentSession.objects.all().delete()
     print(f"  TreatmentSession: {treatment_session_count}건 삭제")
@@ -1835,12 +1474,17 @@ def reset_base_data():
     TreatmentPlan.objects.all().delete()
     print(f"  TreatmentPlan: {treatment_plan_count}건 삭제")
 
-    # 경과 기록 삭제 (추가 데이터지만 base 데이터에 의존)
+    # 경과 기록 삭제
     followup_count = FollowUp.objects.count()
     FollowUp.objects.all().delete()
     print(f"  FollowUp: {followup_count}건 삭제")
 
-    # 기본 데이터 삭제
+    # 환자 주의사항 삭제
+    patient_alert_count = PatientAlert.objects.count()
+    PatientAlert.objects.all().delete()
+    print(f"  PatientAlert: {patient_alert_count}건 삭제")
+
+    # OCS 관련 삭제
     ocs_history_count = OCSHistory.objects.count()
     OCSHistory.objects.all().delete()
     print(f"  OCSHistory: {ocs_history_count}건 삭제")
@@ -1861,133 +1505,125 @@ def reset_base_data():
     Patient.objects.all().delete()
     print(f"  Patient: {patient_count}건 삭제")
 
-    # 불필요한 메뉴 삭제 (PATIENT_IMAGING_HISTORY 등)
-    deprecated_menus = ['PATIENT_IMAGING_HISTORY']
-    for menu_code in deprecated_menus:
-        try:
-            menu = Menu.objects.filter(code=menu_code).first()
-            if menu:
-                MenuLabel.objects.filter(menu=menu).delete()
-                MenuPermission.objects.filter(menu=menu).delete()
-                menu.delete()
-                print(f"  Menu '{menu_code}' 삭제됨")
-        except Exception as e:
-            print(f"  Menu '{menu_code}' 삭제 실패: {e}")
-
-    print("[OK] 기본 더미 데이터 삭제 완료")
-
-
-def print_summary_base():
-    """기본 데이터 요약 (역할/사용자/메뉴)"""
-    print("\n" + "="*60)
-    print("기본 데이터 생성 완료! (1/3)")
-    print("="*60)
-
-    from apps.menus.models import Menu, MenuLabel, MenuPermission
-    from apps.accounts.models import Permission, Role, User
-
-    print(f"\n[통계 - 기본 데이터]")
-    print(f"  - 역할: {Role.objects.count()}개")
-    print(f"  - 사용자: {User.objects.count()}명")
-    print(f"  - 메뉴: {Menu.objects.count()}개")
-    print(f"  - 메뉴 라벨: {MenuLabel.objects.count()}개")
-    print(f"  - 메뉴-권한 매핑: {MenuPermission.objects.count()}개")
-    print(f"  - 권한: {Permission.objects.count()}개")
-
-    print(f"\n[다음 단계]")
-    print(f"  임상 데이터 생성:")
-    print(f"    python setup_dummy_data_2_clinical.py")
+    print("[OK] 임상 더미 데이터 삭제 완료")
 
 
 def print_summary():
-    """기본 더미 데이터 요약 (레거시 호환)"""
+    """임상 더미 데이터 요약"""
     print("\n" + "="*60)
-    print("기본 더미 데이터 생성 완료!")
+    print("임상 더미 데이터 생성 완료! (2/3)")
     print("="*60)
 
     from apps.patients.models import Patient, PatientAlert
     from apps.encounters.models import Encounter
     from apps.imaging.models import ImagingStudy
     from apps.ocs.models import OCS
-    from apps.menus.models import Menu, MenuLabel, MenuPermission
-    from apps.accounts.models import Permission
-    from apps.ai_inference.models import AIModel
+    from apps.ai_inference.models import AIModel, AIInferenceRequest
+    from apps.treatment.models import TreatmentPlan, TreatmentSession
+    from apps.followup.models import FollowUp
+    from apps.prescriptions.models import Prescription, PrescriptionItem
 
-    print(f"\n[통계 - 기본 데이터]")
-    print(f"  - 메뉴: {Menu.objects.count()}개")
-    print(f"  - 메뉴 라벨: {MenuLabel.objects.count()}개")
-    print(f"  - 메뉴-권한 매핑: {MenuPermission.objects.count()}개")
-    print(f"  - 권한: {Permission.objects.count()}개")
+    print(f"\n[통계 - 임상 데이터]")
     print(f"  - 환자: {Patient.objects.filter(is_deleted=False).count()}명")
     print(f"  - 환자 주의사항: {PatientAlert.objects.count()}건")
     print(f"  - 진료: {Encounter.objects.count()}건")
-    print(f"  - 진료 (SOAP 포함): {Encounter.objects.exclude(subjective='').count()}건")
     print(f"  - OCS (RIS): {OCS.objects.filter(job_role='RIS').count()}건")
     print(f"  - OCS (LIS): {OCS.objects.filter(job_role='LIS').count()}건")
     print(f"  - 영상 검사: {ImagingStudy.objects.count()}건")
     print(f"  - AI 모델: {AIModel.objects.count()}개")
+    print(f"  - AI 요청: {AIInferenceRequest.objects.count()}건")
+    print(f"  - 치료 계획: {TreatmentPlan.objects.count()}건")
+    print(f"  - 치료 세션: {TreatmentSession.objects.count()}건")
+    print(f"  - 경과 기록: {FollowUp.objects.count()}건")
+    print(f"  - 처방전: {Prescription.objects.count()}건")
+    print(f"  - 처방 항목: {PrescriptionItem.objects.count()}건")
 
     print(f"\n[다음 단계]")
-    print(f"  추가 데이터 생성:")
-    print(f"    python setup_dummy_data_2_clinical.py")
+    print(f"  확장 데이터 생성:")
+    print(f"    python setup_dummy_data_3_extended.py")
     print(f"")
-    print(f"  또는 전체 실행:")
-    print(f"    python setup_dummy_data.py")
+    print(f"  또는 서버 실행:")
+    print(f"    python manage.py runserver")
+    print(f"")
+    print(f"  테스트 계정:")
+    print(f"    system / system001 (시스템 관리자)")
+    print(f"    admin / admin001 (병원 관리자)")
+    print(f"    doctor1~5 / doctor1001~5001 (의사)")
+    print(f"    nurse1~3 / nurse1001~3001 (간호사)")
+    print(f"    patient1~5 / patient1001~5001 (환자)")
+    print(f"    ris1~3 / ris1001~3001 (영상과)")
+    print(f"    lis1~3 / lis1001~3001 (검사과)")
 
 
 def main():
     """메인 실행 함수"""
     # 명령줄 인자 파싱
-    parser = argparse.ArgumentParser(description='Brain Tumor CDSS 기본 더미 데이터 생성')
-    parser.add_argument('--reset', action='store_true', help='기존 데이터 삭제 후 새로 생성')
+    parser = argparse.ArgumentParser(description='Brain Tumor CDSS 임상 더미 데이터 생성')
+    parser.add_argument('--reset', action='store_true', help='임상 데이터 삭제 후 새로 생성')
     parser.add_argument('--force', action='store_true', help='목표 수량 이상이어도 강제 추가')
-    parser.add_argument('--menu', action='store_true', help='메뉴/권한만 업데이트 (네비게이션 바 반영)')
     parser.add_argument('-y', '--yes', action='store_true', help='확인 없이 자동 실행 (비대화형 모드)')
     args = parser.parse_args()
 
     print("="*60)
-    print("Brain Tumor CDSS - 기본 더미 데이터 생성 (1/2)")
+    print("Brain Tumor CDSS - 임상 더미 데이터 생성 (2/3)")
     print("="*60)
 
-    # --menu 옵션: 메뉴/권한만 업데이트
-    if args.menu:
-        print("\n[메뉴/권한 업데이트 모드]")
-        load_menu_permission_seed()
-        print("\n" + "="*60)
-        print("메뉴/권한 업데이트 완료!")
-        print("="*60)
-        return
+    # 선행 조건 확인
+    if not check_prerequisites():
+        sys.exit(1)
 
-    # --reset 옵션: 기존 데이터 삭제
+    # --reset 옵션: 임상 데이터만 삭제
     if args.reset:
         if args.yes:
-            # 비대화형 모드: 확인 없이 삭제
-            reset_base_data()
+            reset_clinical_data()
         else:
-            confirm = input("\n정말 기존 데이터를 모두 삭제하시겠습니까? (yes/no): ")
+            confirm = input("\n임상 데이터(환자, 진료, OCS, 치료, 경과, 처방)를 삭제하시겠습니까? (yes/no): ")
             if confirm.lower() == 'yes':
-                reset_base_data()
+                reset_clinical_data()
             else:
                 print("삭제 취소됨")
                 sys.exit(0)
 
     force = args.reset or args.force  # reset 시에는 force=True
 
-    # ===== 1단계: 역할/사용자/메뉴 (필수) =====
-    # 역할 생성
-    setup_roles()
+    # ===== 환자 / 진료 / OCS =====
+    # 환자 생성
+    create_dummy_patients(50, force=force)
 
-    # 슈퍼유저 생성
-    setup_superuser()
+    # 진료 생성
+    create_dummy_encounters(20, force=force)
 
-    # 테스트 사용자 생성
-    setup_test_users()
+    # 영상 검사 (OCS + ImagingStudy)
+    create_dummy_imaging_with_ocs(30, force=force)
 
-    # 메뉴/권한 시드 데이터 로드
-    load_menu_permission_seed()
+    # 검사 오더 (LIS)
+    create_dummy_lis_orders(20, force=force)
+
+    # AI 모델
+    create_ai_models()
+
+    # 환자 주의사항
+    create_patient_alerts(force=force)
+
+    # 환자 계정 연결
+    link_patient_user_account()
+
+    # ===== 치료 / 경과 / AI 요청 =====
+    # 치료 계획
+    create_dummy_treatment_plans(15, force=force)
+
+    # 경과 추적
+    create_dummy_followups(25, force=force)
+
+    # AI 요청
+    create_dummy_ai_requests(10, force=force)
+
+    # ===== 처방 =====
+    # 처방 데이터
+    create_dummy_prescriptions(20, 3, force=force)
 
     # 요약 출력
-    print_summary_base()
+    print_summary()
 
 
 if __name__ == '__main__':
