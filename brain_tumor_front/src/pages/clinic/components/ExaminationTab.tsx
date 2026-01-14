@@ -127,6 +127,9 @@ export default function ExaminationTab({
   // AI 추론 관련 상태 (읽기 전용 - 결과 조회용)
   const [aiRequests, setAIRequests] = useState<AIInferenceRequest[]>([]);
 
+  // 처방 새로고침 키 (처방 발행 시 PastPrescriptionCard 새로고침용)
+  const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0);
+
   // 토스트 표시 헬퍼
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
@@ -193,7 +196,7 @@ export default function ExaminationTab({
       setSOAPSaved(true);
       showToast('success', 'SOAP 노트가 저장되었습니다.');
       setTimeout(() => setSOAPSaved(false), 3000);
-      onUpdate();
+      // onUpdate() 제거 - 전체 페이지 리로드 대신 토스트로 저장 확인
     } catch (err) {
       console.error('Failed to save SOAP:', err);
       showToast('error', 'SOAP 저장에 실패했습니다.');
@@ -601,6 +604,7 @@ export default function ExaminationTab({
           <PrescriptionCard
             patientId={patientId}
             encounter={encounter}
+            onPrescriptionCreated={() => setPrescriptionRefreshKey((k) => k + 1)}
           />
 
           
@@ -668,7 +672,7 @@ export default function ExaminationTab({
               />
 
               {/* 과거 처방 기록 */}
-              <PastPrescriptionCard patientId={patientId} />
+              <PastPrescriptionCard patientId={patientId} refreshKey={prescriptionRefreshKey} />
             </>
           ) : (
             <div className="empty-column-message">

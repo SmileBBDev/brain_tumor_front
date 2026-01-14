@@ -117,7 +117,8 @@ class AIInferenceRequestCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AIInferenceRequest
-        fields = ['patient_id', 'model_code', 'priority', 'ocs_ids']
+        fields = ['id', 'request_id', 'patient_id', 'model_code', 'priority', 'ocs_ids']
+        read_only_fields = ['id', 'request_id']
 
     def validate_patient_id(self, value):
         try:

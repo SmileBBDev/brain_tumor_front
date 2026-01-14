@@ -386,11 +386,14 @@
   background: #fff;
   cursor: pointer;
   font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
   transition: all 0.15s;
 }
 
 .priority-btn:hover {
   border-color: #9ca3af;
+  background: #f9fafb;
 }
 
 .priority-btn.selected {
@@ -400,21 +403,25 @@
 .priority-btn.selected.priority-low {
   border-color: #6b7280;
   background: #f3f4f6;
+  color: #374151;
 }
 
 .priority-btn.selected.priority-normal {
   border-color: #2563eb;
   background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .priority-btn.selected.priority-high {
   border-color: #f59e0b;
   background: #fffbeb;
+  color: #b45309;
 }
 
 .priority-btn.selected.priority-urgent {
   border-color: #dc2626;
   background: #fef2f2;
+  color: #b91c1c;
 }
 
 .action-buttons {

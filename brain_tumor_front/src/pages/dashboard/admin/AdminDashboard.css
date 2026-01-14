@@ -218,6 +218,35 @@
   color: #7f8c8d;
 }
 
+/* Clickable elements */
+.admin-dashboard .summary-card.clickable,
+.admin-dashboard .role-item.clickable,
+.admin-dashboard .status-item.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-dashboard .summary-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.admin-dashboard .role-item.clickable:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.02);
+}
+
+.admin-dashboard .role-item.clickable:hover .role-name,
+.admin-dashboard .role-item.clickable:hover .role-count {
+  color: white;
+}
+
+.admin-dashboard .status-item.clickable:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
 /* loading / error */
 .admin-dashboard .loading,
 .admin-dashboard .error {

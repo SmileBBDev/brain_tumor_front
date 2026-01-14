@@ -13,10 +13,12 @@ import PrescriptionDetailModal from './PrescriptionDetailModal';
 
 interface PastPrescriptionCardProps {
   patientId?: number;
+  refreshKey?: number; // 처방 발행 시 새로고침 트리거
 }
 
 export default function PastPrescriptionCard({
   patientId,
+  refreshKey,
 }: PastPrescriptionCardProps) {
   const { role } = useAuth();
   const isSystemManager = role === 'SYSTEMMANAGER';
@@ -53,7 +55,7 @@ export default function PastPrescriptionCard({
     };
 
     fetchPrescriptions();
-  }, [patientId, isSystemManager]);
+  }, [patientId, isSystemManager, refreshKey]);
 
   // 상태별 스타일 클래스
   const getStatusClass = (status: string) => {

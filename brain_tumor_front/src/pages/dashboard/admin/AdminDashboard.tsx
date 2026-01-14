@@ -3,12 +3,35 @@ import { useNavigate } from 'react-router-dom';
 import { getAdminStats } from '@/services/dashboard.api';
 import type { AdminStats } from '@/services/dashboard.api';
 import { UnifiedCalendar } from '@/components/calendar/UnifiedCalendar';
+import DashboardDetailModal, { type ModalType } from './DashboardDetailModal';
+import type { OcsStatus } from '@/types/ocs';
 import './AdminDashboard.css';
+
+interface ModalState {
+  open: boolean;
+  type: ModalType;
+  title: string;
+  roleFilter?: string;
+  ocsStatusFilter?: OcsStatus;
+}
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<ModalState>({
+    open: false,
+    type: 'users',
+    title: '',
+  });
+
+  const openModal = (type: ModalType, title: string, roleFilter?: string, ocsStatusFilter?: OcsStatus) => {
+    setModal({ open: true, type, title, roleFilter, ocsStatusFilter });
+  };
+
+  const closeModal = () => {
+    setModal({ open: false, type: 'users', title: '' });
+  };
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -44,7 +67,10 @@ export default function AdminDashboard() {
 
       {/* 요약 카드 */}
       <div className="summary-cards">
-        <div className="summary-card users">
+        <div
+          className="summary-card users clickable"
+          onClick={() => openModal('users', '전체 사용자 목록')}
+        >
           <div className="card-icon">👥</div>
           <div className="card-content">
             <span className="card-value">{stats.users.total}</span>
@@ -53,7 +79,10 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="summary-card patients">
+        <div
+          className="summary-card patients clickable"
+          onClick={() => openModal('patients', '전체 환자 목록')}
+        >
           <div className="card-icon">🏥</div>
           <div className="card-content">
             <span className="card-value">{stats.patients.total}</span>
@@ -62,7 +91,10 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="summary-card ocs">
+        <div
+          className="summary-card ocs clickable"
+          onClick={() => openModal('ocs', '전체 OCS 목록')}
+        >
           <div className="card-icon">📋</div>
           <div className="card-content">
             <span className="card-value">{stats.ocs.total}</span>
@@ -77,7 +109,11 @@ export default function AdminDashboard() {
         <h3>OCS 상태별 현황</h3>
         <div className="status-grid">
           {Object.entries(stats.ocs.by_status).map(([status, count]) => (
-            <div key={status} className={`status-item status-${status.toLowerCase()}`}>
+            <div
+              key={status}
+              className={`status-item status-${status.toLowerCase()} clickable`}
+              onClick={() => openModal('ocs_status', `${status} 상태 OCS 목록`, undefined, status as OcsStatus)}
+            >
               <span className="status-label">{status}</span>
               <span className="status-count">{count}</span>
             </div>
@@ -91,7 +127,11 @@ export default function AdminDashboard() {
           <h3>역할별 사용자</h3>
           <div className="role-grid">
             {Object.entries(stats.users.by_role).map(([role, count]) => (
-              <div key={role} className="role-item">
+              <div
+                key={role}
+                className="role-item clickable"
+                onClick={() => openModal('role', `${role} 사용자 목록`, role)}
+              >
                 <span className="role-name">{role}</span>
                 <span className="role-count">{count}명</span>
               </div>
@@ -104,6 +144,17 @@ export default function AdminDashboard() {
           onManageClick={() => navigate('/admin/shared-calendar')}
         />
       </div>
+
+      {/* 상세 팝업 모달 */}
+      {modal.open && (
+        <DashboardDetailModal
+          type={modal.type}
+          title={modal.title}
+          roleFilter={modal.roleFilter}
+          ocsStatusFilter={modal.ocsStatusFilter}
+          onClose={closeModal}
+        />
+      )}
     </div>
   );
 }

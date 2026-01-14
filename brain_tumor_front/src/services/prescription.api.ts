@@ -142,3 +142,56 @@ export const removePrescriptionItem = async (
 ): Promise<void> => {
   await api.delete(`/prescriptions/${prescriptionId}/items/${itemId}/`);
 };
+
+// =============================================================================
+// 의약품 마스터 API
+// =============================================================================
+
+export interface Medication {
+  id: number;
+  code: string;
+  name: string;
+  generic_name: string | null;
+  category: string;
+  category_display: string;
+  default_dosage: string;
+  default_route: string;
+  default_route_display: string;
+  default_frequency: string;
+  default_duration_days: number;
+  unit: string;
+  is_active: boolean;
+  warnings?: string;
+  contraindications?: string;
+}
+
+export interface MedicationSearchParams {
+  q?: string;
+  category?: string;
+  is_active?: boolean;
+}
+
+export interface MedicationCategory {
+  value: string;
+  label: string;
+}
+
+// 의약품 목록 조회
+export const getMedications = async (
+  params?: MedicationSearchParams
+): Promise<Medication[]> => {
+  const response = await api.get<Medication[]>('/prescriptions/medications/', { params });
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+// 의약품 상세 조회
+export const getMedication = async (medicationId: number): Promise<Medication> => {
+  const response = await api.get<Medication>(`/prescriptions/medications/${medicationId}/`);
+  return response.data;
+};
+
+// 의약품 카테고리 목록
+export const getMedicationCategories = async (): Promise<MedicationCategory[]> => {
+  const response = await api.get<MedicationCategory[]>('/prescriptions/medications/categories/');
+  return response.data;
+};
