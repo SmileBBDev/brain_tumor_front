@@ -1297,89 +1297,26 @@
   margin-right: 6px;
 }
 
-/* AI 요청 폼 */
-.ai-request-form {
+/* AI 액션 버튼 (수동 추론 요청 페이지 이동) */
+.ai-action-button {
   padding: 12px 0;
   border-bottom: 1px solid var(--border, #e5e7eb);
   margin-bottom: 12px;
 }
 
-.ai-model-selector {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.ai-action-button .btn-block {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.ai-model-selector select {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 6px;
-  font-size: 12px;
-  background: var(--card-bg, white);
-  color: var(--text-main, #374151);
-  cursor: pointer;
-}
-
-.ai-model-selector select:focus {
-  outline: none;
-  border-color: var(--primary, #4f46e5);
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
-}
-
-.ai-model-selector select option:disabled {
-  color: var(--text-sub, #9ca3af);
-}
-
-.ai-model-selector .btn {
-  white-space: nowrap;
-  padding: 8px 16px;
-  font-size: 12px;
-}
-
-/* 모델 정보 표시 */
-.ai-inference-card .ai-model-info {
-  margin-top: 10px;
-  padding: 10px;
-  background: var(--bg-main, #f4f6f9);
-  border-radius: 6px;
-}
-
-.ai-inference-card .model-description {
+.ai-action-hint {
+  margin: 10px 0 0 0;
   font-size: 11px;
   color: var(--text-sub, #6b7280);
-  margin: 0 0 8px 0;
-  line-height: 1.4;
-}
-
-.ai-inference-card .model-missing-data {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: #d97706;
-  background: #fffbeb;
-  padding: 6px 10px;
-  border-radius: 4px;
-}
-
-.ai-inference-card .model-missing-data .warning-icon {
-  font-size: 13px;
-}
-
-.ai-inference-card .model-ready {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: #059669;
-  background: #ecfdf5;
-  padding: 6px 10px;
-  border-radius: 4px;
-}
-
-.ai-inference-card .model-ready .check-icon {
-  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 /* AI 결과 리스트 */

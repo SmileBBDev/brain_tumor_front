@@ -36,12 +36,12 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 행 클릭 핸들러
+  // 행 클릭 핸들러 - 진료 상세 페이지로 이동
   const handleRowClick = (encounter: Encounter) => {
     if (onRowClick) {
       onRowClick(encounter);
     } else {
-      navigate(`/clinic/${encounter.id}`);
+      navigate(`/encounters/${encounter.id}`);
     }
   };
 
@@ -204,8 +204,8 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
           <tr
             key={e.id}
             className={`encounter-row ${e.status === 'in_progress' ? 'row-in-progress' : ''}`}
-            onClick={() => canStartEncounter(e.status) && handleRowClick(e)}
-            style={{ cursor: canStartEncounter(e.status) ? 'pointer' : 'default' }}
+            onClick={() => handleRowClick(e)}
+            style={{ cursor: 'pointer' }}
           >
             {/* 환자 식별 컬럼 (통합) */}
             <td className="patient-cell">
@@ -258,11 +258,11 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
             {/* Action 컬럼 */}
             <td className="action-cell" onClick={(ev) => ev.stopPropagation()}>
               <div className="action-buttons">
-                {/* Primary Action: 진료 시작 */}
+                {/* Primary Action: 진료 시작 (진찰 페이지로 이동) */}
                 {canStartEncounter(e.status) && (
                   <button
                     className="btn primary small"
-                    onClick={() => handleRowClick(e)}
+                    onClick={() => navigate(`/patientsCare?patientId=${e.patient}&encounterId=${e.id}`)}
                   >
                     진료 시작
                   </button>

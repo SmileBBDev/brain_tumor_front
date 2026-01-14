@@ -548,7 +548,7 @@ def patient_examination_summary(request, patient_id):
         from apps.ai_inference.models import AIInferenceRequest
         latest_ai = AIInferenceRequest.objects.filter(
             patient=patient,
-            status='completed'
+            status='COMPLETED'
         ).order_by('-created_at').first()
 
         if latest_ai and latest_ai.result:

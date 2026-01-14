@@ -65,6 +65,7 @@ interface PDFReportData {
 
 /**
  * RIS 판독 리포트 PDF 생성
+ * - html2canvas를 사용하여 한글 폰트 지원
  */
 export const generateRISReportPDF = async (data: {
   ocsId: string;
@@ -81,92 +82,139 @@ export const generateRISReportPDF = async (data: {
   confirmedAt?: string;
 }): Promise<void> => {
   try {
-    // 동적 import (패키지 설치 필요)
+    // 동적 import (패키지 설치 필요: npm install jspdf html2canvas)
     const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    // 헤더
-    doc.setFontSize(18);
-    doc.text('영상 판독 보고서', pageWidth / 2, 20, { align: 'center' });
-
-    doc.setFontSize(10);
-    doc.text(`OCS ID: ${data.ocsId}`, pageWidth / 2, 28, { align: 'center' });
-
-    // 구분선
-    doc.setLineWidth(0.5);
-    doc.line(20, 32, pageWidth - 20, 32);
-
-    // 환자 정보
-    doc.setFontSize(12);
-    doc.text('환자 정보', 20, 42);
-
-    doc.setFontSize(10);
-    doc.text(`환자명: ${data.patientName}`, 25, 50);
-    doc.text(`환자번호: ${data.patientNumber}`, 25, 56);
-    doc.text(`검사 유형: ${data.jobType}`, 25, 62);
-    doc.text(`처방 의사: ${data.doctorName}`, 120, 50);
-    doc.text(`판독자: ${data.workerName}`, 120, 56);
-
-    // 뇌종양 판정
-    doc.setFontSize(12);
-    doc.text('판정 결과', 20, 76);
-
-    doc.setFontSize(11);
+    // 뇌종양 판정 상태
     const tumorStatus = data.tumorDetected === true ? '종양 있음 (+)' :
                         data.tumorDetected === false ? '종양 없음 (-)' : '미판정';
-    doc.text(`뇌종양 판정: ${tumorStatus}`, 25, 84);
+    const tumorClass = data.tumorDetected === true ? 'positive' :
+                       data.tumorDetected === false ? 'negative' : 'undetermined';
 
-    // 판독 소견
-    doc.setFontSize(12);
-    doc.text('판독 소견 (Findings)', 20, 98);
+    // HTML 템플릿 생성
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
 
-    doc.setFontSize(10);
-    const findingsLines = doc.splitTextToSize(data.findings || '-', pageWidth - 50);
-    doc.text(findingsLines, 25, 106);
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold;">영상 판독 보고서</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">OCS ID: ${data.ocsId}</p>
+      </div>
 
-    let yPos = 106 + (findingsLines.length * 5) + 10;
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">환자 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div style="min-width: 200px;"><span style="color: #666;">환자명:</span> <strong>${data.patientName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">환자번호:</span> <strong>${data.patientNumber}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">검사 유형:</span> <strong>${data.jobType}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">처방 의사:</span> <strong>${data.doctorName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">판독자:</span> <strong>${data.workerName}</strong></div>
+        </div>
+      </div>
 
-    // 판독 결론
-    doc.setFontSize(12);
-    doc.text('판독 결론 (Impression)', 20, yPos);
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">판정 결과</h2>
+        <div style="padding: 12px 16px; border-radius: 8px; display: inline-block;
+          ${tumorClass === 'positive' ? 'background: #ffebee; border: 2px solid #e53935;' :
+            tumorClass === 'negative' ? 'background: #e8f5e9; border: 2px solid #43a047;' :
+            'background: #f5f5f5; border: 2px solid #757575;'}">
+          <span style="font-size: 18px; font-weight: bold;
+            ${tumorClass === 'positive' ? 'color: #c62828;' :
+              tumorClass === 'negative' ? 'color: #2e7d32;' : 'color: #424242;'}">
+            뇌종양 판정: ${tumorStatus}
+          </span>
+        </div>
+      </div>
 
-    doc.setFontSize(10);
-    const impressionLines = doc.splitTextToSize(data.impression || '-', pageWidth - 50);
-    doc.text(impressionLines, 25, yPos + 8);
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">판독 소견 (Findings)</h2>
+        <div style="padding: 12px; background: #fafafa; border-left: 3px solid #1976d2; border-radius: 4px; white-space: pre-wrap;">
+          ${data.findings || '-'}
+        </div>
+      </div>
 
-    yPos = yPos + 8 + (impressionLines.length * 5) + 10;
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">판독 결론 (Impression)</h2>
+        <div style="padding: 12px; background: #fafafa; border-left: 3px solid #388e3c; border-radius: 4px; white-space: pre-wrap;">
+          ${data.impression || '-'}
+        </div>
+      </div>
 
-    // 권고 사항
-    if (data.recommendation) {
-      doc.setFontSize(12);
-      doc.text('권고 사항 (Recommendation)', 20, yPos);
+      ${data.recommendation ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">권고 사항 (Recommendation)</h2>
+        <div style="padding: 12px; background: #fff8e1; border-left: 3px solid #f57c00; border-radius: 4px; white-space: pre-wrap;">
+          ${data.recommendation}
+        </div>
+      </div>
+      ` : ''}
 
-      doc.setFontSize(10);
-      const recLines = doc.splitTextToSize(data.recommendation, pageWidth - 50);
-      doc.text(recLines, 25, yPos + 8);
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <div style="display: flex; justify-content: space-between;">
+          <div>
+            <p style="margin: 4px 0;">처방일시: ${data.createdAt}</p>
+            ${data.confirmedAt ? `<p style="margin: 4px 0;">확정일시: ${data.confirmedAt}</p>` : ''}
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS</p>
+          </div>
+        </div>
+      </div>
+    `;
 
-      yPos = yPos + 8 + (recLines.length * 5) + 10;
+    document.body.appendChild(container);
+
+    // HTML을 Canvas로 변환
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+    });
+
+    document.body.removeChild(container);
+
+    // Canvas를 PDF로 변환
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20; // 좌우 여백 10mm씩
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    // 페이지 높이보다 크면 여러 페이지로 분할
+    let heightLeft = imgHeight;
+    let position = 10; // 상단 여백
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
     }
-
-    // 푸터
-    doc.setLineWidth(0.3);
-    doc.line(20, yPos + 10, pageWidth - 20, yPos + 10);
-
-    doc.setFontSize(9);
-    doc.text(`처방일시: ${data.createdAt}`, 25, yPos + 18);
-    if (data.confirmedAt) {
-      doc.text(`확정일시: ${data.confirmedAt}`, 25, yPos + 24);
-    }
-    doc.text('Brain Tumor CDSS', pageWidth - 20, yPos + 24, { align: 'right' });
 
     // PDF 다운로드
-    doc.save(`RIS_Report_${data.ocsId}_${data.patientNumber}.pdf`);
+    pdf.save(`RIS_Report_${data.ocsId}_${data.patientNumber}.pdf`);
 
   } catch (error) {
     console.error('PDF 생성 실패:', error);
-    alert('PDF 생성에 실패했습니다. jspdf 패키지가 설치되어 있는지 확인하세요.\nnpm install jspdf');
+    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.\nnpm install jspdf html2canvas');
     throw error;
   }
 };

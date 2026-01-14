@@ -150,57 +150,130 @@
 
 /* 인쇄용 스타일 */
 @media print {
-  body * {
+  /*
+   * React SPA에서는 모달이 #root 안에 렌더링됨.
+   * body > * 선택자는 #root를 숨기므로 모달도 함께 숨겨짐.
+   * 해결: #root 내의 다른 요소들만 숨기고 모달은 표시
+   */
+
+  /* 모든 요소 기본 숨기기 */
+  body *:not(.modal-overlay):not(.modal-overlay *) {
     visibility: hidden;
   }
 
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-
-  .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    padding: 20px;
-  }
-
+  /* 모달과 그 자식들만 표시 */
   .modal-overlay,
-  .modal-header,
-  .modal-actions {
+  .modal-overlay * {
+    visibility: visible !important;
+  }
+
+  /* 모달 오버레이 - 인쇄 시 전체 화면 */
+  .modal-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    display: block !important;
+    background: #fff !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    z-index: 99999 !important;
+  }
+
+  /* 모달 내용 - 인쇄 시 전체 화면 */
+  .summary-modal {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
+
+  /* 모달 헤더/액션 버튼 숨기기 */
+  .summary-modal .modal-header {
     display: none !important;
   }
 
-  .summary-modal {
-    position: static;
-    width: 100%;
-    max-width: none;
-    max-height: none;
-    box-shadow: none;
-    border-radius: 0;
+  .summary-modal .modal-actions {
+    display: none !important;
   }
 
+  /* 모달 바디 - 인쇄 최적화 */
   .summary-modal .modal-body {
-    padding: 0;
-    overflow: visible;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
   }
 
+  /* 인쇄 영역 */
+  .print-area {
+    display: block !important;
+    width: 100% !important;
+    padding: 20px !important;
+  }
+
+  .summary-content {
+    display: block !important;
+  }
+
+  /* 섹션 페이지 분리 방지 */
   .summary-section {
     page-break-inside: avoid;
     margin-bottom: 20px;
+    border: 1px solid #ccc !important;
   }
 
+  /* 배경색 강제 인쇄 */
   .summary-section h3 {
     background: #f5f5f5 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
+  .info-table th,
   .data-table th {
     background: #fafafa !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* 테이블 스타일 유지 */
+  .info-table,
+  .data-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .info-table th,
+  .info-table td,
+  .data-table th,
+  .data-table td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+  }
+
+  /* 인쇄용 제목 추가 */
+  .print-area::before {
+    content: "환자 요약서";
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #333;
+  }
+
+  /* 푸터 - 페이지 하단 */
+  .summary-footer {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #ccc !important;
   }
 }

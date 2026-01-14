@@ -186,3 +186,35 @@ export const getPatientAvailableModels = async (patientId: number): Promise<Avai
   const response = await api.get<AvailableModel[]>(`/ai/patients/${patientId}/available-models/`);
   return response.data;
 };
+
+// 모델에 적합한 OCS 목록 (환자별)
+export interface OCSForModelItem {
+  id: number;
+  ocs_id: string;
+  job_role: string;
+  job_type: string;
+  ocs_status: string;
+  confirmed_at: string | null;
+  created_at: string;
+  is_compatible: boolean;
+  available_keys: string[];
+  missing_keys: string[];
+}
+
+export interface OCSForModelResponse {
+  model_code: string;
+  model_name: string;
+  required_sources: string[];
+  ocs_list: OCSForModelItem[];
+}
+
+export const getOCSForModel = async (
+  patientId: number,
+  modelCode: string
+): Promise<OCSForModelResponse> => {
+  const response = await api.get<OCSForModelResponse>(
+    `/ai/patients/${patientId}/ocs-for-model/`,
+    { params: { model_code: modelCode } }
+  );
+  return response.data;
+};

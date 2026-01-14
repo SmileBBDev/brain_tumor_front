@@ -1,0 +1,484 @@
+/* OCS Detail Modal - Report Tab Styles */
+
+/* 보고서 탭 섹션 */
+.report-tab-section {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+/* 보고서 헤더 */
+.report-tab-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #333;
+  margin-bottom: 20px;
+}
+
+.report-tab-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+  font-weight: 700;
+}
+
+.report-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.report-id {
+  font-size: 13px;
+  color: #666;
+  font-family: monospace;
+}
+
+.report-type-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.report-type-badge.ris {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.report-type-badge.lis {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.report-type-badge.treatment {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.report-type-badge.consult {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.print-btn {
+  margin-left: auto;
+}
+
+/* 보고서 섹션 */
+.report-tab-section .report-section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.report-tab-section .report-section:last-of-type {
+  border-bottom: none;
+}
+
+.report-tab-section .report-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  color: #333;
+  font-weight: 600;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.report-tab-section .report-section h5 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #555;
+  font-weight: 600;
+}
+
+/* 정보 그리드 */
+.report-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 20px;
+}
+
+.report-info-item {
+  display: flex;
+  gap: 8px;
+}
+
+.report-info-item label {
+  min-width: 70px;
+  color: #666;
+  font-size: 12px;
+}
+
+.report-info-item span {
+  color: #333;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 우선순위 태그 */
+.priority-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.priority-tag.priority-urgent {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.priority-tag.priority-normal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.priority-tag.priority-scheduled {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+/* 의사 요청 정보 */
+.request-info-box {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.request-info-box h5 {
+  margin-bottom: 10px;
+}
+
+.request-item {
+  margin-bottom: 6px;
+}
+
+.request-item:last-child {
+  margin-bottom: 0;
+}
+
+.request-item label {
+  font-size: 12px;
+  color: #666;
+}
+
+.request-item p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #333;
+}
+
+/* 검사 결과 테이블 */
+.lab-results-table {
+  margin-top: 12px;
+}
+
+.report-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-result-table th,
+.report-result-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid #e0e0e0;
+}
+
+.report-result-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+
+.report-result-table .result-value {
+  font-weight: 600;
+}
+
+.report-result-table .row-abnormal {
+  background: #fff8e1;
+}
+
+.report-result-table .row-critical {
+  background: #ffebee;
+}
+
+/* Flag 표시 */
+.flag-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.flag-badge.flag-normal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.flag-badge.flag-abnormal {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.flag-badge.flag-critical {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* 영상 결과 */
+.imaging-results {
+  margin-top: 12px;
+}
+
+.result-block {
+  margin-bottom: 12px;
+  padding: 10px;
+  background: #fafafa;
+  border-radius: 4px;
+  border-left: 3px solid #1976d2;
+}
+
+.result-block:last-child {
+  margin-bottom: 0;
+}
+
+.result-block.interpretation {
+  border-left-color: #388e3c;
+  background: #f1f8e9;
+}
+
+.result-block.notes-block {
+  border-left-color: #f57c00;
+  background: #fff8e1;
+}
+
+.result-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+/* JSON 표시 */
+.raw-result {
+  margin-top: 12px;
+}
+
+.report-tab-section .json-viewer {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+}
+
+/* 첨부파일 테이블 */
+.report-tab-section .attachments-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-tab-section .attachments-table th,
+.report-tab-section .attachments-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid #e0e0e0;
+}
+
+.report-tab-section .attachments-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+
+.report-tab-section .attachments-table .file-name {
+  font-weight: 500;
+  color: #1976d2;
+}
+
+.attachments-summary {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+/* 확정 정보 */
+.report-tab-section .confirmation-section {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.confirmation-info {
+  display: flex;
+  justify-content: space-around;
+  gap: 20px;
+}
+
+.confirmation-item {
+  text-align: center;
+}
+
+.confirmation-item label {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.confirmation-item span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.result-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.result-status-badge.normal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.result-status-badge.abnormal {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* 보고서 푸터 */
+.report-footer {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.report-footer p {
+  margin: 4px 0;
+  font-size: 11px;
+  color: #999;
+}
+
+.report-footer .print-date {
+  margin-top: 6px;
+}
+
+/* No data 텍스트 */
+.report-tab-section .no-data {
+  color: #999;
+  font-size: 13px;
+  font-style: italic;
+  margin: 12px 0;
+}
+
+/* 인쇄 스타일 */
+@media print {
+  /* 모달 오버레이와 배경 숨김 */
+  .modal-overlay {
+    position: static;
+    background: none;
+  }
+
+  .modal-content {
+    position: static;
+    box-shadow: none;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: visible;
+    border: none;
+    padding: 0;
+  }
+
+  /* 탭 메뉴, 헤더, 푸터 숨김 */
+  .modal-header,
+  .modal-footer,
+  .tab-menu {
+    display: none !important;
+  }
+
+  /* 인쇄 버튼 숨김 */
+  .print-btn {
+    display: none !important;
+  }
+
+  /* 보고서 탭만 표시 */
+  .modal-body > *:not(.report-tab-section) {
+    display: none !important;
+  }
+
+  .report-tab-section {
+    display: block !important;
+    padding: 20px;
+    background: white;
+  }
+
+  .report-tab-header {
+    border-bottom-width: 1px;
+  }
+
+  .report-section {
+    page-break-inside: avoid;
+  }
+
+  .report-result-table {
+    page-break-inside: auto;
+  }
+
+  .report-result-table tr {
+    page-break-inside: avoid;
+  }
+
+  .confirmation-section {
+    background: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .report-tab-header {
+    flex-wrap: wrap;
+  }
+
+  .report-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .confirmation-info {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .report-result-table {
+    font-size: 11px;
+  }
+
+  .report-result-table th,
+  .report-result-table td {
+    padding: 6px;
+  }
+}

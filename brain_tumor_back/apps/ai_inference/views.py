@@ -321,6 +321,88 @@ class PatientAIViewSet(viewsets.ViewSet):
 
         return Response(result)
 
+    @action(detail=True, methods=['get'], url_path='ocs-for-model')
+    def ocs_for_model(self, request, pk=None):
+        """
+        특정 모델에 적합한 환자 OCS 목록
+
+        쿼리 파라미터:
+        - model_code: AI 모델 코드 (필수)
+
+        반환: 해당 모델에 필요한 데이터를 가진 OCS 목록
+        """
+        model_code = request.query_params.get('model_code')
+        if not model_code:
+            return Response(
+                {'error': 'model_code 파라미터가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            patient = Patient.objects.get(id=pk)
+        except Patient.DoesNotExist:
+            return Response(
+                {'error': '존재하지 않는 환자입니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            model = AIModel.objects.get(code=model_code, is_active=True)
+        except AIModel.DoesNotExist:
+            return Response(
+                {'error': '존재하지 않거나 비활성화된 모델입니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        result = []
+
+        # 모델이 필요로 하는 각 소스(RIS, LIS 등)에서 OCS 조회
+        for source in model.ocs_sources:
+            required_keys = model.required_keys.get(source, [])
+
+            # 해당 job_role의 CONFIRMED OCS 모두 조회
+            ocs_list = OCS.objects.filter(
+                patient=patient,
+                job_role=source,
+                ocs_status='CONFIRMED'
+            ).order_by('-confirmed_at')
+
+            for ocs in ocs_list:
+                # 해당 OCS가 필요한 키를 가지고 있는지 확인
+                available_keys = []
+                missing_keys = []
+
+                for key in required_keys:
+                    value = self._get_nested_value(ocs.worker_result, key)
+                    full_key = f"{source}.{key}"
+                    if value is not None:
+                        available_keys.append(full_key)
+                    else:
+                        missing_keys.append(full_key)
+
+                # 필요한 키가 모두 있는 OCS만 포함
+                is_compatible = len(missing_keys) == 0 and len(available_keys) > 0
+
+                result.append({
+                    'id': ocs.id,
+                    'ocs_id': ocs.ocs_id,
+                    'job_role': ocs.job_role,
+                    'job_type': ocs.job_type,
+                    'ocs_status': ocs.ocs_status,
+                    'confirmed_at': ocs.confirmed_at,
+                    'created_at': ocs.created_at,
+                    'is_compatible': is_compatible,
+                    'available_keys': available_keys,
+                    'missing_keys': missing_keys,
+                })
+
+        return Response({
+            'model_code': model_code,
+            'model_name': model.name,
+            'required_sources': model.ocs_sources,
+            'ocs_list': result
+        })
+
     def _get_nested_value(self, data, key):
         """중첩 딕셔너리에서 값 추출"""
         if not data:

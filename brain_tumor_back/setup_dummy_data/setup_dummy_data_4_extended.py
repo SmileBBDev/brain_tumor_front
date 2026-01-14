@@ -477,20 +477,19 @@ def create_ocs_ris_requests(target_count=5):
     from django.contrib.auth import get_user_model
     User = get_user_model()
 
-    patients = list(Patient.objects.filter(is_deleted=False, status='active'))
-    encounters = list(Encounter.objects.all())
-    doctors = list(User.objects.filter(role__code='DOCTOR'))
+    # 환자와 담당 의사 관계가 있는 진료 기록만 사용
+    encounters = list(Encounter.objects.filter(
+        attending_doctor__isnull=False,
+        patient__is_deleted=False
+    ).select_related('patient', 'attending_doctor'))
     radiologists = list(User.objects.filter(role__code__in=['RIS', 'DOCTOR']))
 
-    if not patients:
-        print("[ERROR] 환자가 없습니다.")
+    if not encounters:
+        print("[ERROR] 담당 의사가 있는 진료 기록이 없습니다.")
         return False
 
-    if not doctors:
-        doctors = list(User.objects.all()[:1])
-
     if not radiologists:
-        radiologists = doctors
+        radiologists = list(User.objects.filter(role__code='DOCTOR'))
 
     # RIS 요청 상세 데이터 (30개) - 모두 ORDERED 상태
     ris_requests = [
@@ -529,9 +528,10 @@ def create_ocs_ris_requests(target_count=5):
     created_count = 0
 
     for i, req in enumerate(ris_requests[:target_count]):
-        patient = patients[i % len(patients)]
-        doctor = random.choice(doctors)
-        encounter = random.choice(encounters) if encounters else None
+        # 진료 기록에서 환자와 담당 의사 관계 가져오기
+        encounter = encounters[i % len(encounters)]
+        patient = encounter.patient
+        doctor = encounter.attending_doctor  # 환자의 담당 의사가 요청
         ocs_status = req['ocs_status']
 
         # 작업자 (ACCEPTED 이후에만)
@@ -650,20 +650,19 @@ def create_ocs_lis_requests(target_count=5):
     from django.contrib.auth import get_user_model
     User = get_user_model()
 
-    patients = list(Patient.objects.filter(is_deleted=False, status='active'))
-    encounters = list(Encounter.objects.all())
-    doctors = list(User.objects.filter(role__code='DOCTOR'))
+    # 환자와 담당 의사 관계가 있는 진료 기록만 사용
+    encounters = list(Encounter.objects.filter(
+        attending_doctor__isnull=False,
+        patient__is_deleted=False
+    ).select_related('patient', 'attending_doctor'))
     lab_workers = list(User.objects.filter(role__code__in=['LIS', 'DOCTOR']))
 
-    if not patients:
-        print("[ERROR] 환자가 없습니다.")
+    if not encounters:
+        print("[ERROR] 담당 의사가 있는 진료 기록이 없습니다.")
         return False
 
-    if not doctors:
-        doctors = list(User.objects.all()[:1])
-
     if not lab_workers:
-        lab_workers = doctors
+        lab_workers = list(User.objects.filter(role__code='DOCTOR'))
 
     # LIS 요청 상세 데이터 (30개) - 모두 ORDERED 상태
     lis_requests = [
@@ -732,9 +731,10 @@ def create_ocs_lis_requests(target_count=5):
     created_count = 0
 
     for i, req in enumerate(lis_requests[:target_count]):
-        patient = patients[i % len(patients)]
-        doctor = random.choice(doctors)
-        encounter = random.choice(encounters) if encounters else None
+        # 진료 기록에서 환자와 담당 의사 관계 가져오기
+        encounter = encounters[i % len(encounters)]
+        patient = encounter.patient
+        doctor = encounter.attending_doctor  # 환자의 담당 의사가 요청
         ocs_status = req['ocs_status']
 
         # 작업자 (ACCEPTED 이후에만)

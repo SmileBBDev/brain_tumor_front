@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import {
   getOCS,
@@ -10,6 +10,7 @@ import {
 } from '@/services/ocs.api';
 import type { OCSDetail, OCSHistory } from '@/types/ocs';
 import '@/pages/patient/PatientCreateModal.css';
+import './OCSDetailModalReport.css';
 
 type Props = {
   isOpen: boolean;
@@ -31,13 +32,34 @@ const formatDate = (dateStr: string | null): string => {
   });
 };
 
+// 날짜만 포맷
+const formatDateOnly = (dateStr: string | null): string => {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+};
+
+// 파일 크기 포맷
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Props) {
   const { role, user } = useAuth();
   const [ocs, setOcs] = useState<OCSDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'result' | 'history'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'result' | 'history' | 'report'>('info');
   const [cancelReason, setCancelReason] = useState('');
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && ocsId) {
@@ -191,6 +213,12 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
               >
                 이력
               </button>
+              <button
+                className={activeTab === 'report' ? 'active' : ''}
+                onClick={() => setActiveTab('report')}
+              >
+                보고서
+              </button>
             </div>
 
             <div className="modal-body">
@@ -337,6 +365,257 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* 보고서 탭 */}
+              {activeTab === 'report' && (
+                <div className="report-tab-section" ref={reportRef}>
+                  {/* 보고서 헤더 */}
+                  <div className="report-tab-header">
+                    <h3>검사 결과 보고서</h3>
+                    <div className="report-meta">
+                      <span className="report-id">{ocs.ocs_id}</span>
+                      <span className={`report-type-badge ${ocs.job_role.toLowerCase()}`}>
+                        {ocs.job_role === 'RIS' ? '영상검사' :
+                         ocs.job_role === 'LIS' ? '임상검사' :
+                         ocs.job_role}
+                      </span>
+                    </div>
+                    <button className="btn btn-primary print-btn" onClick={() => window.print()}>
+                      PDF/인쇄
+                    </button>
+                  </div>
+
+                  {/* 환자 정보 */}
+                  <div className="report-section">
+                    <h4>환자 정보</h4>
+                    <div className="report-info-grid">
+                      <div className="report-info-item">
+                        <label>환자번호</label>
+                        <span>{ocs.patient.patient_number}</span>
+                      </div>
+                      <div className="report-info-item">
+                        <label>환자명</label>
+                        <span>{ocs.patient.name}</span>
+                      </div>
+                      <div className="report-info-item">
+                        <label>검사일</label>
+                        <span>{formatDateOnly(ocs.in_progress_at || ocs.accepted_at)}</span>
+                      </div>
+                      <div className="report-info-item">
+                        <label>보고일</label>
+                        <span>{formatDateOnly(ocs.confirmed_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 검사 정보 */}
+                  <div className="report-section">
+                    <h4>검사 정보</h4>
+                    <div className="report-info-grid">
+                      <div className="report-info-item">
+                        <label>검사 유형</label>
+                        <span>{ocs.job_type}</span>
+                      </div>
+                      <div className="report-info-item">
+                        <label>처방 의사</label>
+                        <span>{ocs.doctor.name}</span>
+                      </div>
+                      <div className="report-info-item">
+                        <label>검사 담당자</label>
+                        <span>{ocs.worker?.name || '-'}</span>
+                      </div>
+                      <div className="report-info-item">
+                        <label>우선순위</label>
+                        <span className={`priority-tag priority-${ocs.priority}`}>
+                          {ocs.priority_display}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 의사 요청 사항 */}
+                    {ocs.doctor_request && Object.keys(ocs.doctor_request).length > 0 && (
+                      <div className="request-info-box">
+                        <h5>의사 요청 사항</h5>
+                        {(ocs.doctor_request as any).clinical_info && (
+                          <div className="request-item">
+                            <label>임상 정보:</label>
+                            <p>{(ocs.doctor_request as any).clinical_info}</p>
+                          </div>
+                        )}
+                        {(ocs.doctor_request as any).special_instruction && (
+                          <div className="request-item">
+                            <label>특별 지시:</label>
+                            <p>{(ocs.doctor_request as any).special_instruction}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 검사 결과 */}
+                  <div className="report-section">
+                    <h4>검사 결과</h4>
+
+                    {/* LIS 결과 - 테이블 형식 */}
+                    {ocs.job_role === 'LIS' && (ocs.worker_result as any)?.labResults?.length > 0 && (
+                      <div className="lab-results-table">
+                        <table className="report-result-table">
+                          <thead>
+                            <tr>
+                              <th>검사 항목</th>
+                              <th>결과</th>
+                              <th>단위</th>
+                              <th>참고치</th>
+                              <th>판정</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {((ocs.worker_result as any).labResults || []).map((item: any, index: number) => (
+                              <tr
+                                key={index}
+                                className={
+                                  item.flag === 'critical' ? 'row-critical' :
+                                  item.flag === 'abnormal' ? 'row-abnormal' : ''
+                                }
+                              >
+                                <td>{item.testName}</td>
+                                <td className="result-value">{item.value}</td>
+                                <td>{item.unit}</td>
+                                <td>{item.refRange}</td>
+                                <td>
+                                  <span className={`flag-badge flag-${item.flag}`}>
+                                    {item.flag === 'normal' ? '정상' :
+                                     item.flag === 'abnormal' ? '비정상' :
+                                     item.flag === 'critical' ? '위험' : item.flag}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* RIS 결과 - 텍스트 형식 */}
+                    {ocs.job_role === 'RIS' && (
+                      <div className="imaging-results">
+                        {(ocs.worker_result as any)?.findings && (
+                          <div className="result-block">
+                            <h5>소견 (Findings)</h5>
+                            <p className="result-text">{(ocs.worker_result as any).findings}</p>
+                          </div>
+                        )}
+                        {(ocs.worker_result as any)?.impression && (
+                          <div className="result-block">
+                            <h5>인상 (Impression)</h5>
+                            <p className="result-text">{(ocs.worker_result as any).impression}</p>
+                          </div>
+                        )}
+                        {(ocs.worker_result as any)?.recommendation && (
+                          <div className="result-block">
+                            <h5>권고 사항 (Recommendation)</h5>
+                            <p className="result-text">{(ocs.worker_result as any).recommendation}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 해석/종합 소견 */}
+                    {(ocs.worker_result as any)?.interpretation && (
+                      <div className="result-block interpretation">
+                        <h5>의학적 해석</h5>
+                        <p className="result-text">{(ocs.worker_result as any).interpretation}</p>
+                      </div>
+                    )}
+
+                    {/* 비고 */}
+                    {(ocs.worker_result as any)?.notes && (
+                      <div className="result-block notes-block">
+                        <h5>비고</h5>
+                        <p className="result-text">{(ocs.worker_result as any).notes}</p>
+                      </div>
+                    )}
+
+                    {/* 결과가 없는 경우 JSON 표시 */}
+                    {ocs.worker_result &&
+                     !(ocs.worker_result as any)?.labResults?.length &&
+                     !(ocs.worker_result as any)?.findings &&
+                     !(ocs.worker_result as any)?.impression &&
+                     !(ocs.worker_result as any)?.interpretation && (
+                      <div className="raw-result">
+                        <h5>검사 결과 데이터</h5>
+                        <pre className="json-viewer">
+                          {JSON.stringify(ocs.worker_result, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* 결과가 없는 경우 */}
+                    {(!ocs.worker_result || Object.keys(ocs.worker_result).length === 0) && (
+                      <p className="no-data">아직 검사 결과가 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* 첨부파일 섹션 */}
+                  {ocs.attachments && ocs.attachments.files && ocs.attachments.files.length > 0 && (
+                    <div className="report-section">
+                      <h4>첨부파일</h4>
+                      <table className="attachments-table">
+                        <thead>
+                          <tr>
+                            <th>파일명</th>
+                            <th>유형</th>
+                            <th>크기</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ocs.attachments.files.map((file, index) => (
+                            <tr key={index}>
+                              <td className="file-name">{file.name}</td>
+                              <td>{file.type}</td>
+                              <td>{formatFileSize(file.size)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {ocs.attachments.total_size > 0 && (
+                        <div className="attachments-summary">
+                          <span>총 {ocs.attachments.files.length}개 파일</span>
+                          <span>전체 크기: {formatFileSize(ocs.attachments.total_size)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 확정 정보 */}
+                  {ocs.ocs_status === 'CONFIRMED' && (
+                    <div className="report-section confirmation-section">
+                      <div className="confirmation-info">
+                        <div className="confirmation-item">
+                          <label>확정일시</label>
+                          <span>{formatDate(ocs.confirmed_at)}</span>
+                        </div>
+                        <div className="confirmation-item">
+                          <label>확정자</label>
+                          <span>{(ocs.worker_result as any)?._verifiedBy || ocs.worker?.name || '-'}</span>
+                        </div>
+                        <div className="confirmation-item">
+                          <label>결과 상태</label>
+                          <span className={`result-status-badge ${ocs.ocs_result ? 'normal' : 'abnormal'}`}>
+                            {ocs.ocs_result ? '정상' : '비정상'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 보고서 푸터 */}
+                  <div className="report-footer">
+                    <p>본 보고서는 의료 목적으로만 사용되어야 하며, 의료 전문가의 해석이 필요합니다.</p>
+                    <p className="print-date">출력일시: {new Date().toLocaleString('ko-KR')}</p>
+                  </div>
                 </div>
               )}
             </div>

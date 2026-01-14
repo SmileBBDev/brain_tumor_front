@@ -32,8 +32,9 @@ export default function ClinicPage() {
   // 진료 시작 가능 역할 확인 (DOCTOR, SYSTEMMANAGER)
   const canStartEncounter = role === 'DOCTOR' || role === 'SYSTEMMANAGER';
 
-  // URL에서 환자 ID 추출
+  // URL에서 환자 ID, encounter ID 추출
   const patientIdParam = searchParams.get('patientId');
+  const encounterIdParam = searchParams.get('encounterId');
 
   // /patientsCare → /patientsCare?patientId=null 로 리다이렉트
   useEffect(() => {
@@ -73,18 +74,28 @@ export default function ClinicPage() {
       const encounterData = await getEncounters({ patient: patientId });
       setEncounters(encounterData.results || []);
 
-      // 오늘 진행 중인 진료 찾기 (in_progress 우선, 없으면 scheduled)
-      const today = new Date().toISOString().split('T')[0];
-      const todayEncounters = (encounterData.results || []).filter(
-        (e: Encounter) => {
-          const admissionDate = e.admission_date?.split('T')[0];
-          return admissionDate === today;
-        }
-      );
-      // in_progress 우선, 없으면 scheduled
-      const activeEnc = todayEncounters.find((e: Encounter) => e.status === 'in_progress')
-        || todayEncounters.find((e: Encounter) => e.status === 'scheduled')
-        || null;
+      // URL에서 encounterId가 있으면 해당 encounter를 activeEncounter로 설정
+      // 없으면 오늘 진행 중인 진료 찾기 (in_progress 우선, 없으면 scheduled)
+      const allEncounters = encounterData.results || [];
+      let activeEnc: Encounter | null = null;
+
+      if (encounterIdParam) {
+        activeEnc = allEncounters.find((e: Encounter) => e.id === Number(encounterIdParam)) || null;
+      }
+
+      if (!activeEnc) {
+        const today = new Date().toISOString().split('T')[0];
+        const todayEncounters = allEncounters.filter(
+          (e: Encounter) => {
+            const admissionDate = e.admission_date?.split('T')[0];
+            return admissionDate === today;
+          }
+        );
+        // in_progress 우선, 없으면 scheduled
+        activeEnc = todayEncounters.find((e: Encounter) => e.status === 'in_progress')
+          || todayEncounters.find((e: Encounter) => e.status === 'scheduled')
+          || null;
+      }
       setActiveEncounter(activeEnc);
     } catch (err) {
       console.error('Failed to load patient data:', err);
@@ -93,7 +104,7 @@ export default function ClinicPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // toast 제거 - 안정적인 참조
+  }, [encounterIdParam]);  // encounterIdParam 변경 시 재로드
 
   useEffect(() => {
     if (isPatientSelected) {
@@ -106,7 +117,7 @@ export default function ClinicPage() {
       setActiveEncounter(null);
       setLoading(false);
     }
-  }, [patientIdParam, isPatientSelected, loadPatientData]);
+  }, [patientIdParam, encounterIdParam, isPatientSelected, loadPatientData]);
 
   // 진료 시작
   const handleStartEncounter = useCallback(async () => {

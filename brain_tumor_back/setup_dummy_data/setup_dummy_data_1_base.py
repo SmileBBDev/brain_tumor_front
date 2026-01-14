@@ -320,7 +320,7 @@ def setup_test_users():
             'title': '신경과 외래 간호사',
         }),
         # PATIENT 역할 사용자 (5명) - 환자 테이블과 연결됨
-        ('patient1', 'patient1001', '김철수', 'patient1@example.com', 'PATIENT', False, {
+        ('patient1', 'patient1001', '김동현', 'patient1@example.com', 'PATIENT', False, {
             'birthDate': date(1981, 1, 15),
             'phoneMobile': '010-1234-5678',
             'phoneOffice': None,
@@ -328,7 +328,7 @@ def setup_test_users():
             'departmentId': None,
             'title': None,
         }),
-        ('patient2', 'patient2001', '이영희', 'patient2@example.com', 'PATIENT', False, {
+        ('patient2', 'patient2001', '이수정', 'patient2@example.com', 'PATIENT', False, {
             'birthDate': date(1988, 3, 20),
             'phoneMobile': '010-2345-6789',
             'phoneOffice': None,
@@ -336,7 +336,7 @@ def setup_test_users():
             'departmentId': None,
             'title': None,
         }),
-        ('patient3', 'patient3001', '박민수', 'patient3@example.com', 'PATIENT', False, {
+        ('patient3', 'patient3001', '박정훈', 'patient3@example.com', 'PATIENT', False, {
             'birthDate': date(1974, 5, 8),
             'phoneMobile': '010-3456-7890',
             'phoneOffice': None,
@@ -344,7 +344,7 @@ def setup_test_users():
             'departmentId': None,
             'title': None,
         }),
-        ('patient4', 'patient4001', '최지은', 'patient4@example.com', 'PATIENT', False, {
+        ('patient4', 'patient4001', '최민정', 'patient4@example.com', 'PATIENT', False, {
             'birthDate': date(1997, 6, 25),
             'phoneMobile': '010-4567-8901',
             'phoneOffice': None,
@@ -352,7 +352,7 @@ def setup_test_users():
             'departmentId': None,
             'title': None,
         }),
-        ('patient5', 'patient5001', '정현우', 'patient5@example.com', 'PATIENT', False, {
+        ('patient5', 'patient5001', '정승호', 'patient5@example.com', 'PATIENT', False, {
             'birthDate': date(1965, 9, 12),
             'phoneMobile': '010-5678-9012',
             'phoneOffice': None,
@@ -551,7 +551,7 @@ def load_menu_permission_seed():
         ('LAB_RESULT_VIEW', '검사 결과 조회', '검사 결과 조회 화면'),
         ('LAB_RESULT_UPLOAD', '검사 결과 업로드', '검사 결과 업로드 화면'),
         ('AI', 'AI 분석', 'AI 분석 메뉴'),
-        ('AI_VIEWER', 'AI 분석 뷰어', 'AI 분석 결과 뷰어'),
+        ('AI_VIEWER', 'AI 분석 뷰어', 'AI 분석 뷰어 화면'),
         ('AI_REQUEST_LIST', 'AI 요청 목록', 'AI 추론 요청 목록'),
         ('AI_REQUEST_CREATE', 'AI 요청 생성', 'AI 추론 요청 생성'),
         ('AI_REQUEST_DETAIL', 'AI 요청 상세', 'AI 추론 요청 상세'),
@@ -569,6 +569,13 @@ def load_menu_permission_seed():
         ('REPORT_LIST', '보고서 목록', '보고서 목록 화면'),
         ('REPORT_CREATE', '보고서 작성', '보고서 작성 화면'),
         ('REPORT_DETAIL', '보고서 상세', '보고서 상세 화면'),
+        # 환자 전용 메뉴 (MY_CARE)
+        ('MY_CARE', '내 진료', '환자 전용 내 진료 메뉴'),
+        ('MY_SUMMARY', '내 정보', '환자 전용 내 정보 요약'),
+        ('MY_VISITS', '진료 기록', '환자 전용 진료 기록 조회'),
+        ('MY_IMAGING', '영상 결과', '환자 전용 영상 검사 결과 조회'),
+        ('MY_LAB', '검사 결과', '환자 전용 검사 결과 조회'),
+        ('ABOUT_HOSPITAL', '병원 소개', '병원 안내 페이지'),
     ]
 
     permission_map = {}
@@ -685,8 +692,8 @@ def load_menu_permission_seed():
     # LIS Result Upload 메뉴 (LAB 그룹)
     create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', icon='upload', order=5, is_active=True, parent=menu_lab)
 
-    # AI 하위 메뉴 (IMAGING, LAB과 동일한 패턴)
-    create_menu(33, code='AI_VIEWER', path='/ai', icon='brain', order=1, is_active=True, parent=menu_ai)
+    # AI 하위 메뉴
+    create_menu(50, code='AI_VIEWER', path='/ai/viewer', icon='eye', order=1, is_active=True, parent=menu_ai)
     menu_ai_request, _ = create_menu(34, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=2, is_active=True, parent=menu_ai)
     create_menu(35, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=1, is_active=True, parent=menu_ai_request)
     create_menu(44, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
@@ -698,6 +705,14 @@ def load_menu_permission_seed():
     menu_report_list, _ = create_menu(39, code='REPORT_LIST', path='/reports', icon='list', order=1, is_active=True, parent=menu_report)
     create_menu(40, code='REPORT_CREATE', path='/reports/create', breadcrumb_only=True, order=2, is_active=True, parent=menu_report_list)
     create_menu(41, code='REPORT_DETAIL', path='/reports/:id', breadcrumb_only=True, order=3, is_active=True, parent=menu_report_list)
+
+    # 환자 전용 메뉴 (MY_CARE) - PATIENT 역할만 접근
+    menu_my_care, _ = create_menu(45, code='MY_CARE', path=None, icon='user', group_label='내 진료', order=9, is_active=True)
+    create_menu(46, code='MY_SUMMARY', path='/my/summary', icon='info-circle', order=1, is_active=True, parent=menu_my_care)
+    create_menu(47, code='MY_VISITS', path='/my/visits', icon='calendar', order=2, is_active=True, parent=menu_my_care)
+    create_menu(48, code='MY_IMAGING', path='/my/imaging', icon='x-ray', order=3, is_active=True, parent=menu_my_care)
+    create_menu(49, code='MY_LAB', path='/my/lab', icon='flask', order=4, is_active=True, parent=menu_my_care)
+    create_menu(51, code='ABOUT_HOSPITAL', path='/about-hospital', icon='hospital', order=5, is_active=True, parent=menu_my_care)
 
     print(f"  메뉴 생성: {changes['Menu']['created']}개 (전체: {Menu.objects.count()}개)")
     if menu_updates:
@@ -776,7 +791,6 @@ def load_menu_permission_seed():
         (15, 'DEFAULT', '판독 Worklist'),
         # AI
         (2, 'DEFAULT', 'AI 분석'),
-        (33, 'DEFAULT', 'AI 분석 뷰어'),
         (34, 'DEFAULT', 'AI 요청 목록'),
         (34, 'DOCTOR', 'AI 분석 요청'),
         (35, 'DEFAULT', 'AI 요청 생성'),
@@ -800,6 +814,17 @@ def load_menu_permission_seed():
         (39, 'DEFAULT', '보고서 목록'),
         (40, 'DEFAULT', '보고서 작성'),
         (41, 'DEFAULT', '보고서 상세'),
+        # MY_CARE (환자 전용)
+        (45, 'DEFAULT', '내 진료'),
+        (45, 'PATIENT', '내 진료'),
+        (46, 'DEFAULT', '내 정보'),
+        (46, 'PATIENT', '내 정보'),
+        (47, 'DEFAULT', '진료 기록'),
+        (47, 'PATIENT', '진료 기록'),
+        (48, 'DEFAULT', '영상 결과'),
+        (48, 'PATIENT', '내 영상 결과'),
+        (49, 'DEFAULT', '검사 결과'),
+        (49, 'PATIENT', '내 검사 결과'),
     ]
 
     for menu_id, role, text in menu_labels_data:
@@ -839,6 +864,8 @@ def load_menu_permission_seed():
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW'],  # PATIENT_CARE 제거 (DOCTOR, SYSTEMMANAGER만), NURSE_RECEPTION은 Dashboard로 통합됨
         'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST'],
         'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST'],
+        # 환자 전용 메뉴 (MY_CARE 그룹)
+        'PATIENT': ['DASHBOARD', 'MY_CARE', 'MY_SUMMARY', 'MY_VISITS', 'MY_IMAGING', 'MY_LAB', 'ABOUT_HOSPITAL'],
     }
 
     for role_code, menu_codes in role_menu_permissions.items():
@@ -1146,21 +1173,19 @@ def create_dummy_imaging_with_ocs(num_orders=30, force=False):
         print(f"[SKIP] 이미 {existing_ocs}건의 RIS 오더가 존재합니다.")
         return True
 
-    # 필요한 데이터
-    patients = list(Patient.objects.filter(is_deleted=False))
-    encounters = list(Encounter.objects.all())
-    doctors = list(User.objects.filter(role__code='DOCTOR'))
+    # 필요한 데이터 - 환자와 담당 의사 관계가 있는 진료 기록만 사용
+    encounters = list(Encounter.objects.filter(
+        attending_doctor__isnull=False,
+        patient__is_deleted=False
+    ).select_related('patient', 'attending_doctor'))
     radiologists = list(User.objects.filter(role__code__in=['RIS', 'DOCTOR']))
 
-    if not patients:
-        print("[ERROR] 환자가 없습니다.")
+    if not encounters:
+        print("[ERROR] 담당 의사가 있는 진료 기록이 없습니다.")
         return False
 
-    if not doctors:
-        doctors = list(User.objects.all()[:1])
-
     if not radiologists:
-        radiologists = doctors
+        radiologists = list(User.objects.filter(role__code='DOCTOR'))
 
     modalities = ['CT', 'MRI', 'PET', 'X-RAY']
     body_parts = ['Brain', 'Head', 'Skull', 'Neck', 'Cervical Spine']
@@ -1171,9 +1196,10 @@ def create_dummy_imaging_with_ocs(num_orders=30, force=False):
     created_count = 0
 
     for i in range(num_orders):
-        patient = random.choice(patients)
-        doctor = random.choice(doctors)
-        encounter = random.choice(encounters) if encounters else None
+        # 진료 기록에서 환자와 담당 의사 관계 가져오기
+        encounter = random.choice(encounters)
+        patient = encounter.patient
+        doctor = encounter.attending_doctor  # 환자의 담당 의사가 요청
         modality = random.choice(modalities)
         body_part = random.choice(body_parts)
 
@@ -1286,21 +1312,19 @@ def create_dummy_lis_orders(num_orders=30, force=False):
         print(f"[SKIP] 이미 {existing_ocs}건의 LIS 오더가 존재합니다.")
         return True
 
-    # 필요한 데이터
-    patients = list(Patient.objects.filter(is_deleted=False))
-    encounters = list(Encounter.objects.all())
-    doctors = list(User.objects.filter(role__code='DOCTOR'))
+    # 필요한 데이터 - 환자와 담당 의사 관계가 있는 진료 기록만 사용
+    encounters = list(Encounter.objects.filter(
+        attending_doctor__isnull=False,
+        patient__is_deleted=False
+    ).select_related('patient', 'attending_doctor'))
     lab_workers = list(User.objects.filter(role__code__in=['LIS', 'DOCTOR']))
 
-    if not patients:
-        print("[ERROR] 환자가 없습니다.")
+    if not encounters:
+        print("[ERROR] 담당 의사가 있는 진료 기록이 없습니다.")
         return False
 
-    if not doctors:
-        doctors = list(User.objects.all()[:1])
-
     if not lab_workers:
-        lab_workers = doctors
+        lab_workers = list(User.objects.filter(role__code='DOCTOR'))
 
     # 검사 항목 (BLOOD, GENETIC, PROTEIN 포함)
     test_types = [
@@ -1318,9 +1342,10 @@ def create_dummy_lis_orders(num_orders=30, force=False):
     created_count = 0
 
     for i in range(num_orders):
-        patient = random.choice(patients)
-        doctor = random.choice(doctors)
-        encounter = random.choice(encounters) if encounters else None
+        # 진료 기록에서 환자와 담당 의사 관계 가져오기
+        encounter = random.choice(encounters)
+        patient = encounter.patient
+        doctor = encounter.attending_doctor  # 환자의 담당 의사가 요청
         test_type = random.choice(test_types)
 
         # 날짜 분포: 1주일 ~ 6개월 (180일)

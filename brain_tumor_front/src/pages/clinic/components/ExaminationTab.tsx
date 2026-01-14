@@ -26,7 +26,7 @@ import type {
 } from '@/types/patient';
 import type { OCSListItem } from '@/types/ocs';
 import type { Encounter } from '@/types/encounter';
-import { getPatientAvailableModels, createAIRequest, getPatientAIRequests, type AvailableModel, type AIInferenceRequest } from '@/services/ai.api';
+import { getPatientAIRequests, type AIInferenceRequest } from '@/services/ai.api';
 import PrescriptionCard from './DiagnosisPrescriptionCard';
 import TodayAppointmentCard from './TodayAppointmentCard';
 import PastRecordCard from './PastRecordCard';
@@ -124,11 +124,8 @@ export default function ExaminationTab({
   // 토스트 메시지
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // AI 추론 관련 상태
-  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  // AI 추론 관련 상태 (읽기 전용 - 결과 조회용)
   const [aiRequests, setAIRequests] = useState<AIInferenceRequest[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [requestingAI, setRequestingAI] = useState(false);
 
   // 토스트 표시 헬퍼
   const showToast = (type: 'success' | 'error', text: string) => {
@@ -148,10 +145,9 @@ export default function ExaminationTab({
 
     setLoading(true);
     try {
-      const [summaryData, alertsData, modelsData, aiRequestsData] = await Promise.all([
+      const [summaryData, alertsData, aiRequestsData] = await Promise.all([
         getExaminationSummary(patientId).catch(() => null),
         getPatientAlerts(patientId).catch(() => []),
-        getPatientAvailableModels(patientId).catch(() => []),
         getPatientAIRequests(patientId).catch(() => []),
       ]);
 
@@ -174,7 +170,6 @@ export default function ExaminationTab({
         );
       }
       setAlerts(alertsData);
-      setAvailableModels(modelsData);
       setAIRequests(aiRequestsData);
     } catch (err) {
       console.error('Failed to load examination data:', err);
@@ -229,30 +224,6 @@ export default function ExaminationTab({
     } catch (err) {
       console.error('Failed to delete alert:', err);
       showToast('error', '삭제에 실패했습니다.');
-    }
-  };
-
-  // AI 추론 요청
-  const handleRequestAI = async () => {
-    if (!selectedModel || !patientId) return;
-
-    setRequestingAI(true);
-    try {
-      const newRequest = await createAIRequest({
-        patient_id: patientId,
-        model_code: selectedModel,
-        priority: 'normal',
-      });
-      setAIRequests(prev => [newRequest, ...prev]);
-      setSelectedModel('');
-      showToast('success', 'AI 추론 요청이 생성되었습니다.');
-      // 새로운 요청 상세 페이지로 이동
-      navigate(`/ai/requests/${newRequest.id}`);
-    } catch (err: any) {
-      console.error('Failed to create AI request:', err);
-      showToast('error', err.response?.data?.error || 'AI 추론 요청에 실패했습니다.');
-    } finally {
-      setRequestingAI(false);
     }
   };
 
@@ -560,86 +531,42 @@ export default function ExaminationTab({
             )}
           </section>
 
-          {/* AI 추론 요청 섹션 */}
+          {/* AI 추론 섹션 (읽기 전용) */}
           <section className="exam-section ai-inference-card">
             <div className="section-header">
               <h4>
                 <span className="card-icon">🤖</span>
-                AI 추론 요청
+                AI 추론
               </h4>
+            </div>
+
+            {/* 수동 추론 요청 페이지 이동 버튼 */}
+            <div className="ai-action-button">
               <button
-                className="btn btn-sm btn-outline"
-                onClick={() => navigate(`/ai/requests?patientId=${patientId}`)}
+                className="btn btn-primary btn-block"
+                onClick={() => navigate(`/ai/requests/create?patientId=${patientId}`)}
                 disabled={!patientId || patientId <= 0}
               >
-                전체 보기
+                수동 추론 요청 페이지로 이동
               </button>
+              <p className="ai-action-hint">
+                검사 완료 시 AI 추론이 자동으로 실행됩니다.
+                수동으로 추론 요청이 필요한 경우 위 버튼을 클릭하세요.
+              </p>
             </div>
 
-            {/* 모델 선택 및 요청 */}
-            <div className="ai-request-form">
-              <div className="ai-model-selector">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={!patientId || patientId <= 0 || requestingAI}
-                >
-                  <option value="">AI 모델 선택</option>
-                  {availableModels.map((model) => (
-                    <option
-                      key={model.code}
-                      value={model.code}
-                      disabled={!model.is_available}
-                    >
-                      {model.name} {!model.is_available && '(데이터 부족)'}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={handleRequestAI}
-                  disabled={!selectedModel || requestingAI}
-                >
-                  {requestingAI ? '요청 중...' : '추론 요청'}
-                </button>
-              </div>
-
-              {/* 선택된 모델 정보 */}
-              {selectedModel && (() => {
-                const model = availableModels.find(m => m.code === selectedModel);
-                if (!model) return null;
-                return (
-                  <div className="ai-model-info">
-                    <p className="model-description">{model.description}</p>
-                    {!model.is_available && model.missing_keys.length > 0 && (
-                      <div className="model-missing-data">
-                        <span className="warning-icon">⚠️</span>
-                        필요 데이터 부족: {model.missing_keys.join(', ')}
-                      </div>
-                    )}
-                    {model.is_available && (
-                      <div className="model-ready">
-                        <span className="check-icon">✅</span>
-                        모든 필요 데이터 준비됨
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* 최근 AI 추론 결과 */}
+            {/* AI 최근 추론 결과 (읽기 전용) */}
             <div className="ai-results-list">
               <h5 className="subsection-title">
                 <span className="subsection-icon ai">AI</span>
-                최근 추론 결과
+                AI 최근 추론 결과
                 <span className="subsection-count">({aiRequests.length})</span>
               </h5>
               {aiRequests.length === 0 ? (
-                <div className="empty-message small">AI 추론 이력 없음</div>
+                <div className="empty-message small">AI 추론 이력이 없습니다.</div>
               ) : (
                 <div className="result-list compact">
-                  {aiRequests.slice(0, 4).map((req) => (
+                  {aiRequests.slice(0, 5).map((req) => (
                     <div
                       key={req.id}
                       className="result-item ai-request-item"
@@ -654,6 +581,14 @@ export default function ExaminationTab({
                       </span>
                     </div>
                   ))}
+                  {aiRequests.length > 5 && (
+                    <div
+                      className="more-link"
+                      onClick={() => navigate(`/ai/requests?patientId=${patientId}`)}
+                    >
+                      +{aiRequests.length - 5}건 더 보기
+                    </div>
+                  )}
                 </div>
               )}
             </div>

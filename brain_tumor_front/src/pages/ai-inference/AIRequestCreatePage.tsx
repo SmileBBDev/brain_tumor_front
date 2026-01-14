@@ -1,15 +1,21 @@
 /**
  * AI 추론 요청 생성 페이지
  * - 환자 선택
- * - 모델 선택 및 데이터 검증
+ * - 모델 선택
+ * - OCS 선택 (모델에 필요한 데이터 소스)
  * - 추론 요청 생성
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { usePatientAvailableModels, useCreateAIRequest } from '@/hooks';
 import { LoadingSpinner, useToast } from '@/components/common';
-import { getPatients, searchPatients } from '@/services/patient.api';
-import type { AvailableModel, DataValidationResult } from '@/services/ai.api';
+import { getPatients } from '@/services/patient.api';
+import {
+  getAIModels,
+  createAIRequest,
+  getOCSForModel,
+  type AIModel,
+  type OCSForModelItem,
+} from '@/services/ai.api';
 import './AIRequestCreatePage.css';
 
 interface Patient {
@@ -20,6 +26,28 @@ interface Patient {
   gender: string;
 }
 
+// OCS 상태 라벨
+const OCS_STATUS_LABELS: Record<string, string> = {
+  ORDERED: '오더됨',
+  ACCEPTED: '접수됨',
+  IN_PROGRESS: '진행 중',
+  RESULT_READY: '결과 대기',
+  CONFIRMED: '확정됨',
+  CANCELLED: '취소됨',
+};
+
+// 검사 유형 라벨
+const JOB_TYPE_LABELS: Record<string, string> = {
+  MRI: 'MRI',
+  CT: 'CT',
+  XRAY: 'X-Ray',
+  BLOOD: '혈액검사',
+  URINE: '소변검사',
+  GENETIC: '유전자검사',
+  PROTEIN: '단백질검사',
+  PATHOLOGY: '병리검사',
+};
+
 export default function AIRequestCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -29,20 +57,26 @@ export default function AIRequestCreatePage() {
   const initialPatientId = searchParams.get('patientId');
 
   // 상태
-  const [step, setStep] = useState<'patient' | 'model' | 'confirm'>('patient');
+  const [step, setStep] = useState<'patient' | 'model' | 'ocs' | 'confirm'>('patient');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [selectedModel, setSelectedModel] = useState<AvailableModel | null>(null);
-  const [priority, setPriority] = useState<string>('normal');
-  const [validationResult, setValidationResult] = useState<DataValidationResult | null>(null);
 
-  // Hooks
-  const { models: _models, availableModels, unavailableModels, loading: modelsLoading } = usePatientAvailableModels(
-    selectedPatient?.id ?? null
-  );
-  const { create, validate, creating, validating, error } = useCreateAIRequest();
+  // 모델 관련 상태
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
+
+  // OCS 관련 상태 (모델에 적합한 OCS 목록)
+  const [ocsList, setOcsList] = useState<OCSForModelItem[]>([]);
+  const [ocsLoading, setOcsLoading] = useState(false);
+  const [selectedOcsIds, setSelectedOcsIds] = useState<number[]>([]);
+
+  // 요청 관련 상태
+  const [priority, setPriority] = useState<string>('normal');
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 환자 목록 로드 (컴포넌트 마운트 시 1회만 실행)
   useEffect(() => {
@@ -59,7 +93,22 @@ export default function AIRequestCreatePage() {
       }
     };
     loadPatients();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 모델 목록 로드
+  useEffect(() => {
+    const loadModels = async () => {
+      setModelsLoading(true);
+      try {
+        const modelList = await getAIModels();
+        setModels(modelList.filter(m => m.is_active));
+      } catch (err) {
+        console.error('Failed to load models:', err);
+      } finally {
+        setModelsLoading(false);
+      }
+    };
+    loadModels();
   }, []);
 
   // 초기 환자 ID로 환자 정보 조회
@@ -73,6 +122,28 @@ export default function AIRequestCreatePage() {
     }
   }, [initialPatientId, patients]);
 
+  // 모델 선택 시 해당 모델에 적합한 OCS 목록 로드
+  useEffect(() => {
+    if (!selectedPatient || !selectedModel) {
+      setOcsList([]);
+      return;
+    }
+
+    const loadOCSForModel = async () => {
+      setOcsLoading(true);
+      try {
+        const response = await getOCSForModel(selectedPatient.id, selectedModel.code);
+        setOcsList(response.ocs_list);
+      } catch (err) {
+        console.error('Failed to load OCS for model:', err);
+        setOcsList([]);
+      } finally {
+        setOcsLoading(false);
+      }
+    };
+    loadOCSForModel();
+  }, [selectedPatient, selectedModel]);
+
   // 검색어로 필터링된 환자 목록
   const filteredPatients = useMemo(() => {
     if (!searchQuery.trim()) return patients;
@@ -84,64 +155,101 @@ export default function AIRequestCreatePage() {
     );
   }, [patients, searchQuery]);
 
+  // 선택한 모델에 필요한 OCS 타입 추출
+  const requiredJobRoles = useMemo(() => {
+    if (!selectedModel || !selectedModel.required_keys) return [];
+    return Object.keys(selectedModel.required_keys);
+  }, [selectedModel]);
+
+  // 모델에 적합한(compatible) OCS만 필터링
+  const compatibleOcsList = useMemo(() => {
+    return ocsList.filter(ocs => ocs.is_compatible);
+  }, [ocsList]);
+
+  // 모델에 부적합한(incompatible) OCS
+  const incompatibleOcsList = useMemo(() => {
+    return ocsList.filter(ocs => !ocs.is_compatible);
+  }, [ocsList]);
+
   // 환자 선택
   const handleSelectPatient = useCallback((patient: Patient) => {
     setSelectedPatient(patient);
     setSelectedModel(null);
-    setValidationResult(null);
+    setSelectedOcsIds([]);
     setStep('model');
   }, []);
 
   // 모델 선택
-  const handleSelectModel = useCallback(
-    async (model: AvailableModel) => {
-      if (!model.is_available || !selectedPatient) return;
+  const handleSelectModel = useCallback((model: AIModel) => {
+    setSelectedModel(model);
+    setSelectedOcsIds([]);
+    setStep('ocs');
+  }, []);
 
-      setSelectedModel(model);
-
-      // 데이터 검증 실행
-      try {
-        const result = await validate(selectedPatient.id, model.code);
-        setValidationResult(result);
-
-        if (result.valid) {
-          setStep('confirm');
-        } else {
-          toast.warning('필요한 데이터가 부족합니다. 상세 내용을 확인해주세요.');
-        }
-      } catch (err) {
-        toast.error('데이터 검증에 실패했습니다.');
+  // OCS 선택/해제 토글
+  const handleToggleOcs = useCallback((ocsId: number) => {
+    setSelectedOcsIds(prev => {
+      if (prev.includes(ocsId)) {
+        return prev.filter(id => id !== ocsId);
       }
-    },
-    [selectedPatient, validate, toast]
-  );
+      return [...prev, ocsId];
+    });
+  }, []);
+
+  // OCS 선택 완료 → 확인 단계로
+  const handleOcsSelectionComplete = useCallback(() => {
+    if (selectedOcsIds.length === 0) {
+      toast.warning('최소 1개 이상의 검사를 선택해주세요.');
+      return;
+    }
+    setStep('confirm');
+  }, [selectedOcsIds.length, toast]);
 
   // 요청 생성
   const handleCreate = useCallback(async () => {
-    if (!selectedPatient || !selectedModel) return;
+    if (!selectedPatient || !selectedModel || selectedOcsIds.length === 0) return;
 
+    setCreating(true);
+    setError(null);
     try {
-      const request = await create(selectedPatient.id, selectedModel.code, priority);
+      const request = await createAIRequest({
+        patient_id: selectedPatient.id,
+        model_code: selectedModel.code,
+        priority,
+        ocs_ids: selectedOcsIds,
+      });
       toast.success('AI 분석 요청이 생성되었습니다.');
       navigate(`/ai/requests/${request.id}`);
-    } catch (err) {
-      toast.error('AI 분석 요청 생성에 실패했습니다.');
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || 'AI 분석 요청 생성에 실패했습니다.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setCreating(false);
     }
-  }, [selectedPatient, selectedModel, priority, create, navigate, toast]);
+  }, [selectedPatient, selectedModel, selectedOcsIds, priority, navigate, toast]);
 
   // 뒤로 가기
   const handleBack = useCallback(() => {
     if (step === 'confirm') {
+      setStep('ocs');
+    } else if (step === 'ocs') {
       setStep('model');
+      setSelectedOcsIds([]);
     } else if (step === 'model') {
       setStep('patient');
       setSelectedPatient(null);
       setSelectedModel(null);
-      setValidationResult(null);
+      setSelectedOcsIds([]);
     } else {
       navigate(-1);
     }
   }, [step, navigate]);
+
+  // 선택된 OCS 정보 가져오기
+  const selectedOcsInfo = useMemo(() => {
+    return ocsList.filter(ocs => selectedOcsIds.includes(ocs.id));
+  }, [ocsList, selectedOcsIds]);
 
   return (
     <div className="page ai-request-create">
@@ -155,6 +263,7 @@ export default function AIRequestCreatePage() {
           <span className="subtitle">
             {step === 'patient' && '환자를 선택해주세요'}
             {step === 'model' && 'AI 모델을 선택해주세요'}
+            {step === 'ocs' && '분석할 검사를 선택해주세요'}
             {step === 'confirm' && '요청 내용을 확인해주세요'}
           </span>
         </div>
@@ -172,8 +281,13 @@ export default function AIRequestCreatePage() {
           <span className="step-label">모델 선택</span>
         </div>
         <div className="step-divider"></div>
-        <div className={`step ${step === 'confirm' ? 'active' : ''}`}>
+        <div className={`step ${step === 'ocs' ? 'active' : selectedOcsIds.length > 0 ? 'completed' : ''}`}>
           <span className="step-number">3</span>
+          <span className="step-label">검사 선택</span>
+        </div>
+        <div className="step-divider"></div>
+        <div className={`step ${step === 'confirm' ? 'active' : ''}`}>
+          <span className="step-number">4</span>
           <span className="step-label">확인 및 요청</span>
         </div>
       </div>
@@ -235,80 +349,211 @@ export default function AIRequestCreatePage() {
           </div>
 
           {modelsLoading ? (
-            <LoadingSpinner text="사용 가능한 모델을 확인하는 중..." />
+            <LoadingSpinner text="AI 모델을 불러오는 중..." />
           ) : (
-            <>
-              {/* 사용 가능한 모델 */}
-              <div className="model-section">
-                <h3>사용 가능한 모델</h3>
-                {availableModels.length > 0 ? (
-                  <div className="model-list">
-                    {availableModels.map((model) => (
-                      <div
-                        key={model.code}
-                        className={`model-card available ${selectedModel?.code === model.code ? 'selected' : ''}`}
-                        onClick={() => handleSelectModel(model)}
-                      >
-                        <div className="model-header">
-                          <span className="model-name">{model.name}</span>
-                          <span className="model-code">{model.code}</span>
-                        </div>
-                        <p className="model-description">{model.description}</p>
-                        <div className="model-data">
-                          <span className="available-keys">
-                            사용 데이터: {model.available_keys.join(', ')}
-                          </span>
-                        </div>
+            <div className="model-section">
+              <h3>AI 모델 선택</h3>
+              {models.length > 0 ? (
+                <div className="model-list">
+                  {models.map((model) => (
+                    <div
+                      key={model.code}
+                      className={`model-card available ${selectedModel?.code === model.code ? 'selected' : ''}`}
+                      onClick={() => handleSelectModel(model)}
+                    >
+                      <div className="model-header">
+                        <span className="model-name">{model.name}</span>
+                        <span className="model-code">{model.code}</span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-models">
-                    <p>사용 가능한 모델이 없습니다.</p>
-                    <p className="hint">필요한 검사 데이터가 충족되면 모델을 사용할 수 있습니다.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* 데이터 부족 모델 */}
-              {unavailableModels.length > 0 && (
-                <div className="model-section unavailable">
-                  <h3>데이터 부족 모델</h3>
-                  <div className="model-list">
-                    {unavailableModels.map((model) => (
-                      <div key={model.code} className="model-card disabled">
-                        <div className="model-header">
-                          <span className="model-name">{model.name}</span>
-                          <span className="model-code">{model.code}</span>
-                        </div>
-                        <p className="model-description">{model.description}</p>
-                        <div className="model-data missing">
-                          <span className="missing-keys">
-                            필요 데이터: {model.missing_keys.join(', ')}
-                          </span>
-                        </div>
+                      <p className="model-description">{model.description}</p>
+                      <div className="model-data">
+                        <span className="required-sources">
+                          필요 데이터: {Object.keys(model.required_keys || {}).join(', ') || '없음'}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-models">
+                  <p>사용 가능한 AI 모델이 없습니다.</p>
                 </div>
               )}
-
-              {/* 검증 결과 */}
-              {validating && <LoadingSpinner text="데이터 검증 중..." />}
-
-              {validationResult && !validationResult.valid && (
-                <div className="validation-error">
-                  <h4>데이터 검증 실패</h4>
-                  <p>누락된 데이터: {validationResult.missing_keys.join(', ')}</p>
-                </div>
-              )}
-            </>
+            </div>
           )}
         </section>
       )}
 
-      {/* Step 3: 확인 및 요청 */}
-      {step === 'confirm' && selectedPatient && selectedModel && validationResult?.valid && (
+      {/* Step 3: OCS 선택 */}
+      {step === 'ocs' && selectedPatient && selectedModel && (
+        <section className="step-content ocs-selection">
+          <div className="selected-info-row">
+            <div className="selected-patient-info">
+              <span className="label">환자:</span>
+              <span className="patient-name">{selectedPatient.name}</span>
+              <span className="patient-number">({selectedPatient.patient_number})</span>
+            </div>
+            <div className="selected-model-info">
+              <span className="label">모델:</span>
+              <span className="model-name">{selectedModel.name}</span>
+            </div>
+          </div>
+
+          <div className="ocs-section">
+            <h3>
+              분석할 검사 선택
+              <span className="ocs-hint">
+                ({requiredJobRoles.join(', ')} 유형의 확정된 검사)
+              </span>
+            </h3>
+
+            {ocsLoading ? (
+              <LoadingSpinner text="검사 목록을 불러오는 중..." />
+            ) : compatibleOcsList.length > 0 ? (
+              <>
+                <div className="ocs-list">
+                  {compatibleOcsList.map((ocs) => (
+                    <div
+                      key={ocs.id}
+                      className={`ocs-card ${selectedOcsIds.includes(ocs.id) ? 'selected' : ''}`}
+                      onClick={() => handleToggleOcs(ocs.id)}
+                    >
+                      <div className="ocs-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={selectedOcsIds.includes(ocs.id)}
+                          onChange={() => handleToggleOcs(ocs.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="ocs-content">
+                        <div className="ocs-header">
+                          <span className={`job-role-badge ${ocs.job_role.toLowerCase()}`}>
+                            {ocs.job_role}
+                          </span>
+                          <span className="ocs-type">
+                            {JOB_TYPE_LABELS[ocs.job_type] || ocs.job_type}
+                          </span>
+                          <span className={`status-badge ${ocs.ocs_status.toLowerCase()}`}>
+                            {OCS_STATUS_LABELS[ocs.ocs_status] || ocs.ocs_status}
+                          </span>
+                        </div>
+                        <div className="ocs-meta">
+                          <span className="ocs-id">{ocs.ocs_id}</span>
+                          <span className="ocs-date">{ocs.created_at?.slice(0, 10)}</span>
+                        </div>
+                        {ocs.available_keys.length > 0 && (
+                          <div className="ocs-keys">
+                            <span className="keys-label">사용 가능 데이터:</span>
+                            {ocs.available_keys.map((key) => (
+                              <span key={key} className="key-badge available">{key}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 부적합한 OCS도 표시 (선택 불가) */}
+                {incompatibleOcsList.length > 0 && (
+                  <div className="incompatible-section">
+                    <h4>필요 데이터 부족 ({incompatibleOcsList.length}건)</h4>
+                    <div className="ocs-list incompatible">
+                      {incompatibleOcsList.map((ocs) => (
+                        <div key={ocs.id} className="ocs-card disabled">
+                          <div className="ocs-content">
+                            <div className="ocs-header">
+                              <span className={`job-role-badge ${ocs.job_role.toLowerCase()}`}>
+                                {ocs.job_role}
+                              </span>
+                              <span className="ocs-type">
+                                {JOB_TYPE_LABELS[ocs.job_type] || ocs.job_type}
+                              </span>
+                            </div>
+                            <div className="ocs-meta">
+                              <span className="ocs-id">{ocs.ocs_id}</span>
+                              <span className="ocs-date">{ocs.created_at?.slice(0, 10)}</span>
+                            </div>
+                            {ocs.missing_keys.length > 0 && (
+                              <div className="ocs-keys">
+                                <span className="keys-label">누락 데이터:</span>
+                                {ocs.missing_keys.map((key) => (
+                                  <span key={key} className="key-badge missing">{key}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="ocs-selection-footer">
+                  <span className="selection-count">
+                    {selectedOcsIds.length}개 선택됨
+                  </span>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleOcsSelectionComplete}
+                    disabled={selectedOcsIds.length === 0}
+                  >
+                    다음
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="empty-ocs">
+                <p>선택한 모델에 필요한 데이터를 가진 검사가 없습니다.</p>
+                <p className="hint">
+                  이 모델은 {requiredJobRoles.join(', ')} 유형의 검사에서<br />
+                  {selectedModel?.required_keys && Object.entries(selectedModel.required_keys).map(([role, keys]) => (
+                    <span key={role}>{role}: {(keys as string[]).join(', ')}<br /></span>
+                  ))}
+                  데이터가 필요합니다.
+                </p>
+                {/* 부적합한 OCS가 있으면 표시 */}
+                {incompatibleOcsList.length > 0 && (
+                  <div className="incompatible-section">
+                    <h4>데이터 부족한 검사 ({incompatibleOcsList.length}건)</h4>
+                    <div className="ocs-list incompatible">
+                      {incompatibleOcsList.map((ocs) => (
+                        <div key={ocs.id} className="ocs-card disabled">
+                          <div className="ocs-content">
+                            <div className="ocs-header">
+                              <span className={`job-role-badge ${ocs.job_role.toLowerCase()}`}>
+                                {ocs.job_role}
+                              </span>
+                              <span className="ocs-type">
+                                {JOB_TYPE_LABELS[ocs.job_type] || ocs.job_type}
+                              </span>
+                            </div>
+                            <div className="ocs-meta">
+                              <span className="ocs-id">{ocs.ocs_id}</span>
+                            </div>
+                            {ocs.missing_keys.length > 0 && (
+                              <div className="ocs-keys">
+                                <span className="keys-label">누락:</span>
+                                {ocs.missing_keys.map((key) => (
+                                  <span key={key} className="key-badge missing">{key}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Step 4: 확인 및 요청 */}
+      {step === 'confirm' && selectedPatient && selectedModel && selectedOcsIds.length > 0 && (
         <section className="step-content confirmation">
           <div className="confirmation-card">
             <h3>AI 분석 요청 확인</h3>
@@ -330,11 +575,16 @@ export default function AIRequestCreatePage() {
             </div>
 
             <div className="info-group">
-              <label>사용 데이터</label>
+              <label>선택된 검사 ({selectedOcsIds.length}건)</label>
               <div className="info-value">
                 <ul className="data-list">
-                  {validationResult.available_keys.map((key) => (
-                    <li key={key}>{key}</li>
+                  {selectedOcsInfo.map((ocs) => (
+                    <li key={ocs.id}>
+                      <span className={`job-role-badge small ${ocs.job_role.toLowerCase()}`}>
+                        {ocs.job_role}
+                      </span>
+                      {JOB_TYPE_LABELS[ocs.job_type] || ocs.job_type} - {ocs.ocs_id}
+                    </li>
                   ))}
                 </ul>
               </div>

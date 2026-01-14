@@ -252,3 +252,63 @@
   color: #111827; /* 거의 블랙 */
   font-weight: 700;
 }
+
+/* ============================================
+   인쇄 스타일
+   ============================================ */
+@media print {
+  /* 기본 페이지 설정 */
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  /* 레이아웃 요소 숨김 */
+  .app-header,
+  .sidebar,
+  .breadcrumb,
+  .hamburger-btn {
+    display: none !important;
+  }
+
+  /* 앱 레이아웃 초기화 */
+  .app-layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .app-body {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* 컨텐츠 영역 전체 너비로 확장 */
+  .app-content {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* 스크롤바 숨김 */
+  * {
+    overflow: visible !important;
+  }
+
+  /* 모달, 토스트 등 숨김 */
+  .modal-backdrop,
+  .toast-container,
+  [class*="notification"],
+  [class*="Toast"] {
+    display: none !important;
+  }
+
+  /* no-print 클래스 숨김 */
+  .no-print {
+    display: none !important;
+  }
+}

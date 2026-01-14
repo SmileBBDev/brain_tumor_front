@@ -486,3 +486,433 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* OCS Selection Step */
+.ocs-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ocs-selection .selected-info-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ocs-selection .info-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.ocs-selection .info-badge .label {
+  color: #666;
+}
+
+.ocs-selection .info-badge .value {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.ocs-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ocs-section h4 {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ocs-list {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ocs-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ocs-card:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.ocs-card.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.ocs-card input[type="checkbox"] {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+.ocs-card .ocs-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ocs-card .ocs-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.ocs-card .ocs-id {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.ocs-card .job-role-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.ocs-card .job-role-badge.ris {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.ocs-card .job-role-badge.lis {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ocs-card .job-role-badge.default {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.ocs-card .ocs-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.ocs-card .ocs-detail span {
+  white-space: nowrap;
+}
+
+.ocs-card .ocs-status-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.empty-ocs {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+}
+
+.empty-ocs p {
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-ocs .hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.ocs-selection-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ocs-selection-footer .selection-count {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.ocs-selection-footer .selection-count strong {
+  color: #2563eb;
+}
+
+.ocs-selection-footer .btn {
+  min-width: 100px;
+}
+
+/* Confirmation - OCS list styles */
+.confirmation-card .ocs-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.confirmation-card .ocs-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.confirmation-card .ocs-summary-item .ocs-id {
+  font-weight: 600;
+}
+
+.confirmation-card .ocs-summary-item .job-role-badge {
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.confirmation-card .ocs-summary-item .job-role-badge.ris {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.confirmation-card .ocs-summary-item .job-role-badge.lis {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* OCS Selection - Additional Styles */
+.ocs-selection .selected-model-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f0fdf4;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.ocs-selection .selected-model-info .label {
+  color: #666;
+}
+
+.ocs-selection .selected-model-info .model-name {
+  font-weight: 600;
+  color: #15803d;
+}
+
+.ocs-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ocs-section h3 .ocs-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+.ocs-card .ocs-checkbox {
+  flex-shrink: 0;
+}
+
+.ocs-card .ocs-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.ocs-card .ocs-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.ocs-card .ocs-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.ocs-card .job-role-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.ocs-card .job-role-badge.ris {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.ocs-card .job-role-badge.lis {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ocs-card .ocs-type {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #1a1a1a;
+}
+
+.ocs-card .status-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ocs-card .status-badge.confirmed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ocs-card .ocs-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.ocs-card .ocs-id {
+  font-family: monospace;
+  color: #6b7280;
+}
+
+.ocs-card .ocs-date {
+  color: #9ca3af;
+}
+
+/* Data list in confirmation */
+.confirmation-card .data-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.confirmation-card .data-list li .job-role-badge.small {
+  padding: 0.0625rem 0.375rem;
+  font-size: 0.6rem;
+}
+
+.confirmation-card .data-list li .job-role-badge.ris {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.confirmation-card .data-list li .job-role-badge.lis {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* OCS Keys Display */
+.ocs-card .ocs-keys {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ocs-card .ocs-keys .keys-label {
+  font-size: 0.7rem;
+  color: #6b7280;
+  margin-right: 0.25rem;
+}
+
+.ocs-card .ocs-keys .key-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.ocs-card .ocs-keys .key-badge.available {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ocs-card .ocs-keys .key-badge.missing {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Incompatible OCS Section */
+.incompatible-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.incompatible-section h4 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #9ca3af;
+  margin: 0 0 0.75rem 0;
+}
+
+.ocs-list.incompatible {
+  opacity: 0.7;
+}
+
+.ocs-card.disabled {
+  cursor: not-allowed;
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.ocs-card.disabled:hover {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+/* Empty OCS hint improvements */
+.empty-ocs .incompatible-section {
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.empty-ocs .incompatible-section h4 {
+  text-align: center;
+}

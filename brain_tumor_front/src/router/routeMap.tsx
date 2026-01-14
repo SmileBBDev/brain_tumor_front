@@ -6,7 +6,6 @@ const PatientListPage = lazy(() => import('@/pages/patient/PatientListPage'));
 const PatientDetailPage = lazy(() => import('@/pages/patient/PatientDetailPage'));
 const ImagingListPage = lazy(() => import('@/pages/imaging/ImagingListPage'));
 const PatientImagingHistoryPage = lazy(() => import('@/pages/imaging/PatientImagingHistoryPage'));
-const AISummaryPage = lazy(() => import('@/pages/ai/AISummaryPage'));
 const MenuPermissionPage = lazy(() => import('@/pages/admin/MenuPermissionPage'));
 const UserList = lazy(() => import('@/pages/admin/usersManagement/UserList'));
 const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
@@ -34,6 +33,7 @@ const ClinicPage = lazy(() => import('@/pages/clinic/ClinicPage'));
 
 // Encounter
 const EncounterListPage = lazy(() => import('@/pages/encounter/EncounterListPage'));
+const EncounterDetailPage = lazy(() => import('@/pages/encounter/EncounterDetailPage'));
 
 // AI Inference
 const AIRequestListPage = lazy(() => import('@/pages/ai-inference/AIRequestListPage'));
@@ -41,6 +41,14 @@ const AIRequestCreatePage = lazy(() => import('@/pages/ai-inference/AIRequestCre
 const AIRequestDetailPage = lazy(() => import('@/pages/ai-inference/AIRequestDetailPage'));
 const AIProcessStatusPage = lazy(() => import('@/pages/ai-inference/AIProcessStatusPage'));
 const AIModelsPage = lazy(() => import('@/pages/ai-inference/AIModelsPage'));
+const AISummaryPage = lazy(() => import('@/pages/ai/AISummaryPage'));
+
+// Patient Portal (환자 전용 - MY_CARE)
+const MySummaryPage = lazy(() => import('@/pages/patient-portal/MySummaryPage'));
+const MyVisitsPage = lazy(() => import('@/pages/patient-portal/MyVisitsPage'));
+const MyImagingPage = lazy(() => import('@/pages/patient-portal/MyImagingPage'));
+const MyLabPage = lazy(() => import('@/pages/patient-portal/MyLabPage'));
+const AboutHospitalPage = lazy(() => import('@/pages/patient-portal/AboutHospitalPage'));
 
 
 /**
@@ -52,8 +60,9 @@ const AIModelsPage = lazy(() => import('@/pages/ai-inference/AIModelsPage'));
  * ├── OCS: OCS_STATUS, OCS_CREATE, OCS_MANAGE
  * ├── IMAGING: IMAGE_VIEWER, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD, RIS_RESULT_UPLOAD
  * ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
- * ├── AI: AI_VIEWER, AI_REQUEST_LIST, AI_REQUEST_CREATE, AI_REQUEST_DETAIL, AI_PROCESS_STATUS, AI_MODELS
- * └── ADMIN: ADMIN_USER, ADMIN_USER_DETAIL, ADMIN_ROLE, ADMIN_MENU_PERMISSION, ADMIN_AUDIT_LOG, ADMIN_SYSTEM_MONITOR
+ * ├── AI: AI_REQUEST_LIST, AI_REQUEST_CREATE, AI_REQUEST_DETAIL, AI_PROCESS_STATUS, AI_MODELS
+ * ├── ADMIN: ADMIN_USER, ADMIN_USER_DETAIL, ADMIN_ROLE, ADMIN_MENU_PERMISSION, ADMIN_AUDIT_LOG, ADMIN_SYSTEM_MONITOR
+ * └── MY_CARE (환자 전용): MY_SUMMARY, MY_VISITS, MY_IMAGING, MY_LAB
  */
 export const routeMap: Record<string, ComponentType> = {
   // === DASHBOARD ===
@@ -64,6 +73,7 @@ export const routeMap: Record<string, ComponentType> = {
   PATIENT_DETAIL: PatientDetailPage,
   PATIENT_CARE: ClinicPage,
   ENCOUNTER_LIST: EncounterListPage,
+  ENCOUNTER_DETAIL: EncounterDetailPage,
 
   // === OCS 그룹 ===
   OCS_STATUS: OCSStatusPage,       // OCS 현황 (간호사/관리자용)
@@ -101,4 +111,11 @@ export const routeMap: Record<string, ComponentType> = {
   ADMIN_MENU_PERMISSION: MenuPermissionPage,
   ADMIN_AUDIT_LOG: AuditLog,
   ADMIN_SYSTEM_MONITOR: SystemMonitorPage,
+
+  // === MY_CARE 그룹 (환자 전용) ===
+  MY_SUMMARY: MySummaryPage,
+  MY_VISITS: MyVisitsPage,
+  MY_IMAGING: MyImagingPage,
+  MY_LAB: MyLabPage,
+  ABOUT_HOSPITAL: AboutHospitalPage,
 };
