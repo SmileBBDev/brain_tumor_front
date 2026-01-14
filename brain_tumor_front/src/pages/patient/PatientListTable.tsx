@@ -112,6 +112,16 @@ export default function PatientListTable({ role, patients, onEdit, onDelete, onR
 
   return (
     <table className="table patient-table">
+      {/* 컬럼 폭 고정을 위한 colgroup */}
+      <colgroup>
+        <col className="col-patient-info" />
+        <col className="col-gender-age" />
+        <col className="col-phone" />
+        <col className="col-blood-type" />
+        <col className="col-status" />
+        <col className="col-date" />
+        <col className="col-actions" />
+      </colgroup>
       <thead>
         <tr>
           <th>환자 정보</th>
@@ -129,30 +139,35 @@ export default function PatientListTable({ role, patients, onEdit, onDelete, onR
           const statusInfo = getStatusIcon(p.status);
           const bloodTypeStyle = getBloodTypeStyle(p.blood_type);
 
+          const handleRowClick = () => navigate(`/patients/${p.id}`);
+
           return (
             <tr
               key={p.id}
               className="patient-row clickable-row"
-              onClick={() => navigate(`/patients/${p.id}`)}
             >
               {/* 환자 정보 (이름 + 번호) */}
-              <td className="patient-info-cell">
-                <span className="patient-name">{p.name}</span>
-                <span className="patient-number">{p.patient_number}</span>
+              <td onClick={handleRowClick}>
+                <div className="patient-info-cell">
+                  <span className="patient-name">{p.name}</span>
+                  <span className="patient-number">{p.patient_number}</span>
+                </div>
               </td>
 
               {/* 성별/나이 */}
-              <td className="gender-age-cell">
-                <span className="gender">{getGenderShort(p.gender)}</span>
-                <span className="separator">/</span>
-                <span className="age">{p.age}세</span>
+              <td onClick={handleRowClick}>
+                <div className="gender-age-cell">
+                  <span className="gender">{getGenderShort(p.gender)}</span>
+                  <span className="separator">/</span>
+                  <span className="age">{p.age}세</span>
+                </div>
               </td>
 
               {/* 연락처 */}
-              <td>{p.phone}</td>
+              <td onClick={handleRowClick}>{p.phone}</td>
 
               {/* 혈액형 Badge */}
-              <td>
+              <td onClick={handleRowClick}>
                 <span
                   className="blood-type-badge"
                   style={bloodTypeStyle}
@@ -162,7 +177,7 @@ export default function PatientListTable({ role, patients, onEdit, onDelete, onR
               </td>
 
               {/* 상태 (아이콘 + 텍스트) */}
-              <td>
+              <td onClick={handleRowClick}>
                 <span className={`patient-status ${statusInfo.className}`}>
                   <span className="status-icon">{statusInfo.icon}</span>
                   <span className="status-text">{statusInfo.text}</span>
@@ -170,13 +185,13 @@ export default function PatientListTable({ role, patients, onEdit, onDelete, onR
               </td>
 
               {/* 등록일 */}
-              <td className="date-cell">
+              <td className="date-cell" onClick={handleRowClick}>
                 {new Date(p.created_at).toLocaleDateString('ko-KR')}
               </td>
 
-              {/* 작업 영역 */}
+              {/* 작업 영역 - 클릭 이벤트 없음 */}
               <td>
-                <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
+                <div className="action-buttons">
                   {/* 진료 시작 버튼 (주요 액션) */}
                   {canStartCare && p.status === 'active' && (
                     <button

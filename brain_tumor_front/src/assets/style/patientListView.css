@@ -253,18 +253,83 @@
    NEW: Patient List Table 개선 스타일
    ============================================ */
 
-/* Patient Table 기본 스타일 */
+/* Patient Table 기본 스타일 - 고정 레이아웃 */
 .patient-table {
   font-size: 0.9rem;
+  table-layout: fixed;
+  width: 100%;
 }
+
+/* 컬럼 폭 고정 정의 (colgroup 기반) */
+.patient-table .col-patient-info {
+  width: 22%;
+}
+.patient-table .col-gender-age {
+  width: 10%;
+}
+.patient-table .col-phone {
+  width: 14%;
+}
+.patient-table .col-blood-type {
+  width: 8%;
+}
+.patient-table .col-status {
+  width: 10%;
+}
+.patient-table .col-date {
+  width: 12%;
+}
+.patient-table .col-actions {
+  width: 14%;
+}
+
+/* th 기반 컬럼 폭 (colgroup 미사용 시 fallback) */
+.patient-table th:nth-child(1) { width: 22%; }  /* 환자 정보 */
+.patient-table th:nth-child(2) { width: 10%; }  /* 성별/나이 */
+.patient-table th:nth-child(3) { width: 14%; }  /* 연락처 */
+.patient-table th:nth-child(4) { width: 8%; }   /* 혈액형 */
+.patient-table th:nth-child(5) { width: 10%; }  /* 상태 */
+.patient-table th:nth-child(6) { width: 12%; }  /* 등록일 */
+.patient-table th:nth-child(7) { width: 14%; }  /* 작업 */
 
 .patient-table th,
 .patient-table td {
   padding: 0.75rem 1rem;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* 작업 열 우측 정렬 */
+/* 클릭 가능한 td 스타일 */
+.patient-row td {
+  cursor: pointer;
+}
+
+/* 작업 열은 클릭 커서 제거 */
+.patient-row td:last-child {
+  cursor: default;
+}
+
+/* 컬럼별 정렬 */
+.patient-table th:nth-child(1),
+.patient-table td:nth-child(1) {
+  text-align: left;
+}
+
+.patient-table th:nth-child(2),
+.patient-table td:nth-child(2),
+.patient-table th:nth-child(3),
+.patient-table td:nth-child(3),
+.patient-table th:nth-child(4),
+.patient-table td:nth-child(4),
+.patient-table th:nth-child(5),
+.patient-table td:nth-child(5),
+.patient-table th:nth-child(6),
+.patient-table td:nth-child(6) {
+  text-align: center;
+}
+
+/* 작업 열 중앙 정렬 */
 .patient-table th:last-child,
 .patient-table td:last-child {
   text-align: center;
@@ -273,17 +338,19 @@
 /* 행 Hover 효과 강화 */
 .patient-row {
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  text-align: center;
+  transition: background-color 0.2s ease;
 }
 
 .patient-row:hover {
   background-color: #f0f7ff !important;
 }
 
-/* 좌측 포인트 라인 효과 */
-.patient-row::before {
+/* 좌측 포인트 라인 효과 - 첫 번째 td에 적용 */
+.patient-row td:first-child {
+  position: relative;
+}
+
+.patient-row td:first-child::before {
   content: '';
   position: absolute;
   left: 0;
@@ -294,7 +361,7 @@
   transition: background-color 0.2s ease;
 }
 
-.patient-row:hover::before {
+.patient-row:hover td:first-child::before {
   background-color: var(--primary, #2563eb);
 }
 
@@ -303,23 +370,31 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0; /* flex child overflow 방지 */
 }
 
 .patient-info-cell .patient-name {
   font-weight: 600;
   color: #1f2937;
   font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .patient-info-cell .patient-number {
   font-size: 0.8rem;
   color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 성별/나이 셀 */
 .gender-age-cell {
-  /* display: flex; */
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   white-space: nowrap;
 }
@@ -341,7 +416,9 @@
   font-size: 0.8rem;
   font-weight: 600;
   min-width: 40px;
+  max-width: 50px;
   text-align: center;
+  white-space: nowrap;
 }
 
 /* 상태 표시 (아이콘 + 텍스트) */
@@ -350,6 +427,7 @@
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .patient-status .status-icon {
@@ -381,10 +459,18 @@
 
 /* 작업 영역 (진료 시작 + 더보기 메뉴) */
 .patient-table .action-buttons {
-  display: flex;
+  display: inline-flex;
   gap: 8px;
-  justify-content: center; /* 가로 가운데 정렬 */
+  justify-content: center;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
 
+/* 작업 버튼 줄바꿈 방지 */
+.patient-table .action-buttons .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* 더보기 메뉴 컨테이너 */
