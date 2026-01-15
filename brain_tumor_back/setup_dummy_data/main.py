@@ -87,7 +87,7 @@ def print_final_summary():
     from apps.ocs.models import OCS
     from apps.menus.models import Menu, MenuLabel, MenuPermission
     from apps.accounts.models import Permission
-    from apps.ai_inference.models import AIModel, AIInferenceRequest
+    from apps.ai_inference.models import AIInference
     from apps.treatment.models import TreatmentPlan, TreatmentSession
     from apps.followup.models import FollowUp
     from apps.prescriptions.models import Prescription, PrescriptionItem
@@ -128,8 +128,7 @@ def print_final_summary():
     print(f"  - 경과 기록: {FollowUp.objects.count()}건")
     print(f"  - 처방: {Prescription.objects.count()}건")
     print(f"  - 처방 항목: {PrescriptionItem.objects.count()}건")
-    print(f"  - AI 모델: {AIModel.objects.count()}개")
-    print(f"  - AI 요청: {AIInferenceRequest.objects.count()}건")
+    print(f"  - AI 추론: {AIInference.objects.count()}건")
     print(f"  - 의사 일정: {DoctorSchedule.objects.filter(is_deleted=False).count()}건")
     print(f"  - 공유 일정: {SharedSchedule.objects.filter(is_deleted=False).count()}건")
     print(f"  - 개인 일정: {PersonalSchedule.objects.filter(is_deleted=False).count()}건")

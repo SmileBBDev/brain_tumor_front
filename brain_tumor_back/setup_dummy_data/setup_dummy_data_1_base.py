@@ -1647,83 +1647,9 @@ def create_dummy_lis_orders(num_orders=30, force=False):
 
 
 def create_ai_models():
-    """AI 모델 시드 데이터 생성"""
+    """AI 모델 시드 데이터 생성 (현재 AIInference 단일 모델 사용으로 스킵)"""
     print(f"\n[6단계] AI 모델 데이터 생성...")
-
-    from apps.ai_inference.models import AIModel
-
-    # 기존 데이터 확인
-    existing_count = AIModel.objects.count()
-    if existing_count >= 3:
-        print(f"[SKIP] 이미 {existing_count}개의 AI 모델이 존재합니다.")
-        return True
-
-    ai_models_data = [
-        {
-            "code": "M1",
-            "name": "MRI 4-Channel Analysis",
-            "description": "MRI 4채널(T1, T2, T1C, FLAIR) 기반 뇌종양 분석 모델",
-            "ocs_sources": ["RIS"],
-            "required_keys": {
-                "RIS": ["MRI"]  # job_type 기반 매칭
-            },
-            "version": "1.0.0",
-            "is_active": True,
-            "config": {
-                "timeout_seconds": 300,
-                "batch_size": 1,
-                "gpu_required": True
-            }
-        },
-        {
-            "code": "MG",
-            "name": "Genetic Analysis",
-            "description": "RNA 시퀀싱 기반 유전자 분석 모델 (MGMT 메틸화, IDH 변이 등)",
-            "ocs_sources": ["LIS"],
-            "required_keys": {
-                "LIS": ["RNA_SEQ"]  # job_type 기반 매칭
-            },
-            "version": "1.0.0",
-            "is_active": True,
-            "config": {
-                "timeout_seconds": 600,
-                "batch_size": 1,
-                "gpu_required": False
-            }
-        },
-        {
-            "code": "MM",
-            "name": "Multimodal Analysis",
-            "description": "MRI + RNA시퀀싱 + 바이오마커 통합 분석 모델 (종합 예후 예측)",
-            "ocs_sources": ["RIS", "LIS"],
-            "required_keys": {
-                "RIS": ["MRI"],
-                "LIS": ["RNA_SEQ", "BIOMARKER"]  # job_type 기반 매칭
-            },
-            "version": "1.0.0",
-            "is_active": True,
-            "config": {
-                "timeout_seconds": 900,
-                "batch_size": 1,
-                "gpu_required": True
-            }
-        }
-    ]
-
-    created_count = 0
-    for model_data in ai_models_data:
-        model, created = AIModel.objects.get_or_create(
-            code=model_data["code"],
-            defaults=model_data
-        )
-        if created:
-            created_count += 1
-            print(f"  생성: {model.code} - {model.name}")
-        else:
-            print(f"  스킵: {model.code} (이미 존재)")
-
-    print(f"[OK] AI 모델 생성: {created_count}개")
-    print(f"  현재 전체 AI 모델: {AIModel.objects.count()}개")
+    print(f"[SKIP] AIInference 단일 모델 사용 - AI 모델 시드 데이터 불필요")
     return True
 
 
@@ -1914,7 +1840,7 @@ def reset_base_data():
     from apps.encounters.models import Encounter
     from apps.patients.models import Patient, PatientAlert
     from apps.menus.models import Menu, MenuLabel, MenuPermission
-    from apps.ai_inference.models import AIInferenceRequest, AIInferenceResult, AIInferenceLog
+    from apps.ai_inference.models import AIInference
     from apps.treatment.models import TreatmentPlan, TreatmentSession
     from apps.followup.models import FollowUp
     from apps.prescriptions.models import Prescription, PrescriptionItem
@@ -1940,18 +1866,10 @@ def reset_base_data():
     Prescription.objects.all().delete()
     print(f"  Prescription: {prescription_count}건 삭제")
 
-    # AI 로그/결과/요청 삭제 (추가 데이터지만 base 데이터에 의존)
-    ai_log_count = AIInferenceLog.objects.count()
-    AIInferenceLog.objects.all().delete()
-    print(f"  AIInferenceLog: {ai_log_count}건 삭제")
-
-    ai_result_count = AIInferenceResult.objects.count()
-    AIInferenceResult.objects.all().delete()
-    print(f"  AIInferenceResult: {ai_result_count}건 삭제")
-
-    ai_request_count = AIInferenceRequest.objects.count()
-    AIInferenceRequest.objects.all().delete()
-    print(f"  AIInferenceRequest: {ai_request_count}건 삭제")
+    # AI 추론 삭제
+    ai_inference_count = AIInference.objects.count()
+    AIInference.objects.all().delete()
+    print(f"  AIInference: {ai_inference_count}건 삭제")
 
     # 치료 세션/계획 삭제 (추가 데이터지만 base 데이터에 의존)
     treatment_session_count = TreatmentSession.objects.count()
@@ -2040,7 +1958,7 @@ def print_summary():
     from apps.ocs.models import OCS
     from apps.menus.models import Menu, MenuLabel, MenuPermission
     from apps.accounts.models import Permission
-    from apps.ai_inference.models import AIModel
+    from apps.ai_inference.models import AIInference
 
     print(f"\n[통계 - 기본 데이터]")
     print(f"  - 메뉴: {Menu.objects.count()}개")
@@ -2054,7 +1972,7 @@ def print_summary():
     print(f"  - OCS (RIS): {OCS.objects.filter(job_role='RIS').count()}건")
     print(f"  - OCS (LIS): {OCS.objects.filter(job_role='LIS').count()}건")
     print(f"  - 영상 검사: {ImagingStudy.objects.count()}건")
-    print(f"  - AI 모델: {AIModel.objects.count()}개")
+    print(f"  - AI 추론: {AIInference.objects.count()}건")
 
     print(f"\n[다음 단계]")
     print(f"  추가 데이터 생성:")

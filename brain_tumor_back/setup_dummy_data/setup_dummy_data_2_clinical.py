@@ -730,83 +730,9 @@ def create_dummy_lis_orders(num_orders=30, force=False):
 
 
 def create_ai_models():
-    """AI 모델 시드 데이터 생성"""
+    """AI 모델 시드 데이터 생성 (현재 AIInference 단일 모델 사용으로 스킵)"""
     print(f"\n[5단계] AI 모델 데이터 생성...")
-
-    from apps.ai_inference.models import AIModel
-
-    # 기존 데이터 확인
-    existing_count = AIModel.objects.count()
-    if existing_count >= 3:
-        print(f"[SKIP] 이미 {existing_count}개의 AI 모델이 존재합니다.")
-        return True
-
-    ai_models_data = [
-        {
-            "code": "M1",
-            "name": "MRI 4-Channel Analysis",
-            "description": "MRI 4채널(T1, T2, T1C, FLAIR) 기반 뇌종양 분석 모델",
-            "ocs_sources": ["RIS"],
-            "required_keys": {
-                "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"]
-            },
-            "version": "1.0.0",
-            "is_active": True,
-            "config": {
-                "timeout_seconds": 300,
-                "batch_size": 1,
-                "gpu_required": True
-            }
-        },
-        {
-            "code": "MG",
-            "name": "Genetic Analysis",
-            "description": "RNA 시퀀싱 기반 유전자 분석 모델 (MGMT 메틸화, IDH 변이 등)",
-            "ocs_sources": ["LIS"],
-            "required_keys": {
-                "LIS": ["RNA_seq"]
-            },
-            "version": "1.0.0",
-            "is_active": True,
-            "config": {
-                "timeout_seconds": 600,
-                "batch_size": 1,
-                "gpu_required": False
-            }
-        },
-        {
-            "code": "MM",
-            "name": "Multimodal Analysis",
-            "description": "MRI + 유전 + 단백질 통합 분석 모델 (종합 예후 예측)",
-            "ocs_sources": ["RIS", "LIS"],
-            "required_keys": {
-                "RIS": ["dicom.T1", "dicom.T2", "dicom.T1C", "dicom.FLAIR"],
-                "LIS": ["RNA_seq", "protein"]
-            },
-            "version": "1.0.0",
-            "is_active": True,
-            "config": {
-                "timeout_seconds": 900,
-                "batch_size": 1,
-                "gpu_required": True
-            }
-        }
-    ]
-
-    created_count = 0
-    for model_data in ai_models_data:
-        model, created = AIModel.objects.get_or_create(
-            code=model_data["code"],
-            defaults=model_data
-        )
-        if created:
-            created_count += 1
-            print(f"  생성: {model.code} - {model.name}")
-        else:
-            print(f"  스킵: {model.code} (이미 존재)")
-
-    print(f"[OK] AI 모델 생성: {created_count}개")
-    print(f"  현재 전체 AI 모델: {AIModel.objects.count()}개")
+    print(f"[SKIP] AIInference 단일 모델 사용 - AI 모델 시드 데이터 불필요")
     return True
 
 
@@ -1149,24 +1075,27 @@ def create_dummy_followups(num_followups=25, force=False):
 
 
 def create_dummy_ai_requests(num_requests=10, force=False):
-    """더미 AI 추론 요청 데이터 생성"""
-    print(f"\n[10단계] AI 추론 요청 데이터 생성 (목표: {num_requests}건)...")
+    """더미 AI 추론 데이터 생성 (AIInference 모델 사용)"""
+    print(f"\n[10단계] AI 추론 데이터 생성 (목표: {num_requests}건)...")
 
-    from apps.ai_inference.models import AIModel, AIInferenceRequest, AIInferenceResult
+    from apps.ai_inference.models import AIInference
     from apps.patients.models import Patient
+    from apps.ocs.models import OCS
     from django.contrib.auth import get_user_model
     User = get_user_model()
 
     # 기존 데이터 확인
-    existing_count = AIInferenceRequest.objects.count()
+    existing_count = AIInference.objects.count()
     if existing_count >= num_requests and not force:
-        print(f"[SKIP] 이미 {existing_count}건의 AI 요청이 존재합니다.")
+        print(f"[SKIP] 이미 {existing_count}건의 AI 추론이 존재합니다.")
         return True
 
     # 필요한 데이터
     patients = list(Patient.objects.filter(is_deleted=False))
     doctors = list(User.objects.filter(role__code='DOCTOR'))
-    ai_models = list(AIModel.objects.filter(is_active=True))
+    mri_ocs_list = list(OCS.objects.filter(job_role='RIS', job_type='MRI', is_deleted=False))
+    rna_ocs_list = list(OCS.objects.filter(job_role='LIS', job_type='RNA_SEQ', is_deleted=False))
+    protein_ocs_list = list(OCS.objects.filter(job_role='LIS', job_type='BIOMARKER', is_deleted=False))
 
     if not patients:
         print("[ERROR] 환자가 없습니다.")
@@ -1175,41 +1104,44 @@ def create_dummy_ai_requests(num_requests=10, force=False):
     if not doctors:
         doctors = list(User.objects.all()[:1])
 
-    if not ai_models:
-        print("[ERROR] 활성화된 AI 모델이 없습니다.")
-        print("  AI 모델을 먼저 생성합니다...")
-        create_ai_models()
-        ai_models = list(AIModel.objects.filter(is_active=True))
-        if not ai_models:
-            return False
-
-    # AIInferenceRequest.Status에 맞춤
-    statuses = ['PENDING', 'VALIDATING', 'PROCESSING', 'COMPLETED', 'FAILED']
-    priorities = ['low', 'normal', 'high', 'urgent']
+    # AIInference.ModelType과 Status에 맞춤
+    model_types = ['M1', 'MG', 'MM']
+    statuses = ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']
+    modes = ['manual', 'auto']
 
     created_count = 0
 
     for i in range(num_requests):
         patient = random.choice(patients)
         doctor = random.choice(doctors)
-        model = random.choice(ai_models)
+        model_type = random.choice(model_types)
         status = random.choice(statuses)
+        mode = random.choice(modes)
 
-        days_ago = random.randint(0, 60)
-        requested_at = timezone.now() - timedelta(days=days_ago)
+        # OCS 선택 (모델 타입에 따라)
+        mri_ocs = None
+        rna_ocs = None
+        protein_ocs = None
 
-        # 시작/완료 시간 설정
-        started_at = None
+        if model_type == 'M1' and mri_ocs_list:
+            mri_ocs = random.choice(mri_ocs_list)
+        elif model_type == 'MG' and rna_ocs_list:
+            rna_ocs = random.choice(rna_ocs_list)
+        elif model_type == 'MM':
+            if mri_ocs_list:
+                mri_ocs = random.choice(mri_ocs_list)
+            if rna_ocs_list:
+                rna_ocs = random.choice(rna_ocs_list)
+            if protein_ocs_list:
+                protein_ocs = random.choice(protein_ocs_list)
+
+        # 완료 시간 설정
         completed_at = None
         error_message = None
 
-        if status in ['PROCESSING', 'COMPLETED', 'FAILED']:
-            started_at = requested_at + timedelta(minutes=random.randint(1, 30))
-
         if status == 'COMPLETED':
-            completed_at = started_at + timedelta(minutes=random.randint(5, 60)) if started_at else None
+            completed_at = timezone.now() - timedelta(days=random.randint(0, 30))
         elif status == 'FAILED':
-            completed_at = started_at + timedelta(minutes=random.randint(1, 10)) if started_at else None
             error_message = random.choice([
                 "입력 데이터 검증 실패",
                 "모델 처리 중 오류 발생",
@@ -1217,57 +1149,44 @@ def create_dummy_ai_requests(num_requests=10, force=False):
                 "필수 데이터 누락"
             ])
 
+        # 결과 데이터 (COMPLETED인 경우)
+        result_data = {}
+        if status == 'COMPLETED':
+            tumor_detected = random.random() < 0.7
+            result_data = {
+                "analysis_type": model_type,
+                "tumor_detected": tumor_detected,
+                "tumor_grade": random.choice(['Grade I', 'Grade II', 'Grade III', 'Grade IV']) if tumor_detected else None,
+                "tumor_location": random.choice(["frontal", "temporal", "parietal", "occipital"]) if tumor_detected else None,
+                "confidence_score": round(random.uniform(0.75, 0.98), 2),
+                "recommendations": [
+                    "추가 영상 검사 권장" if tumor_detected else "정기 검진 권장",
+                    "전문의 상담 권장"
+                ],
+            }
+
         try:
             with transaction.atomic():
-                ai_request = AIInferenceRequest.objects.create(
+                AIInference.objects.create(
                     patient=patient,
-                    model=model,
-                    requested_by=doctor,
+                    model_type=model_type,
+                    mri_ocs=mri_ocs,
+                    rna_ocs=rna_ocs,
+                    protein_ocs=protein_ocs,
                     status=status,
-                    priority=random.choice(priorities),
-                    ocs_references=[],
-                    input_data={"patient_id": patient.id, "model_code": model.code},
-                    started_at=started_at,
-                    completed_at=completed_at,
+                    mode=mode,
+                    result_data=result_data,
                     error_message=error_message,
+                    requested_by=doctor,
+                    completed_at=completed_at,
                 )
-
-                # COMPLETED인 경우 결과도 생성
-                if status == 'COMPLETED':
-                    tumor_detected = random.random() < 0.7
-                    result_data = {
-                        "analysis_type": model.code,
-                        "tumor_detected": tumor_detected,
-                        "tumor_grade": random.choice(['Grade I', 'Grade II', 'Grade III', 'Grade IV']) if tumor_detected else None,
-                        "tumor_location": random.choice(["frontal", "temporal", "parietal", "occipital"]) if tumor_detected else None,
-                        "recommendations": [
-                            "추가 영상 검사 권장" if tumor_detected else "정기 검진 권장",
-                            "전문의 상담 권장"
-                        ],
-                    }
-
-                    review_status = random.choice(['pending', 'approved', 'rejected'])
-                    reviewed_by = doctor if review_status != 'pending' else None
-                    reviewed_at = completed_at + timedelta(hours=random.randint(1, 48)) if reviewed_by else None
-
-                    AIInferenceResult.objects.create(
-                        inference_request=ai_request,
-                        result_data=result_data,
-                        confidence_score=round(random.uniform(0.75, 0.98), 2),
-                        visualization_paths=[],
-                        reviewed_by=reviewed_by,
-                        review_status=review_status,
-                        review_comment="결과 확인함" if reviewed_by else None,
-                        reviewed_at=reviewed_at,
-                    )
-
                 created_count += 1
 
         except Exception as e:
             print(f"  오류: {e}")
 
-    print(f"[OK] AI 요청 생성: {created_count}건")
-    print(f"  현재 전체 AI 요청: {AIInferenceRequest.objects.count()}건")
+    print(f"[OK] AI 추론 생성: {created_count}건")
+    print(f"  현재 전체 AI 추론: {AIInference.objects.count()}건")
     return True
 
 
@@ -1458,7 +1377,7 @@ def reset_clinical_data():
     from apps.imaging.models import ImagingStudy
     from apps.encounters.models import Encounter
     from apps.patients.models import Patient, PatientAlert
-    from apps.ai_inference.models import AIInferenceRequest, AIInferenceResult, AIInferenceLog
+    from apps.ai_inference.models import AIInference
     from apps.treatment.models import TreatmentPlan, TreatmentSession
     from apps.followup.models import FollowUp
     from apps.prescriptions.models import Prescription, PrescriptionItem
@@ -1473,18 +1392,10 @@ def reset_clinical_data():
     Prescription.objects.all().delete()
     print(f"  Prescription: {prescription_count}건 삭제")
 
-    # AI 로그/결과/요청 삭제
-    ai_log_count = AIInferenceLog.objects.count()
-    AIInferenceLog.objects.all().delete()
-    print(f"  AIInferenceLog: {ai_log_count}건 삭제")
-
-    ai_result_count = AIInferenceResult.objects.count()
-    AIInferenceResult.objects.all().delete()
-    print(f"  AIInferenceResult: {ai_result_count}건 삭제")
-
-    ai_request_count = AIInferenceRequest.objects.count()
-    AIInferenceRequest.objects.all().delete()
-    print(f"  AIInferenceRequest: {ai_request_count}건 삭제")
+    # AI 추론 삭제
+    ai_inference_count = AIInference.objects.count()
+    AIInference.objects.all().delete()
+    print(f"  AIInference: {ai_inference_count}건 삭제")
 
     # 치료 세션/계획 삭제
     treatment_session_count = TreatmentSession.objects.count()
@@ -1539,7 +1450,7 @@ def print_summary():
     from apps.encounters.models import Encounter
     from apps.imaging.models import ImagingStudy
     from apps.ocs.models import OCS
-    from apps.ai_inference.models import AIModel, AIInferenceRequest
+    from apps.ai_inference.models import AIInference
     from apps.treatment.models import TreatmentPlan, TreatmentSession
     from apps.followup.models import FollowUp
     from apps.prescriptions.models import Prescription, PrescriptionItem
@@ -1551,8 +1462,7 @@ def print_summary():
     print(f"  - OCS (RIS): {OCS.objects.filter(job_role='RIS').count()}건")
     print(f"  - OCS (LIS): {OCS.objects.filter(job_role='LIS').count()}건")
     print(f"  - 영상 검사: {ImagingStudy.objects.count()}건")
-    print(f"  - AI 모델: {AIModel.objects.count()}개")
-    print(f"  - AI 요청: {AIInferenceRequest.objects.count()}건")
+    print(f"  - AI 추론: {AIInference.objects.count()}건")
     print(f"  - 치료 계획: {TreatmentPlan.objects.count()}건")
     print(f"  - 치료 세션: {TreatmentSession.objects.count()}건")
     print(f"  - 경과 기록: {FollowUp.objects.count()}건")
