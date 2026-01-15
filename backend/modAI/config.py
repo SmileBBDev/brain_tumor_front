@@ -1,0 +1,82 @@
+"""
+modAI Configuration
+"""
+import os
+import logging
+from pathlib import Path
+from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+
+def get_device():
+    """
+    사용 가능한 최적의 device 반환
+
+    우선순위: CUDA GPU > CPU
+    """
+    import torch
+
+    if torch.cuda.is_available():
+        device = "cuda"
+        gpu_name = torch.cuda.get_device_name(0)
+        logger.info(f"GPU 사용: {gpu_name}")
+    else:
+        device = "cpu"
+        logger.info("CPU 사용 (GPU 없음)")
+
+    return device
+
+
+class Settings(BaseSettings):
+    """modAI 서버 설정"""
+
+    # Server
+    HOST: str = "0.0.0.0"
+    PORT: int = 9000
+    DEBUG: bool = False
+
+    # Orthanc DICOM Server
+    ORTHANC_URL: str = "http://localhost:8042"
+    ORTHANC_USER: str = "orthanc"
+    ORTHANC_PASSWORD: str = "orthanc"
+
+    # Redis (for Celery)
+    REDIS_URL: str = "redis://localhost:6379/2"
+
+    # Django callback URL
+    DJANGO_URL: str = "http://localhost:8000"
+
+    # Storage paths
+    BASE_DIR: Path = Path(__file__).parent
+    MODEL_DIR: Path = Path(os.environ.get("MODEL_DIR", str(BASE_DIR / "model")))
+    # STORAGE_DIR: 환경변수 우선, 없으면 로컬 경로 사용
+    # Docker: /app/CDSS_STORAGE/AI, Local: source/CDSS_STORAGE/AI
+    STORAGE_DIR: Path = Path(os.environ.get(
+        "STORAGE_DIR",
+        str(BASE_DIR.parent.parent / "CDSS_STORAGE" / "AI")
+    ))
+
+    # Model weights
+    M1_WEIGHTS_PATH: Path = Path(os.environ.get(
+        "M1_WEIGHTS_PATH",
+        str(Path(os.environ.get("MODEL_DIR", str(BASE_DIR / "model"))) / "m1_best.pth")
+    ))
+    M1_SEG_WEIGHTS_PATH: Path = Path(os.environ.get(
+        "M1_SEG_WEIGHTS_PATH",
+        str(Path(os.environ.get("MODEL_DIR", str(BASE_DIR / "model"))) / "M1_Seg_separate_best.pth")
+    ))
+
+    # Device
+    DEVICE: str = "auto"  # auto, cuda, cpu
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
+
+settings = Settings()
+
+# Ensure directories exist
+settings.STORAGE_DIR.mkdir(parents=True, exist_ok=True)
