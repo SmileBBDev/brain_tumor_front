@@ -4,9 +4,11 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
 
 이 스크립트는 더미 데이터 스크립트를 순차 실행합니다:
 1. setup_dummy_data_1_base.py     - 기본 데이터 (DB생성, 마이그레이션, 역할, 사용자, 메뉴/권한)
-2. setup_dummy_data_2_clinical.py - 임상 데이터 (환자, 진료, OCS, AI모델, 치료계획, 경과, 처방)
-3. setup_dummy_data_3_extended.py - 확장 데이터 (대량 진료/OCS, 오늘 진료, 일정)
-4. setup_dummy_data_4_encounter_schedule.py - 진료 예약 스케줄 (의사별 일정 기간 예약)
+2. setup_dummy_data_2_clinical.py - 임상 데이터 (환자, 진료, OCS 16건, AI, 치료계획, 경과, 처방)
+3. sync_orthanc_ocs.py            - Orthanc 연동 (MRI DICOM 업로드, OCS RIS worker_result 업데이트)
+4. sync_lis_ocs.py                - LIS 연동 (RNA/Protein 파일 복사, OCS LIS worker_result 업데이트)
+5. setup_dummy_data_3_extended.py - 확장 데이터 (대량 진료/OCS LIS, 오늘 진료, 일정)
+6. setup_dummy_data_4_encounter_schedule.py - 진료 예약 스케줄 (의사별 일정 기간 예약)
 
 사용법:
     python -m setup_dummy_data          # 기존 데이터 유지, 부족분만 추가
@@ -15,6 +17,7 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
     python -m setup_dummy_data --force  # 목표 수량 이상이어도 강제 추가
     python -m setup_dummy_data --base   # 기본 데이터만 생성
     python -m setup_dummy_data --clinical    # 임상 데이터만 생성
+    python -m setup_dummy_data --sync   # Orthanc/LIS 동기화만 실행
     python -m setup_dummy_data --extended    # 확장 데이터만 생성
     python -m setup_dummy_data --menu   # 메뉴/권한만 업데이트
     python -m setup_dummy_data --schedule    # 진료 예약 스케줄만 생성 (기본: 2026-01-15 ~ 2026-02-28)
@@ -22,10 +25,13 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
 
 선행 조건:
     없음 (DB가 없으면 자동 생성)
+    ※ Orthanc 서버가 실행 중이어야 MRI DICOM 업로드 가능 (없으면 스킵)
 
 개별 실행:
     python setup_dummy_data/setup_dummy_data_1_base.py [--reset] [--force]
     python setup_dummy_data/setup_dummy_data_2_clinical.py [--reset] [--force]
+    python setup_dummy_data/sync_orthanc_ocs.py [--dry-run] [--skip-upload]
+    python setup_dummy_data/sync_lis_ocs.py [--dry-run]
     python setup_dummy_data/setup_dummy_data_3_extended.py [--reset] [--force]
 """
 
@@ -299,6 +305,7 @@ def main():
     parser.add_argument('--force', action='store_true', help='목표 수량 이상이어도 강제 추가')
     parser.add_argument('--base', action='store_true', help='기본 데이터만 생성 (1_base)')
     parser.add_argument('--clinical', action='store_true', help='임상 데이터만 생성 (2_clinical)')
+    parser.add_argument('--sync', action='store_true', help='Orthanc/LIS 동기화만 실행')
     parser.add_argument('--extended', action='store_true', help='확장 데이터만 생성 (3_extended)')
     parser.add_argument('--menu', action='store_true', help='메뉴/권한만 업데이트')
     parser.add_argument('--schedule', action='store_true', help='진료 예약 스케줄 생성')
@@ -340,7 +347,7 @@ def main():
         return
 
     # 개별 실행 옵션 처리
-    if args.base or args.clinical or args.extended:
+    if args.base or args.clinical or args.sync or args.extended:
         script_args = []
         if args.reset:
             script_args.append('--reset')
@@ -353,6 +360,10 @@ def main():
             run_script('setup_dummy_data_1_base.py', script_args, '기본 데이터 생성')
         if args.clinical:
             run_script('setup_dummy_data_2_clinical.py', script_args, '임상 데이터 생성')
+        if args.sync:
+            # Orthanc/LIS 동기화 (--reset/--force 무시, 항상 실행)
+            run_script('sync_orthanc_ocs.py', [], 'Orthanc MRI 동기화')
+            run_script('sync_lis_ocs.py', [], 'LIS RNA/Protein 동기화')
         if args.extended:
             run_script('setup_dummy_data_3_extended.py', script_args, '확장 데이터 생성')
         return
@@ -372,32 +383,56 @@ def main():
     if not run_script(
         'setup_dummy_data_1_base.py',
         script_args,
-        '기본 데이터 생성 (1/5) - 역할, 사용자, 메뉴/권한'
+        '기본 데이터 생성 (1/7) - 역할, 사용자, 메뉴/권한'
     ):
         print("\n[WARNING] 기본 데이터 생성에 문제가 있습니다.")
         success = False
 
-    # 2. 임상 데이터 생성 (환자, 진료, OCS, AI, 치료, 경과, 처방)
+    # 2. 임상 데이터 생성 (환자, 진료, OCS 16건, AI, 치료, 경과, 처방)
     if not run_script(
         'setup_dummy_data_2_clinical.py',
         script_args,
-        '임상 데이터 생성 (2/5) - 환자, 진료, OCS, AI, 치료, 경과, 처방'
+        '임상 데이터 생성 (2/7) - 환자, 진료, OCS 16건, AI, 치료, 경과, 처방'
     ):
         print("\n[WARNING] 임상 데이터 생성에 문제가 있습니다.")
         success = False
 
-    # 3. 확장 데이터 생성 (대량 진료/OCS, 오늘 진료, 일정)
+    # 3. Orthanc MRI 동기화 (DICOM 업로드, OCS RIS worker_result 업데이트)
+    print(f"\n{'='*60}")
+    print(f"[실행] Orthanc MRI 동기화 (3/7)")
+    print(f"{'='*60}")
+    if not run_script(
+        'sync_orthanc_ocs.py',
+        [],  # sync 스크립트는 별도 옵션 없이 실행
+        'Orthanc MRI 동기화 - DICOM 업로드, OCS RIS 업데이트'
+    ):
+        print("\n[WARNING] Orthanc 동기화에 문제가 있습니다. (Orthanc 서버 미실행?)")
+        # Orthanc 실패는 치명적이지 않음 - 계속 진행
+
+    # 4. LIS RNA/Protein 동기화 (파일 복사, OCS LIS worker_result 업데이트)
+    print(f"\n{'='*60}")
+    print(f"[실행] LIS RNA/Protein 동기화 (4/7)")
+    print(f"{'='*60}")
+    if not run_script(
+        'sync_lis_ocs.py',
+        [],  # sync 스크립트는 별도 옵션 없이 실행
+        'LIS 동기화 - RNA/Protein 파일 복사, OCS LIS 업데이트'
+    ):
+        print("\n[WARNING] LIS 동기화에 문제가 있습니다.")
+        # LIS 실패도 치명적이지 않음 - 계속 진행
+
+    # 5. 확장 데이터 생성 (대량 진료/OCS LIS, 오늘 진료, 일정)
     if not run_script(
         'setup_dummy_data_3_extended.py',
         script_args,
-        '확장 데이터 생성 (3/5) - 대량 진료/OCS, 오늘 진료, 일정'
+        '확장 데이터 생성 (5/7) - 대량 진료/OCS LIS, 오늘 진료, 일정'
     ):
         print("\n[WARNING] 확장 데이터 생성에 문제가 있습니다.")
         success = False
 
-    # 4. 추가 사용자 생성
+    # 6. 추가 사용자 생성
     print(f"\n{'='*60}")
-    print(f"[실행] 추가 사용자 생성 (4/5)")
+    print(f"[실행] 추가 사용자 생성 (6/7)")
     print(f"{'='*60}")
     try:
         create_additional_users(reset=args.reset)
@@ -405,9 +440,9 @@ def main():
         print(f"\n[WARNING] 추가 사용자 생성에 문제가 있습니다: {e}")
         success = False
 
-    # 5. 환자 계정-데이터 연결
+    # 7. 환자 계정-데이터 연결
     print(f"\n{'='*60}")
-    print(f"[실행] 환자 계정-데이터 연결 (5/5)")
+    print(f"[실행] 환자 계정-데이터 연결 (7/7)")
     print(f"{'='*60}")
     try:
         link_patient_accounts(reset=args.reset)

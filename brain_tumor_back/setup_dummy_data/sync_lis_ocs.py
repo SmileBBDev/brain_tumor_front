@@ -48,7 +48,7 @@ from apps.patients.models import Patient
 PATIENT_DATA_PATH = Path("c:/0000/환자데이터")
 CDSS_STORAGE_PATH = Path("c:/0000/CDSS_STORAGE/LIS")  # 프로젝트 외부 저장소
 
-# 환자 폴더 목록 (순서대로 - sync_orthanc_ocs.py와 동일)
+# 환자 폴더 목록 (순서대로 15개 - sync_orthanc_ocs.py와 동일)
 PATIENT_FOLDERS = [
     "TCGA-CS-4944",
     "TCGA-CS-6666",
@@ -312,7 +312,7 @@ def main():
 
     # 2. 환자 목록 조회
     print("\n[2단계] 환자 목록 조회...")
-    patients = list(Patient.objects.filter(is_deleted=False).order_by('patient_number')[:16])
+    patients = list(Patient.objects.filter(is_deleted=False).order_by('patient_number')[:15])
     print(f"  DB 환자: {len(patients)}명")
 
     if len(patients) < 15:
@@ -335,33 +335,66 @@ def main():
     print(f"  OCS RNA_SEQ: {len(ocs_rna_seq)}건")
     print(f"  OCS BIOMARKER: {len(ocs_biomarker)}건")
 
-    # 4. 환자-폴더 매핑
-    print("\n[4단계] 환자-폴더 매핑...")
+    # 4. 환자-폴더 매핑 (환자번호 기준 1:1 매칭)
+    print("\n[4단계] 환자-폴더 매핑 (환자번호 기준)...")
+
+    # 환자번호 P202600001 ~ P202600015 순서대로 매핑
+    # 폴더[0] -> 환자 P202600001 -> OCS (patient=P202600001인 RNA_SEQ/BIOMARKER)
     limit = args.limit if args.limit > 0 else len(PATIENT_FOLDERS)
     mappings = []
 
-    for i, folder in enumerate(PATIENT_FOLDERS[:limit]):
-        if i < len(patients):
+    for i in range(min(limit, len(PATIENT_FOLDERS))):
+        folder_name = PATIENT_FOLDERS[i]
+        patient_number = f"P20260000{i+1}" if i < 9 else f"P2026000{i+1}"
+
+        # 해당 환자번호의 환자 찾기
+        patient = next((p for p in patients if p.patient_number == patient_number), None)
+
+        if patient:
             mappings.append({
-                'folder': folder,
-                'patient': patients[i],
-                'patient_number': patients[i].patient_number,
+                'folder': folder_name,
+                'patient': patient,
+                'patient_number': patient_number,
             })
+        else:
+            print(f"  [WARNING] 환자 {patient_number} 없음, 스킵")
 
     print(f"  매핑 완료: {len(mappings)}건")
 
-    # 5. RNA_SEQ 처리
-    print("\n[5단계] RNA_SEQ OCS 처리...")
+    for m in mappings[:5]:
+        print(f"    {m['folder']} -> {m['patient_number']}")
+    if len(mappings) > 5:
+        print(f"    ... 외 {len(mappings) - 5}건")
+
+    # 5. RNA_SEQ 처리 (환자번호 기준으로 OCS 찾기)
+    print("\n[5단계] RNA_SEQ OCS 처리 (중복 확인)...")
     rna_confirmed_count = 0
+    rna_skipped_count = 0
+    processed_rna_ids = []
 
     for i, mapping in enumerate(mappings):
-        if i >= len(ocs_rna_seq):
-            break
-
-        ocs = ocs_rna_seq[i]
         folder = mapping['folder']
+        patient_number = mapping['patient_number']
+        patient = mapping['patient']
 
-        print(f"\n[RNA_SEQ {i+1}/{min(len(mappings), len(ocs_rna_seq))}] {ocs.ocs_id} <- {folder}")
+        # 해당 환자의 RNA_SEQ OCS 찾기
+        ocs = next((o for o in ocs_rna_seq if o.patient and o.patient.patient_number == patient_number), None)
+
+        if not ocs:
+            print(f"\n[RNA_SEQ {i+1}/{len(mappings)}] {patient_number} <- {folder} - OCS 없음, 스킵")
+            continue
+
+        processed_rna_ids.append(ocs.id)
+
+        # 이미 CONFIRMED이고 worker_result에 파일 정보가 있으면 스킵
+        if ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
+            existing_result = ocs.worker_result or {}
+            if existing_result.get("RNA_seq") or existing_result.get("gene_expression", {}).get("file_path"):
+                print(f"\n[RNA_SEQ {i+1}/{len(mappings)}] {ocs.ocs_id} ({patient_number}) - 이미 CONFIRMED (스킵)")
+                rna_skipped_count += 1
+                continue
+
+        print(f"\n[RNA_SEQ {i+1}/{len(mappings)}] {ocs.ocs_id} ({patient_number}) <- {folder}")
 
         # 파일 복사
         file_info = copy_lis_file(folder, ocs.ocs_id, 'RNA_SEQ', dry_run=args.dry_run)
@@ -380,18 +413,37 @@ def main():
                 ocs.save()
             print(f"    -> ACCEPTED (파일 없음)")
 
-    # 6. BIOMARKER 처리
-    print("\n[6단계] BIOMARKER OCS 처리...")
+    print(f"\n  [RNA_SEQ 결과] 신규: {rna_confirmed_count}건, 스킵: {rna_skipped_count}건")
+
+    # 6. BIOMARKER 처리 (환자번호 기준으로 OCS 찾기)
+    print("\n[6단계] BIOMARKER OCS 처리 (중복 확인)...")
     biomarker_confirmed_count = 0
+    biomarker_skipped_count = 0
+    processed_biomarker_ids = []
 
     for i, mapping in enumerate(mappings):
-        if i >= len(ocs_biomarker):
-            break
-
-        ocs = ocs_biomarker[i]
         folder = mapping['folder']
+        patient_number = mapping['patient_number']
+        patient = mapping['patient']
 
-        print(f"\n[BIOMARKER {i+1}/{min(len(mappings), len(ocs_biomarker))}] {ocs.ocs_id} <- {folder}")
+        # 해당 환자의 BIOMARKER OCS 찾기
+        ocs = next((o for o in ocs_biomarker if o.patient and o.patient.patient_number == patient_number), None)
+
+        if not ocs:
+            print(f"\n[BIOMARKER {i+1}/{len(mappings)}] {patient_number} <- {folder} - OCS 없음, 스킵")
+            continue
+
+        processed_biomarker_ids.append(ocs.id)
+
+        # 이미 CONFIRMED이고 worker_result에 파일 정보가 있으면 스킵
+        if ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
+            existing_result = ocs.worker_result or {}
+            if existing_result.get("protein") or existing_result.get("protein_data", {}).get("file_path"):
+                print(f"\n[BIOMARKER {i+1}/{len(mappings)}] {ocs.ocs_id} ({patient_number}) - 이미 CONFIRMED (스킵)")
+                biomarker_skipped_count += 1
+                continue
+
+        print(f"\n[BIOMARKER {i+1}/{len(mappings)}] {ocs.ocs_id} ({patient_number}) <- {folder}")
 
         # 파일 복사
         file_info = copy_lis_file(folder, ocs.ocs_id, 'BIOMARKER', dry_run=args.dry_run)
@@ -410,13 +462,12 @@ def main():
                 ocs.save()
             print(f"    -> ACCEPTED (파일 없음)")
 
+    print(f"\n  [BIOMARKER 결과] 신규: {biomarker_confirmed_count}건, 스킵: {biomarker_skipped_count}건")
+
     # 7. 나머지 OCS를 ACCEPTED로 변경
     print("\n[7단계] 나머지 OCS LIS 상태 변경...")
 
-    # 처리된 OCS ID 목록
-    processed_rna_ids = [ocs_rna_seq[i].id for i in range(min(len(mappings), len(ocs_rna_seq)))]
-    processed_biomarker_ids = [ocs_biomarker[i].id for i in range(min(len(mappings), len(ocs_biomarker)))]
-
+    # 처리된 OCS ID 목록 (위에서 이미 생성됨)
     remaining_ocs = OCS.objects.filter(
         job_role='LIS',
         job_type__in=['RNA_SEQ', 'BIOMARKER'],

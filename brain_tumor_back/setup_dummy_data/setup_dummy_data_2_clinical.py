@@ -361,9 +361,15 @@ def create_dummy_encounters(target_count=20, force=False):
     return True
 
 
-def create_dummy_imaging_with_ocs(num_orders=30, force=False):
-    """더미 영상 검사 데이터 생성 (OCS 통합 버전)"""
-    print(f"\n[3단계] 영상 검사 데이터 생성 - OCS 통합 (목표: {num_orders}건)...")
+def create_dummy_imaging_with_ocs(num_orders=15, force=False):
+    """
+    더미 영상 검사 데이터 생성 (OCS 통합 버전)
+
+    ※ 환자데이터 폴더 수(15개)에 맞춰 15건만 생성
+    ※ 환자번호 P202600001 ~ P202600015에게만 OCS RIS 생성
+    ※ sync_orthanc_ocs.py로 Orthanc 연동 후 CONFIRMED 처리
+    """
+    print(f"\n[3단계] 영상 검사 데이터 생성 - OCS 통합 (목표: {num_orders}건, 환자데이터 폴더 수 기준)...")
 
     from apps.ocs.models import OCS
     from apps.imaging.models import ImagingStudy
@@ -378,80 +384,52 @@ def create_dummy_imaging_with_ocs(num_orders=30, force=False):
         print(f"[SKIP] 이미 {existing_ocs}건의 RIS 오더가 존재합니다.")
         return True
 
-    # 필요한 데이터 - 환자와 담당 의사 관계가 있는 진료 기록만 사용
-    encounters = list(Encounter.objects.filter(
-        attending_doctor__isnull=False,
-        patient__is_deleted=False
-    ).select_related('patient', 'attending_doctor'))
+    # 환자데이터 폴더와 매칭될 환자 16명 (P202600001 ~ P202600016)
+    target_patients = list(Patient.objects.filter(
+        is_deleted=False
+    ).order_by('patient_number')[:num_orders])
+
+    if len(target_patients) < num_orders:
+        print(f"[WARNING] 환자가 {len(target_patients)}명만 존재합니다. {len(target_patients)}건만 생성합니다.")
+        num_orders = len(target_patients)
+
+    # 각 환자의 진료 기록 찾기
     radiologists = list(User.objects.filter(role__code__in=['RIS', 'DOCTOR']))
-
-    if not encounters:
-        print("[ERROR] 담당 의사가 있는 진료 기록이 없습니다.")
-        return False
-
     if not radiologists:
         radiologists = list(User.objects.filter(role__code='DOCTOR'))
 
-    # 뇌종양 CDSS에 필요한 영상 검사만
-    modalities = ['MRI']  # MRI만 사용 (CT, PET 제거)
-    body_parts = ['Brain', 'Head']  # 뇌종양 관련 부위만
-    ocs_statuses = ['ORDERED', 'ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']
     priorities = ['urgent', 'normal']
     clinical_indications = ['brain tumor evaluation', 'follow-up', 'post-op check', 'treatment response']
 
     created_count = 0
 
-    for i in range(num_orders):
-        # 진료 기록에서 환자와 담당 의사 관계 가져오기
-        encounter = random.choice(encounters)
-        patient = encounter.patient
-        doctor = encounter.attending_doctor  # 환자의 담당 의사가 요청
-        modality = random.choice(modalities)
-        body_part = random.choice(body_parts)
+    for patient in target_patients:
+        # 해당 환자의 진료 기록 찾기
+        encounter = Encounter.objects.filter(
+            patient=patient,
+            attending_doctor__isnull=False
+        ).first()
 
-        days_ago = random.randint(0, 90)
-        ocs_status = random.choice(ocs_statuses)
-
-        # 작업자 (ACCEPTED 이후에만)
-        worker = None
-        if ocs_status in ['ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']:
-            worker = random.choice(radiologists)
+        if not encounter:
+            # 진료 기록이 없으면 첫 번째 의사로 생성
+            doctor = User.objects.filter(role__code='DOCTOR').first()
+            if not doctor:
+                print(f"  [SKIP] {patient.patient_number}: 의사가 없음")
+                continue
+        else:
+            doctor = encounter.attending_doctor
 
         # doctor_request 데이터
         doctor_request = {
             "_template": "default",
             "_version": "1.0",
             "clinical_info": f"{random.choice(clinical_indications)} - {patient.name}",
-            "request_detail": f"{modality} {body_part} 촬영 요청",
-            "special_instruction": random.choice(["", "조영제 사용", "조영제 없이", "긴급"]),
+            "request_detail": f"MRI Head 촬영 요청",
+            "special_instruction": random.choice(["", "조영제 사용", "조영제 없이"]),
         }
 
-        # worker_result 데이터 (RESULT_READY 이후에만)
-        worker_result = {}
-        if ocs_status in ['RESULT_READY', 'CONFIRMED']:
-            tumor_detected = random.random() < 0.3
-            lobes = ['frontal', 'temporal', 'parietal', 'occipital']
-            hemispheres = ['left', 'right']
-
-            worker_result = {
-                "_template": "RIS",
-                "_version": "1.0",
-                "_confirmed": ocs_status == 'CONFIRMED',
-                "findings": "Mass lesion identified." if tumor_detected else "No acute intracranial abnormality.",
-                "impression": "Brain tumor suspected." if tumor_detected else "Normal study.",
-                "recommendation": "Further evaluation recommended." if tumor_detected else "",
-                "tumor": {
-                    "detected": tumor_detected,
-                    "location": {"lobe": random.choice(lobes), "hemisphere": random.choice(hemispheres)} if tumor_detected else {},
-                    "size": {"max_diameter_cm": round(random.uniform(1.0, 4.0), 1), "volume_cc": round(random.uniform(2.0, 30.0), 1)} if tumor_detected else {}
-                },
-                "dicom": {
-                    "study_uid": f"1.2.840.{random.randint(100000, 999999)}.{random.randint(1000, 9999)}",
-                    "series_count": random.randint(1, 5),
-                    "instance_count": random.randint(20, 200)
-                },
-                "work_notes": []
-            }
+        # OCS 상태: ORDERED (sync_orthanc_ocs.py에서 CONFIRMED로 업데이트)
+        ocs_status = 'ORDERED'
 
         try:
             with transaction.atomic():
@@ -459,52 +437,54 @@ def create_dummy_imaging_with_ocs(num_orders=30, force=False):
                 ocs = OCS.objects.create(
                     patient=patient,
                     doctor=doctor,
-                    worker=worker,
+                    worker=None,  # sync_orthanc_ocs.py에서 설정
                     encounter=encounter,
                     job_role='RIS',
-                    job_type=modality,
+                    job_type='MRI',
                     ocs_status=ocs_status,
                     priority=random.choice(priorities),
                     doctor_request=doctor_request,
-                    worker_result=worker_result,
-                    ocs_result=True if ocs_status == 'CONFIRMED' else None,
+                    worker_result={},  # sync_orthanc_ocs.py에서 설정
+                    ocs_result=None,
                 )
 
                 # ImagingStudy 생성 (OCS에 연결)
-                scheduled_at = None
-                performed_at = None
-
-                if ocs_status in ['ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']:
-                    scheduled_at = timezone.now() - timedelta(days=days_ago) + timedelta(days=random.randint(1, 3))
-
-                if ocs_status in ['IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']:
-                    performed_at = scheduled_at + timedelta(hours=random.randint(1, 24)) if scheduled_at else None
-
                 study = ImagingStudy.objects.create(
                     ocs=ocs,
-                    modality=modality,
-                    body_part=body_part,
-                    study_uid=worker_result.get('dicom', {}).get('study_uid') if worker_result else None,
-                    series_count=worker_result.get('dicom', {}).get('series_count', 0) if worker_result else 0,
-                    instance_count=worker_result.get('dicom', {}).get('instance_count', 0) if worker_result else 0,
-                    scheduled_at=scheduled_at,
-                    performed_at=performed_at,
+                    modality='MRI',
+                    body_part='Brain',
+                    study_uid=None,  # sync_orthanc_ocs.py에서 설정
+                    series_count=0,
+                    instance_count=0,
+                    scheduled_at=None,
+                    performed_at=None,
                 )
 
                 created_count += 1
+                print(f"  [CREATE] {patient.patient_number} -> {ocs.ocs_id}")
 
         except Exception as e:
-            print(f"  오류: {e}")
+            print(f"  [ERROR] {patient.patient_number}: {e}")
 
     print(f"[OK] OCS + ImagingStudy 생성: {created_count}건")
     print(f"  현재 전체 OCS(RIS): {OCS.objects.filter(job_role='RIS').count()}건")
     print(f"  현재 전체 ImagingStudy: {ImagingStudy.objects.count()}건")
+    print(f"\n  ※ 다음 단계: sync_orthanc_ocs.py 실행하여 Orthanc 연동")
     return True
 
 
 def create_dummy_lis_orders(num_orders=30, force=False):
-    """더미 LIS (검사) 오더 생성"""
+    """
+    더미 LIS (검사) 오더 생성
+
+    ※ 환자데이터 폴더 수(15개)에 맞춰 30건 생성:
+      - RNA_SEQ 15건 (P202600001 ~ P202600015)
+      - BIOMARKER 15건 (P202600001 ~ P202600015)
+    ※ 초기 상태는 ORDERED (sync_lis_ocs.py로 파일 동기화 후 CONFIRMED 처리)
+    ※ worker_result는 비워둠 (sync_lis_ocs.py에서 v1.2 포맷으로 채움)
+    """
     print(f"\n[4단계] 검사 오더 데이터 생성 - LIS (목표: {num_orders}건)...")
+    print(f"  ※ 환자데이터 폴더(15개)에 맞춰 RNA_SEQ 15건 + BIOMARKER 15건 생성")
 
     from apps.ocs.models import OCS
     from apps.patients.models import Patient
@@ -512,220 +492,111 @@ def create_dummy_lis_orders(num_orders=30, force=False):
     from django.contrib.auth import get_user_model
     User = get_user_model()
 
-    # 기존 데이터 확인
-    existing_ocs = OCS.objects.filter(job_role='LIS').count()
-    if existing_ocs >= num_orders and not force:
-        print(f"[SKIP] 이미 {existing_ocs}건의 LIS 오더가 존재합니다.")
+    # 기존 데이터 확인 (RNA_SEQ, BIOMARKER만)
+    existing_rna = OCS.objects.filter(job_role='LIS', job_type='RNA_SEQ').count()
+    existing_bio = OCS.objects.filter(job_role='LIS', job_type='BIOMARKER').count()
+    existing_total = existing_rna + existing_bio
+
+    if existing_total >= num_orders and not force:
+        print(f"[SKIP] 이미 RNA_SEQ {existing_rna}건, BIOMARKER {existing_bio}건 존재")
         return True
 
-    # 필요한 데이터 - 환자와 담당 의사 관계가 있는 진료 기록만 사용
-    encounters = list(Encounter.objects.filter(
-        attending_doctor__isnull=False,
-        patient__is_deleted=False
-    ).select_related('patient', 'attending_doctor'))
+    # 환자 P202600001 ~ P202600015 가져오기
+    target_patients = []
+    for i in range(1, 16):
+        patient_number = f"P20260000{i}" if i < 10 else f"P2026000{i}"
+        patient = Patient.objects.filter(patient_number=patient_number, is_deleted=False).first()
+        if patient:
+            target_patients.append(patient)
+        else:
+            print(f"  [WARNING] 환자 {patient_number} 없음")
+
+    if len(target_patients) < 15:
+        print(f"[WARNING] 환자가 15명 미만입니다. ({len(target_patients)}명)")
+
+    # 해당 환자들의 진료 기록
+    encounters_map = {}
+    for patient in target_patients:
+        enc = Encounter.objects.filter(
+            patient=patient,
+            attending_doctor__isnull=False
+        ).select_related('attending_doctor').first()
+        if enc:
+            encounters_map[patient.patient_number] = enc
+
     lab_workers = list(User.objects.filter(role__code__in=['LIS', 'DOCTOR']))
-
-    if not encounters:
-        print("[ERROR] 담당 의사가 있는 진료 기록이 없습니다.")
-        return False
-
     if not lab_workers:
         lab_workers = list(User.objects.filter(role__code='DOCTOR'))
 
-    # 뇌종양 CDSS에 필요한 검사만 (8종류)
-    test_types = [
-        # 혈액검사 (4) - 항암치료/수술 전 필수
-        'CBC',            # 일반혈액검사
-        'CMP',            # 종합대사패널 (간/신기능 포함)
-        'Coagulation',    # 응고검사
-        'Tumor Markers',  # 종양표지자
-        # 유전자검사 (3) - 뇌종양 분류/예후 판정
-        'GENE_PANEL',     # IDH1, MGMT, TP53, EGFR
-        'RNA_SEQ',        # RNA 발현 분석
-        'DNA_SEQ',        # DNA 변이 분석
-        # 단백질검사 (1) - 뇌손상/종양 마커
-        'BIOMARKER',      # GFAP, S100B, NSE
-    ]
-    ocs_statuses = ['ORDERED', 'ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']
-    priorities = ['urgent', 'normal']
+    # RNA_SEQ, BIOMARKER 각각 16건씩 생성 (환자데이터 폴더의 rna/, protein/ 매칭)
+    test_types_to_create = ['RNA_SEQ', 'BIOMARKER']
 
     created_count = 0
 
-    for i in range(num_orders):
-        # 진료 기록에서 환자와 담당 의사 관계 가져오기
-        encounter = random.choice(encounters)
-        patient = encounter.patient
-        doctor = encounter.attending_doctor  # 환자의 담당 의사가 요청
-        test_type = random.choice(test_types)
+    # 각 환자에 대해 RNA_SEQ, BIOMARKER OCS 생성
+    for patient in target_patients:
+        encounter = encounters_map.get(patient.patient_number)
 
-        # 날짜 분포: 1주일 ~ 6개월 (180일)
-        days_ago = random.randint(0, 180)
+        if not encounter:
+            # 진료 기록이 없으면 첫 번째 의사 사용
+            doctor = lab_workers[0] if lab_workers else None
+        else:
+            doctor = encounter.attending_doctor
 
-        # 상태 결정: 오래된 데이터일수록 CONFIRMED 확률 높음
-        if days_ago > 90:  # 3개월 이상
-            ocs_status = random.choice(['CONFIRMED', 'CONFIRMED', 'CONFIRMED', 'CANCELLED'])
-        elif days_ago > 30:  # 1개월 이상
-            ocs_status = random.choice(['RESULT_READY', 'CONFIRMED', 'CONFIRMED'])
-        elif days_ago > 7:  # 1주일 이상
-            ocs_status = random.choice(['IN_PROGRESS', 'RESULT_READY', 'CONFIRMED'])
-        else:  # 최근 1주일
-            ocs_status = random.choice(ocs_statuses)
+        for test_type in test_types_to_create:
+            # 이미 존재하면 스킵
+            if OCS.objects.filter(
+                patient=patient,
+                job_role='LIS',
+                job_type=test_type,
+                is_deleted=False
+            ).exists() and not force:
+                continue
 
-        # 작업자 (ACCEPTED 이후에만)
-        worker = None
-        if ocs_status in ['ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']:
-            worker = random.choice(lab_workers)
+            # 초기 상태: ORDERED (sync_lis_ocs.py에서 CONFIRMED로 변경)
+            ocs_status = 'ORDERED'
 
-        # doctor_request 데이터
-        doctor_request = {
-            "_template": "default",
-            "_version": "1.0",
-            "clinical_info": f"{patient.name} - 정기검사",
-            "request_detail": f"{test_type} 검사 요청",
-            "special_instruction": random.choice(["", "공복 필요", "아침 첫 소변", ""]),
-        }
+            # doctor_request 데이터
+            test_name = "RNA 발현 분석" if test_type == 'RNA_SEQ' else "단백질 마커 분석"
+            doctor_request = {
+                "_template": "default",
+                "_version": "1.0",
+                "clinical_info": f"{patient.name} - 뇌종양 검사",
+                "request_detail": f"{test_name} 요청",
+                "special_instruction": "",
+            }
 
-        # worker_result 데이터 (RESULT_READY 이후에만)
-        worker_result = {}
-        if ocs_status in ['RESULT_READY', 'CONFIRMED']:
-            is_abnormal = random.random() < 0.2
+            # worker_result는 비워둠 (sync_lis_ocs.py에서 v1.2 포맷으로 채움)
+            worker_result = {}
 
-            # 검사 결과 샘플
-            test_results = []
-            if test_type == 'CBC':
-                test_results = [
-                    {"code": "WBC", "name": "백혈구", "value": str(round(random.uniform(4.0, 11.0), 1)), "unit": "10^3/uL", "reference": "4.0-11.0", "is_abnormal": False},
-                    {"code": "RBC", "name": "적혈구", "value": str(round(random.uniform(4.0, 6.0), 2)), "unit": "10^6/uL", "reference": "4.0-6.0", "is_abnormal": False},
-                    {"code": "HGB", "name": "혈색소", "value": str(round(random.uniform(12.0, 17.0), 1)), "unit": "g/dL", "reference": "12.0-17.0", "is_abnormal": False},
-                    {"code": "PLT", "name": "혈소판", "value": str(random.randint(150, 400)), "unit": "10^3/uL", "reference": "150-400", "is_abnormal": False},
-                ]
-            elif test_type == 'CMP':
-                # 종합대사패널 (간/신기능 포함)
-                test_results = [
-                    {"code": "GLU", "name": "혈당", "value": str(random.randint(70, 110)), "unit": "mg/dL", "reference": "70-110", "is_abnormal": False},
-                    {"code": "BUN", "name": "요소질소", "value": str(round(random.uniform(7, 20), 1)), "unit": "mg/dL", "reference": "7-20", "is_abnormal": False},
-                    {"code": "CRE", "name": "크레아티닌", "value": str(round(random.uniform(0.6, 1.2), 2)), "unit": "mg/dL", "reference": "0.6-1.2", "is_abnormal": False},
-                    {"code": "AST", "name": "AST", "value": str(random.randint(10, 40)), "unit": "U/L", "reference": "10-40", "is_abnormal": False},
-                    {"code": "ALT", "name": "ALT", "value": str(random.randint(7, 56)), "unit": "U/L", "reference": "7-56", "is_abnormal": False},
-                ]
-            elif test_type == 'Coagulation':
-                # 응고검사 (수술 전 필수)
-                test_results = [
-                    {"code": "PT", "name": "프로트롬빈시간", "value": str(round(random.uniform(11, 13.5), 1)), "unit": "sec", "reference": "11-13.5", "is_abnormal": False},
-                    {"code": "INR", "name": "INR", "value": str(round(random.uniform(0.9, 1.1), 2)), "unit": "", "reference": "0.9-1.1", "is_abnormal": False},
-                    {"code": "aPTT", "name": "활성화부분트롬보플라스틴시간", "value": str(round(random.uniform(25, 35), 1)), "unit": "sec", "reference": "25-35", "is_abnormal": False},
-                ]
-            elif test_type == 'Tumor Markers':
-                cea_val = round(random.uniform(0.5, 5.0), 2) if not is_abnormal else round(random.uniform(5.1, 20.0), 2)
-                afp_val = round(random.uniform(0.5, 10.0), 2) if not is_abnormal else round(random.uniform(10.1, 50.0), 2)
-                test_results = [
-                    {"code": "CEA", "name": "암배아항원", "value": str(cea_val), "unit": "ng/mL", "reference": "0-5.0", "is_abnormal": cea_val > 5.0},
-                    {"code": "AFP", "name": "알파태아단백", "value": str(afp_val), "unit": "ng/mL", "reference": "0-10.0", "is_abnormal": afp_val > 10.0},
-                ]
-            elif test_type in ['GENE_PANEL', 'RNA_SEQ', 'DNA_SEQ']:
-                # 유전자 검사 결과
-                gene_mutations = [
-                    {"gene_name": "IDH1", "mutation_type": "R132H" if is_abnormal else "Wild Type", "status": "Mutant" if is_abnormal else "Normal", "allele_frequency": round(random.uniform(0.1, 0.5), 2) if is_abnormal else None, "clinical_significance": "Favorable prognosis" if is_abnormal else "N/A"},
-                    {"gene_name": "TP53", "mutation_type": random.choice(["Missense", "Nonsense", "Wild Type"]), "status": random.choice(["Mutant", "Normal"]), "allele_frequency": round(random.uniform(0.05, 0.3), 2), "clinical_significance": "Variable"},
-                    {"gene_name": "MGMT", "mutation_type": "Methylated" if random.random() > 0.5 else "Unmethylated", "status": "Methylated" if random.random() > 0.5 else "Unmethylated", "allele_frequency": None, "clinical_significance": "TMZ response predictor"},
-                    {"gene_name": "EGFR", "mutation_type": random.choice(["Amplified", "Normal"]), "status": random.choice(["Amplified", "Normal"]), "allele_frequency": None, "clinical_significance": "GBM marker"},
-                ]
-                test_results = [{"code": "GENE", "name": "유전자 변이 분석", "value": "분석 완료", "unit": "", "reference": "", "is_abnormal": is_abnormal}]
-                worker_result = {
-                    "_template": "LIS", "_version": "1.0", "_confirmed": ocs_status == 'CONFIRMED',
-                    "test_type": "GENETIC", "test_results": test_results, "gene_mutations": gene_mutations,
-                    "summary": "유전자 변이 검출됨" if is_abnormal else "유전자 변이 없음",
-                    "interpretation": "IDH1 변이 양성 - 예후 양호" if is_abnormal else "특이 변이 없음", "_custom": {}
-                }
-            elif test_type == 'BIOMARKER':
-                # 단백질 검사 결과
-                protein_markers = [
-                    {"marker_name": "GFAP", "value": round(random.uniform(0.1, 5.0), 2), "unit": "ng/mL", "reference_range": "0-2.0", "is_abnormal": random.random() > 0.7, "interpretation": "Astrocyte marker"},
-                    {"marker_name": "S100B", "value": round(random.uniform(0.01, 0.5), 3), "unit": "ug/L", "reference_range": "0-0.15", "is_abnormal": random.random() > 0.6, "interpretation": "Brain injury marker"},
-                    {"marker_name": "NSE", "value": round(random.uniform(5, 25), 1), "unit": "ng/mL", "reference_range": "0-16.3", "is_abnormal": random.random() > 0.7, "interpretation": "Neuroendocrine marker"},
-                ]
-                test_results = [{"code": "PROT", "name": "단백질 마커 분석", "value": "분석 완료", "unit": "", "reference": "", "is_abnormal": is_abnormal}]
-                worker_result = {
-                    "_template": "LIS", "_version": "1.0", "_confirmed": ocs_status == 'CONFIRMED',
-                    "test_type": "PROTEIN", "test_results": test_results, "protein_markers": protein_markers,
-                    "protein": "GFAP, S100B 상승" if is_abnormal else "정상 범위",
-                    "summary": "단백질 마커 이상" if is_abnormal else "정상 범위",
-                    "interpretation": "뇌종양 관련 마커 상승 소견" if is_abnormal else "특이 소견 없음", "_custom": {}
-                }
-            else:
-                # 일반 검사
-                test_results = [
-                    {"code": "TEST1", "name": f"{test_type} 항목1", "value": str(round(random.uniform(50, 150), 1)), "unit": "mg/dL", "reference": "50-150", "is_abnormal": False},
-                    {"code": "TEST2", "name": f"{test_type} 항목2", "value": str(round(random.uniform(10, 50), 1)), "unit": "U/L", "reference": "10-50", "is_abnormal": False},
-                ]
+            try:
+                with transaction.atomic():
+                    ocs = OCS.objects.create(
+                        patient=patient,
+                        doctor=doctor,
+                        worker=None,  # sync_lis_ocs.py에서 설정
+                        encounter=encounter,
+                        job_role='LIS',
+                        job_type=test_type,
+                        ocs_status=ocs_status,
+                        priority='normal',
+                        doctor_request=doctor_request,
+                        worker_result=worker_result,
+                        ocs_result=None,
+                    )
+                    created_count += 1
+                    print(f"  [+] {patient.patient_number} -> {test_type} ({ocs.ocs_id})")
 
-            # GENE/BIOMARKER는 위에서 이미 worker_result 설정됨
-            if test_type not in ['GENE_PANEL', 'RNA_SEQ', 'DNA_SEQ', 'BIOMARKER']:
-                worker_result = {
-                    "_template": "LIS",
-                    "_version": "1.0",
-                    "_confirmed": ocs_status == 'CONFIRMED',
-                    "test_results": test_results,
-                    "summary": "이상 소견 있음" if is_abnormal else "정상 범위",
-                    "interpretation": "추가 검사 권장" if is_abnormal else "특이 소견 없음",
-                    "_custom": {}
-                }
+            except Exception as e:
+                print(f"  [ERROR] {patient.patient_number} {test_type}: {e}")
 
-        # 타임스탬프 계산
-        base_time = timezone.now() - timedelta(days=days_ago)
-        timestamps = {
-            'accepted_at': None,
-            'in_progress_at': None,
-            'result_ready_at': None,
-            'confirmed_at': None,
-            'cancelled_at': None,
-        }
+    rna_count = OCS.objects.filter(job_role='LIS', job_type='RNA_SEQ', is_deleted=False).count()
+    bio_count = OCS.objects.filter(job_role='LIS', job_type='BIOMARKER', is_deleted=False).count()
 
-        if ocs_status in ['ACCEPTED', 'IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']:
-            timestamps['accepted_at'] = base_time + timedelta(hours=random.randint(1, 4))
-
-        if ocs_status in ['IN_PROGRESS', 'RESULT_READY', 'CONFIRMED']:
-            timestamps['in_progress_at'] = base_time + timedelta(hours=random.randint(4, 12))
-
-        if ocs_status in ['RESULT_READY', 'CONFIRMED']:
-            timestamps['result_ready_at'] = base_time + timedelta(hours=random.randint(12, 48))
-
-        if ocs_status == 'CONFIRMED':
-            timestamps['confirmed_at'] = base_time + timedelta(hours=random.randint(48, 72))
-
-        if ocs_status == 'CANCELLED':
-            timestamps['cancelled_at'] = base_time + timedelta(hours=random.randint(1, 24))
-
-        try:
-            with transaction.atomic():
-                # OCS 생성
-                ocs = OCS.objects.create(
-                    patient=patient,
-                    doctor=doctor,
-                    worker=worker,
-                    encounter=encounter,
-                    job_role='LIS',
-                    job_type=test_type,
-                    ocs_status=ocs_status,
-                    priority=random.choice(priorities),
-                    doctor_request=doctor_request,
-                    worker_result=worker_result,
-                    ocs_result=True if ocs_status == 'CONFIRMED' else None,
-                    accepted_at=timestamps['accepted_at'],
-                    in_progress_at=timestamps['in_progress_at'],
-                    result_ready_at=timestamps['result_ready_at'],
-                    confirmed_at=timestamps['confirmed_at'],
-                    cancelled_at=timestamps['cancelled_at'],
-                )
-                # created_at은 auto_now_add이므로 별도 업데이트
-                OCS.objects.filter(pk=ocs.pk).update(created_at=base_time)
-                created_count += 1
-
-        except Exception as e:
-            print(f"  오류: {e}")
-
-    print(f"[OK] OCS(LIS) 생성: {created_count}건")
-    print(f"  현재 전체 OCS(LIS): {OCS.objects.filter(job_role='LIS').count()}건")
+    print(f"\n[OK] OCS(LIS) 생성: {created_count}건")
+    print(f"  - RNA_SEQ: {rna_count}건")
+    print(f"  - BIOMARKER: {bio_count}건")
+    print(f"\n  ※ 다음 단계: sync_lis_ocs.py 실행하여 파일 동기화")
     return True
 
 

@@ -48,7 +48,7 @@ from apps.patients.models import Patient
 ORTHANC_URL = "http://localhost:8042"
 PATIENT_DATA_PATH = Path("c:/0000/환자데이터")
 
-# 환자 폴더 목록 (순서대로)
+# 환자 폴더 목록 (순서대로 15개)
 PATIENT_FOLDERS = [
     "TCGA-CS-4944",
     "TCGA-CS-6666",
@@ -105,6 +105,88 @@ def orthanc_delete(path):
     r = requests.delete(f"{ORTHANC_URL}{path}", timeout=30)
     r.raise_for_status()
     return r.json() if r.text else {}
+
+
+def check_orthanc_patient_exists(patient_number):
+    """
+    Orthanc에 해당 환자의 Study가 이미 존재하는지 확인
+
+    Returns:
+        study_info dict 또는 None
+    """
+    try:
+        # Orthanc의 모든 환자 조회
+        patients = orthanc_get("/patients")
+        for patient_id in patients:
+            patient_info = orthanc_get(f"/patients/{patient_id}")
+            # PatientID가 일치하는지 확인
+            main_dicom = patient_info.get("MainDicomTags", {})
+            if main_dicom.get("PatientID") == patient_number:
+                # 해당 환자의 Study 정보 반환
+                studies = patient_info.get("Studies", [])
+                if studies:
+                    study_id = studies[0]  # 첫 번째 Study
+                    study_info = orthanc_get(f"/studies/{study_id}")
+                    return {
+                        "orthanc_patient_id": patient_id,
+                        "orthanc_study_id": study_id,
+                        "study_info": study_info
+                    }
+        return None
+    except Exception as e:
+        print(f"  [WARNING] Orthanc 환자 확인 실패: {e}")
+        return None
+
+
+def get_existing_orthanc_info(patient_number):
+    """
+    Orthanc에서 기존 환자 Study 정보 조회
+
+    Returns:
+        orthanc_info dict (upload_patient_mri 반환값과 동일 구조) 또는 None
+    """
+    existing = check_orthanc_patient_exists(patient_number)
+    if not existing:
+        return None
+
+    study_info = existing["study_info"]
+    orthanc_study_id = existing["orthanc_study_id"]
+
+    # Study의 Series 정보 수집
+    series_list = []
+    study_main_tags = study_info.get("MainDicomTags", {})
+
+    for series_id in study_info.get("Series", []):
+        try:
+            series_info = orthanc_get(f"/series/{series_id}")
+            series_tags = series_info.get("MainDicomTags", {})
+            series_description = series_tags.get("SeriesDescription", "")
+
+            # series_type 결정
+            series_type = "OTHER"
+            for key, value in SERIES_TYPE_MAP.items():
+                if key.lower() in series_description.lower():
+                    series_type = value
+                    break
+
+            series_list.append({
+                "orthanc_id": series_id,
+                "series_uid": series_tags.get("SeriesInstanceUID", ""),
+                "series_type": series_type,
+                "description": series_description,
+                "instances_count": len(series_info.get("Instances", []))
+            })
+        except Exception as e:
+            print(f"    [WARNING] Series 정보 조회 실패: {e}")
+
+    return {
+        "patient_id": patient_number,
+        "orthanc_study_id": orthanc_study_id,
+        "study_id": study_main_tags.get("StudyID", ""),
+        "study_uid": study_main_tags.get("StudyInstanceUID", ""),
+        "uploaded_at": study_main_tags.get("StudyDate", "") + "T" + study_main_tags.get("StudyTime", "")[:6] + ".000Z",
+        "series": series_list
+    }
 
 
 # ============================================================
@@ -264,18 +346,49 @@ def upload_patient_mri(patient_folder_name, patient_number, ocs_id, dry_run=Fals
 
 def update_ocs_worker_result(ocs, orthanc_info, is_confirmed=True, dry_run=False):
     """
-    OCS worker_result 업데이트
+    OCS worker_result 업데이트 (v1.2 포맷)
 
     Args:
         ocs: OCS 모델 인스턴스
-        orthanc_info: Orthanc 업로드 결과
+        orthanc_info: Orthanc 업로드 결과 (study_id, orthanc_study_id, series 등)
         is_confirmed: CONFIRMED 상태로 설정할지 여부
         dry_run: True면 실제 업데이트 안 함
+
+    worker_result v1.2 구조:
+    {
+        "_template": "RIS",
+        "_version": "1.2",
+        "_confirmed": true,
+        "orthanc": {
+            "study_id": "...",
+            "orthanc_study_id": "...",
+            "series": [...]
+        },
+        "dicom": {
+            "study_uid": "...",
+            ...
+        },
+        ...
+    }
     """
     timestamp = timezone.now().isoformat() + "Z"
 
     # 전체 instances 수 계산
     total_instances = sum(s.get("instances_count", 0) for s in orthanc_info.get("series", []))
+
+    # orthanc 정보 구성 (v1.2 포맷)
+    orthanc_data = {
+        "study_id": orthanc_info.get("study_id", ""),
+        "orthanc_study_id": orthanc_info.get("orthanc_study_id", ""),
+        "series": orthanc_info.get("series", [])
+    }
+
+    # dicom 정보 구성 (study_uid는 orthanc의 series[0].series_uid와 별도로 study_uid 사용)
+    dicom_data = {
+        "study_uid": orthanc_info.get("study_uid", ""),
+        "series_count": len(orthanc_info.get("series", [])),
+        "instance_count": total_instances
+    }
 
     worker_result = {
         "_template": "RIS",
@@ -284,13 +397,8 @@ def update_ocs_worker_result(ocs, orthanc_info, is_confirmed=True, dry_run=False
         "_verifiedAt": timestamp if is_confirmed else None,
         "_verifiedBy": "시스템관리자" if is_confirmed else None,
 
-        "orthanc": orthanc_info,
-
-        "dicom": {
-            "study_uid": orthanc_info.get("study_uid", ""),
-            "series_count": len(orthanc_info.get("series", [])),
-            "instance_count": total_instances
-        },
+        "orthanc": orthanc_data,
+        "dicom": dicom_data,
 
         "findings": "뇌 MRI 검사 결과, 종양 소견이 관찰됩니다." if is_confirmed else "",
         "impression": "뇌종양 의심, 추가 검사 필요" if is_confirmed else "",
@@ -340,7 +448,7 @@ def main():
 
     # 1. 환자 목록 조회
     print("\n[1단계] 환자 목록 조회...")
-    patients = list(Patient.objects.filter(is_deleted=False).order_by('patient_number')[:16])
+    patients = list(Patient.objects.filter(is_deleted=False).order_by('patient_number')[:15])
     print(f"  DB 환자: {len(patients)}명")
 
     if len(patients) < 15:
@@ -352,43 +460,42 @@ def main():
     ocs_ris_list = list(OCS.objects.filter(job_role='RIS', job_type='MRI', is_deleted=False).order_by('id'))
     print(f"  OCS RIS: {len(ocs_ris_list)}건")
 
-    if len(ocs_ris_list) < 16:
-        print(f"  [WARNING] OCS RIS가 16건 미만입니다. 가능한 만큼만 처리합니다.")
+    if len(ocs_ris_list) < 15:
+        print(f"  [WARNING] OCS RIS가 15건 미만입니다. 가능한 만큼만 처리합니다.")
 
-    # 3. 환자 폴더와 매핑
-    print("\n[3단계] 환자-폴더 매핑...")
+    # 3. 환자 폴더와 매핑 (15건 1:1 매칭)
+    print("\n[3단계] 환자-폴더 매핑 (15건)...")
 
-    # 기존 업로드된 환자 확인 (ocs_0107 = P202600032)
-    existing_patient = "P202600032"
-    existing_folder = None  # 기존 폴더는 스킵
+    # 환자번호 P202600001 ~ P202600015 순서대로 매핑
+    # 폴더[0] -> 환자 P202600001 -> OCS (patient=P202600001인 MRI)
+    # 폴더[1] -> 환자 P202600002 -> OCS (patient=P202600002인 MRI)
+    # ...
 
     mappings = []
-    folder_idx = 0
-    patient_idx = 0
 
     # 처리 제한
     limit = args.limit if args.limit > 0 else len(PATIENT_FOLDERS)
 
-    while folder_idx < len(PATIENT_FOLDERS) and len(mappings) < limit:
-        folder_name = PATIENT_FOLDERS[folder_idx]
+    for i in range(min(limit, len(PATIENT_FOLDERS))):
+        folder_name = PATIENT_FOLDERS[i]
+        patient_number = f"P20260000{i+1}" if i < 9 else f"P2026000{i+1}"
 
-        # 해당 순서의 환자
-        if patient_idx < len(patients):
-            patient = patients[patient_idx]
+        # 해당 환자번호의 환자 찾기
+        patient = next((p for p in patients if p.patient_number == patient_number), None)
 
-            # 해당 순서의 OCS
-            ocs = ocs_ris_list[patient_idx] if patient_idx < len(ocs_ris_list) else None
+        # 해당 환자의 OCS 찾기
+        ocs = next((o for o in ocs_ris_list if o.patient and o.patient.patient_number == patient_number), None)
 
+        if patient:
             mappings.append({
                 "folder": folder_name,
                 "patient": patient,
-                "patient_number": patient.patient_number,
+                "patient_number": patient_number,
                 "ocs": ocs,
                 "ocs_id": ocs.ocs_id if ocs else None,
             })
-
-        folder_idx += 1
-        patient_idx += 1
+        else:
+            print(f"  [WARNING] 환자 {patient_number} 없음, 스킵")
 
     print(f"  매핑 완료: {len(mappings)}건")
 
@@ -397,42 +504,94 @@ def main():
     if len(mappings) > 5:
         print(f"    ... 외 {len(mappings) - 5}건")
 
-    # 4. Orthanc 업로드
-    print("\n[4단계] Orthanc 업로드...")
+    # 4. Orthanc 업로드 (기존 데이터 확인 후 스킵)
+    print("\n[4단계] Orthanc 업로드 (중복 확인)...")
 
     upload_results = []
+    skipped_count = 0
+    uploaded_count = 0
 
     for i, mapping in enumerate(mappings):
         folder = mapping["folder"]
         patient_number = mapping["patient_number"]
+        ocs = mapping["ocs"]
         ocs_id = mapping["ocs_id"] or f"ocs_new_{i+1:04d}"
 
         print(f"\n[{i+1}/{len(mappings)}] {folder} -> {patient_number}")
 
+        # 1) OCS가 이미 CONFIRMED이고 worker_result에 orthanc 정보가 있으면 스킵
+        if ocs and ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
+            existing_worker_result = ocs.worker_result or {}
+            if existing_worker_result.get("orthanc", {}).get("orthanc_study_id"):
+                print(f"  [SKIP] OCS 이미 CONFIRMED (orthanc_study_id 존재)")
+                # 기존 worker_result의 orthanc 정보 사용
+                orthanc_info = {
+                    "patient_id": patient_number,
+                    "orthanc_study_id": existing_worker_result["orthanc"]["orthanc_study_id"],
+                    "study_id": existing_worker_result["orthanc"].get("study_id", ""),
+                    "study_uid": existing_worker_result.get("dicom", {}).get("study_uid", ""),
+                    "uploaded_at": existing_worker_result.get("_verifiedAt", ""),
+                    "series": existing_worker_result["orthanc"].get("series", [])
+                }
+                upload_results.append({
+                    "mapping": mapping,
+                    "orthanc_info": orthanc_info,
+                    "skipped": True
+                })
+                skipped_count += 1
+                continue
+
+        # 2) Orthanc에 해당 환자 데이터가 이미 존재하는지 확인
+        existing_orthanc = get_existing_orthanc_info(patient_number)
+        if existing_orthanc:
+            print(f"  [SKIP] Orthanc에 이미 존재 (Study: {existing_orthanc['orthanc_study_id'][:12]}...)")
+            upload_results.append({
+                "mapping": mapping,
+                "orthanc_info": existing_orthanc,
+                "skipped": True
+            })
+            skipped_count += 1
+            continue
+
+        # 3) --skip-upload 옵션
         if args.skip_upload:
             print(f"  [SKIP] 업로드 스킵 (--skip-upload)")
             orthanc_info = None
         else:
+            # 4) 실제 업로드 수행
             orthanc_info = upload_patient_mri(folder, patient_number, ocs_id, dry_run=args.dry_run)
+            if orthanc_info:
+                uploaded_count += 1
 
         upload_results.append({
             "mapping": mapping,
-            "orthanc_info": orthanc_info
+            "orthanc_info": orthanc_info,
+            "skipped": False
         })
+
+    print(f"\n  [결과] 스킵: {skipped_count}건, 업로드: {uploaded_count}건")
 
     # 5. OCS 업데이트
     print("\n[5단계] OCS 업데이트...")
 
     # Orthanc/DICOM 데이터가 있으면 CONFIRMED, 없으면 ACCEPTED
     confirmed_count = 0
+    already_confirmed_count = 0
 
     for i, result in enumerate(upload_results):
         mapping = result["mapping"]
         orthanc_info = result["orthanc_info"]
         ocs = mapping["ocs"]
+        was_skipped = result.get("skipped", False)
 
         if not ocs:
             print(f"  [{i+1}] {mapping['patient_number']}: OCS 없음, 스킵")
+            continue
+
+        # 이미 CONFIRMED 상태였으면 카운트만 하고 스킵
+        if was_skipped and ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
+            print(f"  [{i+1}] {ocs.ocs_id} -> 이미 CONFIRMED (스킵)")
+            already_confirmed_count += 1
             continue
 
         # orthanc_info가 있으면 CONFIRMED, 없으면 ACCEPTED
@@ -452,6 +611,8 @@ def main():
                 ocs.ocs_status = OCS.OcsStatus.ACCEPTED
                 ocs.accepted_at = timezone.now()
                 ocs.save()
+
+    print(f"\n  [결과] 신규 CONFIRMED: {confirmed_count}건, 기존 CONFIRMED: {already_confirmed_count}건")
 
     # 6. 나머지 OCS RIS MRI를 ACCEPTED로 변경
     print("\n[6단계] 나머지 OCS RIS MRI 상태 변경...")
