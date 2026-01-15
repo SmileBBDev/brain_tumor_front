@@ -4,6 +4,14 @@
   padding: 1rem;
 }
 
+/* 접수 콘텐츠 헤더 (진료 등록 버튼) */
+.nurse-dashboard .reception-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
 /* 요약 카드 */
 .nurse-dashboard .nurse-summary {
   grid-template-columns: repeat(4, 1fr);

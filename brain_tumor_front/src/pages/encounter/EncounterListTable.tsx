@@ -20,6 +20,7 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
   const isSystemManager = role === 'SYSTEMMANAGER';
   const canEdit = isDoctor || isSystemManager;
   const canCreateOCS = isDoctor || isSystemManager;
+  const canStartTreatment = isDoctor || isSystemManager; // Nurse는 진료 시작 불가
 
   // 더보기 메뉴 상태
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -258,8 +259,8 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
             {/* Action 컬럼 */}
             <td className="action-cell" onClick={(ev) => ev.stopPropagation()}>
               <div className="action-buttons">
-                {/* Primary Action: 진료 시작 (진찰 페이지로 이동) */}
-                {canStartEncounter(e.status) && (
+                {/* Primary Action: 진료 시작 (진찰 페이지로 이동) - Nurse는 비활성화 */}
+                {canStartTreatment && canStartEncounter(e.status) && (
                   <button
                     className="btn primary small"
                     onClick={() => navigate(`/patientsCare?patientId=${e.patient}&encounterId=${e.id}`)}

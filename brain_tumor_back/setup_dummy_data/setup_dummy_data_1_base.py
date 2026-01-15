@@ -542,15 +542,15 @@ def load_menu_permission_seed():
         ('OCS_RIS_DETAIL', '영상 검사 상세', 'RIS 영상 검사 상세 페이지'),
         ('RIS_DASHBOARD', '판독 현황 대시보드', 'RIS 전체 판독 현황 대시보드'),
         ('RIS_RESULT_UPLOAD', '영상 결과 업로드', '외부 영상 결과 업로드 화면'),
-        ('OCS_LIS', '검사 워크리스트', 'LIS 작업자용 검사 오더 처리'),
-        ('OCS_LIS_DETAIL', '검사 결과 상세', 'LIS 검사 결과 상세 페이지'),
+        ('OCS_LIS', '병리 워크리스트', 'LIS 작업자용 병리 오더 처리'),
+        ('OCS_LIS_DETAIL', '병리 결과 상세', 'LIS 병리 결과 상세 페이지'),
         ('LIS_PROCESS_STATUS', '결과 처리 상태', 'LIS 업로드 데이터 처리 상태 모니터링'),
         ('IMAGING', '영상', '영상 메뉴'),
         ('IMAGE_VIEWER', '영상 조회', '영상 조회 화면'),
         ('RIS_WORKLIST', '판독 Worklist', 'RIS 판독 Worklist 화면'),
-        ('LAB', '검사', '검사 메뉴'),
-        ('LAB_RESULT_VIEW', '검사 결과 조회', '검사 결과 조회 화면'),
-        ('LAB_RESULT_UPLOAD', '검사 결과 업로드', '검사 결과 업로드 화면'),
+        ('LAB', '병리', '병리 메뉴'),
+        ('LAB_RESULT_VIEW', '병리 결과 조회', '병리 결과 조회 화면'),
+        ('LAB_RESULT_UPLOAD', '병리 결과 업로드', '병리 결과 업로드 화면'),
         ('AI', 'AI 분석', 'AI 분석 메뉴'),
         ('AI_VIEWER', 'AI 분석 뷰어', 'AI 분석 뷰어 화면'),
         ('AI_REQUEST_LIST', 'AI 요청 목록', 'AI 추론 요청 목록'),
@@ -575,7 +575,7 @@ def load_menu_permission_seed():
         ('MY_SUMMARY', '내 정보', '환자 전용 내 정보 요약'),
         ('MY_VISITS', '진료 기록', '환자 전용 진료 기록 조회'),
         ('MY_IMAGING', '영상 결과', '환자 전용 영상 검사 결과 조회'),
-        ('MY_LAB', '검사 결과', '환자 전용 검사 결과 조회'),
+        ('MY_LAB', '병리 결과', '환자 전용 병리 결과 조회'),
         ('ABOUT_HOSPITAL', '병원 소개', '병원 안내 페이지'),
     ]
 
@@ -799,9 +799,9 @@ def load_menu_permission_seed():
         (42, 'DEFAULT', 'AI 처리 현황'),
         (43, 'DEFAULT', 'AI 모델 정보'),
         # LAB
-        (5, 'DEFAULT', '검사'),
-        (17, 'DEFAULT', '검사 조회'),  # 검사 결과 조회 → 검사 조회
-        (16, 'DEFAULT', '검사 결과 업로드'),  # breadcrumb_only - OCS에서 이동
+        (5, 'DEFAULT', '병리'),
+        (17, 'DEFAULT', '병리 조회'),  # 병리 결과 조회 → 병리 조회
+        (16, 'DEFAULT', '병리 결과 업로드'),  # breadcrumb_only - OCS에서 이동
         # ADMIN
         (1, 'DEFAULT', '관리자'),
         (12, 'DEFAULT', '사용자 관리'),
@@ -824,8 +824,8 @@ def load_menu_permission_seed():
         (47, 'PATIENT', '진료 기록'),
         (48, 'DEFAULT', '영상 결과'),
         (48, 'PATIENT', '내 영상 결과'),
-        (49, 'DEFAULT', '검사 결과'),
-        (49, 'PATIENT', '내 검사 결과'),
+        (49, 'DEFAULT', '병리 결과'),
+        (49, 'PATIENT', '내 병리 결과'),
     ]
 
     for menu_id, role, text in menu_labels_data:

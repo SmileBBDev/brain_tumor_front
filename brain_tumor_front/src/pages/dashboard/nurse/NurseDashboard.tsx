@@ -14,6 +14,7 @@ import type { User } from '@/types/user';
 import Pagination from '@/layout/Pagination';
 import PatientListWidget from '../common/PatientListWidget';
 import { UnifiedCalendar } from '@/components/calendar/UnifiedCalendar';
+import EncounterCreateModal from '@/pages/encounter/EncounterCreateModal';
 import '@/assets/style/patientListView.css';
 import './NurseDashboard.css';
 
@@ -66,6 +67,9 @@ export default function NurseDashboard() {
   const [activeTab, setActiveTab] = useState<'today' | 'monthly'>('today');
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | 'all'>('all');
   const [monthOffset, setMonthOffset] = useState<number | null>(0);
+
+  // 진료 등록 모달 상태
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // 의사 목록
   const [doctors, setDoctors] = useState<User[]>([]);
@@ -179,6 +183,16 @@ export default function NurseDashboard() {
     navigate(`/patients/${encounter.patient}`);
   };
 
+  // 진료 등록 성공 시 데이터 새로고침
+  const handleCreateSuccess = () => {
+    setIsCreateModalOpen(false);
+    if (activeTab === 'today') {
+      loadTodayEncounters();
+    } else {
+      loadMonthlyEncounters();
+    }
+  };
+
   const monthlyTotalPages = Math.ceil(monthlyTotalCount / pageSize);
 
   return (
@@ -262,6 +276,13 @@ export default function NurseDashboard() {
       <div className="dashboard-main">
         {/* 접수 테이블 */}
         <section className="card reception-content">
+          {/* 진료 등록 버튼 */}
+          <div className="reception-header">
+            <button className="btn primary" onClick={() => setIsCreateModalOpen(true)}>
+              진료 등록
+            </button>
+          </div>
+
           {activeTab === 'today' && (
             <div className="today-tab">
               {todayLoading ? (
@@ -385,6 +406,15 @@ export default function NurseDashboard() {
           <UnifiedCalendar title="간호사 통합 캘린더" />
         </div>
       </div>
+
+      {/* 진료 등록 모달 */}
+      {isCreateModalOpen && (
+        <EncounterCreateModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
     </div>
   );
 }

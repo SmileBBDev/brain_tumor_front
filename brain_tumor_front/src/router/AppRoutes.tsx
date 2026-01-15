@@ -12,6 +12,7 @@ const MyPage = lazy(() => import('@/pages/mypage/MyPage'));
 const PatientDashboard = lazy(() => import('@/pages/patient/PatientDashboard'));
 const PatientDetailPage = lazy(() => import('@/pages/patient/PatientDetailPage'));
 const SharedCalendarPage = lazy(() => import('@/pages/admin/SharedCalendarPage'));
+const EncounterDetailPage = lazy(() => import('@/pages/encounter/EncounterDetailPage'));
 
 // 접근 가능한 메뉴만 flatten (라우트 등록용 - breadcrumbOnly 포함)
 function flattenAccessibleMenus(
@@ -128,6 +129,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <PatientDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 진료 상세 페이지 (처방 상세 포함) */}
+        <Route
+          path="/encounters/:id"
+          element={
+            <ProtectedRoute>
+              <EncounterDetailPage />
             </ProtectedRoute>
           }
         />
