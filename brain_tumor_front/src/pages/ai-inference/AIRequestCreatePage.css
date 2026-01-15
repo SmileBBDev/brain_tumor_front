@@ -1,5 +1,134 @@
 /* AI Inference Page Styles */
 
+/* ===================== */
+/* AI Request Page       */
+/* ===================== */
+.ai-request-page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.ai-request-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.ai-request-header-content {
+  flex: 1;
+}
+
+.ai-request-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+}
+
+.ai-request-subtitle {
+  font-size: 0.9375rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.ai-new-request-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  white-space: nowrap;
+}
+
+.ai-new-request-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Analysis Type Cards */
+.ai-request-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.ai-request-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-request-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.ai-card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.ai-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+}
+
+.ai-card-description {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 1rem 0;
+}
+
+.ai-card-action {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.ai-request-card:hover .ai-card-action {
+  color: #1d4ed8;
+}
+
+@media (max-width: 640px) {
+  .ai-request-page {
+    padding: 1rem;
+  }
+
+  .ai-request-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-new-request-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .ai-request-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===================== */
+/* Original Styles       */
+/* ===================== */
 .ai-inference-container {
   min-height: 100vh;
   background: #f8fafc;

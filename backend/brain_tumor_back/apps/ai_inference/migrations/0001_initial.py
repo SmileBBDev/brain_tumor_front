@@ -10,8 +10,8 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("ocs", "0005_alter_ocs_job_type"),
-        ("patients", "0003_add_chief_complaint"),
+        ("ocs", "0002_alter_ocs_job_type"),
+        ("patients", "0002_add_severity_update_status"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

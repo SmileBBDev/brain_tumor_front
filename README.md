@@ -119,7 +119,7 @@ venv\Scripts\activate <br/> // 리눅스 : source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt <br/>
 daphne -b 127.0.0.1 -p 8000 config.asgi:application
-
+ python -m daphne -b 127.0.0.1 -p 8000 config.asgi:application
 
 pip freeze > requirements.txt
 

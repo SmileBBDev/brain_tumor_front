@@ -59,7 +59,12 @@ export function useAIRequestList(options: UseAIRequestListOptions = {}): UseAIRe
         my_only: myOnly,
       });
       setRequests(data);
-    } catch (err) {
+    } catch (err: any) {
+      // 404는 API가 아직 구현되지 않은 경우 - 조용히 빈 배열 반환
+      if (err?.response?.status === 404) {
+        setRequests([]);
+        return;
+      }
       console.error('[useAIRequestList] Failed to fetch:', err);
       setError('AI 추론 요청 목록을 불러오는데 실패했습니다.');
       setRequests([]);
@@ -206,7 +211,12 @@ export function useAIModels() {
       try {
         const data = await getAIModels();
         setModels(data.filter((m) => m.is_active));
-      } catch (err) {
+      } catch (err: any) {
+        // 404는 API가 아직 구현되지 않은 경우 - 조용히 빈 배열 반환
+        if (err?.response?.status === 404) {
+          setModels([]);
+          return;
+        }
         console.error('[useAIModels] Failed to fetch:', err);
         setError('AI 모델 목록을 불러오는데 실패했습니다.');
       } finally {

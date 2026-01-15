@@ -61,6 +61,7 @@ class OCSListSerializer(serializers.ModelSerializer):
     worker = UserMinimalSerializer(read_only=True)
     ocs_status_display = serializers.CharField(source='get_ocs_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    ai_status_display = serializers.CharField(source='get_ai_status_display', read_only=True)
 
     class Meta:
         model = OCS
@@ -77,6 +78,8 @@ class OCSListSerializer(serializers.ModelSerializer):
             'priority',
             'priority_display',
             'ocs_result',
+            'ai_status',
+            'ai_status_display',
             'created_at',
             'updated_at',
         ]
@@ -90,10 +93,14 @@ class OCSDetailSerializer(serializers.ModelSerializer):
     worker = UserMinimalSerializer(read_only=True)
     ocs_status_display = serializers.CharField(source='get_ocs_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    ai_status_display = serializers.CharField(source='get_ai_status_display', read_only=True)
     turnaround_time = serializers.FloatField(read_only=True)
     work_time = serializers.FloatField(read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
     history = OCSHistorySerializer(many=True, read_only=True)
+
+    # AI 추론 정보
+    ai_inference_job_id = serializers.SerializerMethodField()
 
     # localStorage 키 정보
     local_storage_keys = serializers.SerializerMethodField()
@@ -131,11 +138,25 @@ class OCSDetailSerializer(serializers.ModelSerializer):
             'is_editable',
             'history',
             'local_storage_keys',
+            # AI 관련 필드
+            'ai_status',
+            'ai_status_display',
+            'ai_inference',
+            'ai_inference_job_id',
+            'ai_requested_at',
+            'ai_completed_at',
         ]
         read_only_fields = [
             'id', 'ocs_id', 'created_at', 'updated_at',
             'turnaround_time', 'work_time', 'is_editable',
+            'ai_status', 'ai_inference', 'ai_requested_at', 'ai_completed_at',
         ]
+
+    def get_ai_inference_job_id(self, obj):
+        """AI 추론 job_id 반환"""
+        if obj.ai_inference:
+            return obj.ai_inference.job_id
+        return None
 
     def get_local_storage_keys(self, obj):
         """localStorage 키 생성"""

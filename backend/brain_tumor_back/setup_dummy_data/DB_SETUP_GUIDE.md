@@ -18,6 +18,7 @@ Brain Tumor CDSS 프로젝트의 개발/테스트용 더미 데이터 생성 시
 12. [생성되는 데이터 통계](#생성되는-데이터-통계)
 13. [새 기능 추가 가이드](#새-기능-추가-가이드)
 14. [트러블슈팅](#트러블슈팅)
+15. [AI 추론 워크플로우](#ai-추론-워크플로우)
 
 ---
 
@@ -68,7 +69,7 @@ setup_dummy_data/
 ├── __main__.py                              # python -m setup_dummy_data 지원
 ├── __init__.py                              # 패키지 초기화
 ├── setup_dummy_data_1_base.py               # 기본 데이터 (역할, 사용자, 메뉴/권한)
-├── setup_dummy_data_2_clinical.py           # 임상 데이터 (환자, 진료, OCS, AI, 치료, 경과, 처방)
+├── setup_dummy_data_2_clinical.py           # 임상 데이터 (환자, 진료, OCS, 치료, 경과, 처방)
 ├── setup_dummy_data_3_extended.py           # 확장 데이터 (대량 진료/OCS, 오늘 진료, 일정)
 ├── setup_dummy_data_4_encounter_schedule.py # 진료 예약 스케줄 (의사별 기간 예약)
 ├── sync_orthanc_ocs.py                      # Orthanc DICOM 업로드 + OCS RIS 동기화
@@ -90,10 +91,8 @@ setup_dummy_data/
 │ - 마이그레이션   │ - 진료 20건        │ - 확장 OCS LIS 80건  │ - 의사당 10명/일          │
 │ - 역할 7개       │ - OCS RIS 15건     │ - 오늘 예약 진료     │ - 주말 제외               │
 │ - 사용자 10명    │ - OCS LIS 30건     │ - 공유 일정          │ - 30분 간격 슬롯          │
-│ - 메뉴/권한      │ - AI 모델 3개      │ - 개인 일정          │                          │
-│                 │ - 치료 계획 15건    │                     │                          │
+│ - 메뉴/권한      │ - 치료 계획 15건    │ - 개인 일정          │                          │
 │                 │ - 경과 추적 25건    │                     │                          │
-│                 │ - AI 요청 10건      │                     │                          │
 │                 │ - 처방 20건         │                     │                          │
 └─────────────────┴───────────────────┴─────────────────────┴──────────────────────────┘
 
@@ -309,11 +308,9 @@ python -m setup_dummy_data
     │  ├─► 진료 20건                           │
     │  ├─► OCS RIS 15건 + ImagingStudy        │ ← 환자데이터 폴더 수(15개) 기준
     │  ├─► OCS LIS 30건                        │ ← RNA_SEQ 15건 + BIOMARKER 15건
-    │  ├─► AI 모델 3개                         │
     │  ├─► 치료 계획 15건                      │
     │  ├─► 경과 추적 25건                      │
-    │  ├─► AI 요청 10건                        │
-    │  └─► 처방 20건 + 항목 ~60건              │
+    │  └─► 처방 20건 + 항목 ~60건              │   ※ AI 요청은 사용자가 직접 요청
     └────┬────────────────────────────────────┘
          │
     ┌────▼────────────────────────────────────┐
@@ -392,12 +389,12 @@ create_dummy_patients()           # 환자 50명
 create_dummy_encounters()         # 진료 20건
 create_dummy_imaging_with_ocs()   # OCS RIS 15건 + ImagingStudy (환자데이터 폴더 수 기준)
 create_dummy_lis_orders()         # OCS LIS 30건 (RNA_SEQ 15건 + BIOMARKER 15건)
-create_ai_models()                # AI 모델 3개
+create_ai_models()                # AI 모델 (현재 스킵)
 
-# ========== 치료/경과/AI ==========
+# ========== 치료/경과 ==========
 create_dummy_treatment_plans()    # 치료 계획 15건
 create_dummy_followups()          # 경과 추적 25건
-create_dummy_ai_requests()        # AI 요청 10건
+# AI 요청은 더미로 생성하지 않음 (RIS/LIS 담당자가 직접 요청)
 
 # ========== 처방 ==========
 create_dummy_prescriptions()      # 처방 20건 + 항목 ~60건
@@ -408,10 +405,9 @@ create_dummy_prescriptions()      # 처방 20건 + 항목 ~60건
 - 진료(Encounter) 20건
 - **OCS (RIS) 15건** + ImagingStudy (환자데이터 폴더 15개에 맞춤, P202600001~P202600015)
 - **OCS (LIS) 30건** (RNA_SEQ 15건 + BIOMARKER 15건, 환자데이터 폴더 15개에 맞춤)
-- AI 모델 3개 (M1, MG, MM)
 - 치료 계획 15건 + 치료 세션
 - 경과 추적 25건
-- AI 추론 요청 10건
+- **AI 추론 요청은 더미 데이터로 생성하지 않음** (RIS/LIS 담당자가 워크벤치에서 직접 요청)
 - 처방전 20건 (DRAFT, ISSUED, DISPENSED, CANCELLED 상태 분포)
 - 처방 항목 ~60건 (뇌종양 관련 약품)
   - 항암제: Temozolomide, Bevacizumab, Lomustine
@@ -424,6 +420,7 @@ create_dummy_prescriptions()      # 처방 20건 + 항목 ~60건
 
 > **중요**: OCS RIS/LIS 개수는 환자데이터 폴더 수(15개)에 맞춰 제한됩니다.
 > sync_orthanc_ocs.py, sync_lis_ocs.py에서 1:1 매칭되어 worker_result가 채워집니다.
+> **AI 추론**: OCS CONFIRMED 후 RIS/LIS 담당자가 워크벤치에서 "AI 분석" 버튼으로 요청합니다.
 
 ### setup_dummy_data_3_extended.py (확장 데이터)
 > **선택 데이터** - 대량 데이터 및 일정 테스트용
@@ -814,12 +811,11 @@ python manage.py shell
 | 경과 기록 | 25건 | - | - | - | 25건 |
 | 처방전 | 20건 | - | - | - | 20건 |
 | 처방 항목 | ~60건 | - | - | - | ~60건 |
-| AI 모델 | 3개 | - | - | - | 3개 |
-| AI 요청 | 10건 | - | - | - | 10건 |
 | 공유 일정 | - | ~15건 | - | - | ~15건 |
 | 개인 일정 | - | ~50건 | - | - | ~50건 |
 | **Orthanc Studies** | - | - | - | **15개** | **15개** |
 | **CDSS_STORAGE/LIS** | - | - | - | **30폴더** | **30폴더** |
+| **AI 추론 요청** | **0건** | - | - | - | **사용자 요청 시 생성** |
 
 ### OCS 데이터 상세 (환자데이터 폴더 15개 기준)
 
@@ -921,7 +917,7 @@ python -m setup_dummy_data --reset -y
 
 ```bash
 python manage.py shell
->>> from apps.ai_inference.models import AIInferenceLog, AIInferenceResult, AIInferenceRequest
+>>> from apps.ai_inference.models import AIInference
 >>> from apps.treatment.models import TreatmentSession, TreatmentPlan
 >>> from apps.followup.models import FollowUp
 >>> from apps.prescriptions.models import PrescriptionItem, Prescription
@@ -932,9 +928,7 @@ python manage.py shell
 >>> from apps.schedules.models import SharedSchedule, PersonalSchedule
 
 # 순서대로 삭제 (의존성 역순)
->>> AIInferenceLog.objects.all().delete()
->>> AIInferenceResult.objects.all().delete()
->>> AIInferenceRequest.objects.all().delete()
+>>> AIInference.objects.all().delete()
 >>> TreatmentSession.objects.all().delete()
 >>> TreatmentPlan.objects.all().delete()
 >>> FollowUp.objects.all().delete()
@@ -971,3 +965,90 @@ python manage.py shell
 | treatment | `planned`, `in_progress`, `completed`, `cancelled`, `on_hold` |
 | followup | `stable`, `improved`, `deteriorated`, `recurrence`, `progression`, `remission` |
 | imaging (OCS 매핑) | `ordered`, `scheduled`, `in_progress`, `completed`, `reported`, `cancelled` |
+| ocs.ai_status | `NONE`, `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED` |
+
+---
+
+## AI 추론 워크플로우
+
+### 개요
+
+AI 추론 요청은 **더미 데이터로 생성하지 않습니다**. RIS/LIS 담당자가 OCS 작업 완료(CONFIRMED) 후 워크벤치에서 직접 요청합니다.
+
+### AI 모델 종류
+
+| 모델 코드 | 모델명 | 입력 데이터 | 요청 주체 |
+|-----------|--------|-------------|-----------|
+| **M1** | MRI 분석 | OCS RIS (MRI) | RIS 담당자 |
+| **MG** | Gene Analysis | OCS LIS (RNA_SEQ) | LIS 담당자 |
+| **MM** | 멀티모달 | MRI + RNA_SEQ + Protein | 의사 (수동) |
+
+### AI 요청 흐름
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         M1 / MG 추론                             │
+├─────────────────────────────────────────────────────────────────┤
+│  1. OCS 생성 (의사) → ORDERED                                    │
+│  2. 담당자 접수 (RIS/LIS) → ACCEPTED                             │
+│  3. 작업 시작 → IN_PROGRESS                                      │
+│  4. 결과 제출 → RESULT_READY                                     │
+│  5. 확정 (담당자 또는 의사) → CONFIRMED                           │
+│  6. [AI 분석] 버튼 클릭 (RIS/LIS 담당자)                          │
+│     - OCS ai_status: NONE → PENDING → PROCESSING → COMPLETED    │
+│     - AIInference 생성 → modAI 서버 연동                         │
+│  7. 콜백 수신 → OCS ai_status, ai_completed_at 업데이트           │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                         MM 추론 (멀티모달)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  ※ 수동 요청만 지원 (자동 트리거 없음)                            │
+│  1. 의사가 환자 선택                                             │
+│  2. 필요한 OCS 선택 (MRI, RNA_SEQ, Protein)                      │
+│  3. MM 추론 요청                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### OCS AI 상태 필드
+
+OCS 모델에 다음 AI 관련 필드가 추가되었습니다:
+
+| 필드명 | 타입 | 설명 |
+|--------|------|------|
+| `ai_status` | CharField | AI 분석 상태 (NONE/PENDING/PROCESSING/COMPLETED/FAILED) |
+| `ai_inference` | ForeignKey | AIInference 참조 (nullable) |
+| `ai_requested_at` | DateTimeField | AI 요청 시각 (nullable) |
+| `ai_completed_at` | DateTimeField | AI 완료 시각 (nullable) |
+
+### AI 분석 권한
+
+AI 분석 요청은 다음 조건을 만족해야 합니다:
+
+1. **OCS 상태**: `CONFIRMED` (확정된 오더만 분석 가능)
+2. **요청 권한**: OCS의 `worker` 또는 `doctor`만 요청 가능
+3. **인증**: 로그인된 사용자만 요청 가능 (IsAuthenticated)
+
+### 테스트 방법
+
+```bash
+# 1. 더미 데이터 생성 (AI 요청 제외)
+python -m setup_dummy_data --reset -y
+
+# 2. 서버 실행
+python manage.py runserver
+
+# 3. RIS 계정으로 로그인
+#    ris1 / ris1001
+
+# 4. RIS 워크벤치에서 CONFIRMED 상태의 MRI OCS 선택
+
+# 5. "AI 분석" 버튼 클릭하여 M1 추론 요청
+
+# 6. LIS 계정으로 로그인
+#    lis1 / lis1001
+
+# 7. LIS 워크벤치에서 CONFIRMED 상태의 RNA_SEQ OCS 선택
+
+# 8. "AI 분석" 버튼 클릭하여 MG 추론 요청
+```

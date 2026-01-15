@@ -38,8 +38,12 @@ class M1InferenceView(APIView):
     POST /api/ai/m1/inference/
     - ocs_id: MRI OCS ID
     - mode: 'manual' | 'auto'
+
+    권한:
+    - RIS 담당자: 본인 담당 OCS만 요청 가능
+    - 의사: 본인 처방 OCS만 요청 가능
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = InferenceRequestSerializer(data=request.data)
@@ -62,6 +66,18 @@ class M1InferenceView(APIView):
             return Response(
                 {'error': 'M1 추론은 MRI OCS에서만 가능합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2-1. 권한 검증 (RIS 담당자 또는 처방 의사만 요청 가능)
+        user = request.user
+        is_worker = ocs.worker == user
+        is_doctor = ocs.doctor == user
+        user_role = getattr(user.role, 'code', '') if user.role else ''
+
+        if not (is_worker or is_doctor):
+            return Response(
+                {'error': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
+                status=status.HTTP_403_FORBIDDEN
             )
 
         # 3. DICOM 정보 검증 (study_uid만 필요, series는 FastAPI에서 자동 탐색)
@@ -102,6 +118,12 @@ class M1InferenceView(APIView):
             status=AIInference.Status.PENDING
         )
 
+        # 5-1. OCS ai_status 업데이트 (PENDING)
+        ocs.ai_status = OCS.AIStatus.PENDING
+        ocs.ai_inference = inference
+        ocs.ai_requested_at = timezone.now()
+        ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_requested_at'])
+
         # 6. FastAPI 호출 (study_uid로 시리즈 자동 탐색)
         try:
             callback_url = request.build_absolute_uri('/api/ai/callback/')
@@ -124,6 +146,10 @@ class M1InferenceView(APIView):
             inference.status = AIInference.Status.PROCESSING
             inference.save()
 
+            # OCS ai_status도 PROCESSING으로 업데이트
+            ocs.ai_status = OCS.AIStatus.PROCESSING
+            ocs.save(update_fields=['ai_status'])
+
             return Response({
                 'job_id': inference.job_id,
                 'status': 'processing',
@@ -136,6 +162,10 @@ class M1InferenceView(APIView):
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
+            # OCS ai_status도 FAILED로 업데이트
+            ocs.ai_status = OCS.AIStatus.FAILED
+            ocs.save(update_fields=['ai_status'])
+
             return Response(
                 {'error': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
@@ -145,6 +175,10 @@ class M1InferenceView(APIView):
             inference.status = AIInference.Status.FAILED
             inference.error_message = str(e)
             inference.save()
+
+            # OCS ai_status도 FAILED로 업데이트
+            ocs.ai_status = OCS.AIStatus.FAILED
+            ocs.save(update_fields=['ai_status'])
 
             return Response(
                 {'error': f'FastAPI 호출 실패: {str(e)}'},
@@ -159,8 +193,12 @@ class MGInferenceView(APIView):
     POST /api/ai/mg/inference/
     - ocs_id: LIS OCS ID (Gene Expression CSV 포함)
     - mode: 'manual' | 'auto'
+
+    권한:
+    - LIS 담당자: 본인 담당 OCS만 요청 가능
+    - 의사: 본인 처방 OCS만 요청 가능
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     # CDSS_STORAGE 경로
     STORAGE_BASE = CDSS_STORAGE_BASE
@@ -186,6 +224,17 @@ class MGInferenceView(APIView):
             return Response(
                 {'error': 'MG 추론은 LIS OCS에서만 가능합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2-1. 권한 검증 (LIS 담당자 또는 처방 의사만 요청 가능)
+        user = request.user
+        is_worker = ocs.worker == user
+        is_doctor = ocs.doctor == user
+
+        if not (is_worker or is_doctor):
+            return Response(
+                {'error': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
+                status=status.HTTP_403_FORBIDDEN
             )
 
         # 3. Gene Expression CSV 파일 경로 추출
@@ -235,6 +284,12 @@ class MGInferenceView(APIView):
             status=AIInference.Status.PENDING
         )
 
+        # 5-1. OCS ai_status 업데이트 (PENDING)
+        ocs.ai_status = OCS.AIStatus.PENDING
+        ocs.ai_inference = inference
+        ocs.ai_requested_at = timezone.now()
+        ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_requested_at'])
+
         # 6. CSV 파일 읽기 및 FastAPI 호출
         try:
             # CSV 파일 내용 읽기 (FastAPI에 내용 전달)
@@ -261,6 +316,10 @@ class MGInferenceView(APIView):
             inference.status = AIInference.Status.PROCESSING
             inference.save()
 
+            # OCS ai_status도 PROCESSING으로 업데이트
+            ocs.ai_status = OCS.AIStatus.PROCESSING
+            ocs.save(update_fields=['ai_status'])
+
             return Response({
                 'job_id': inference.job_id,
                 'status': 'processing',
@@ -273,6 +332,10 @@ class MGInferenceView(APIView):
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
+            # OCS ai_status도 FAILED로 업데이트
+            ocs.ai_status = OCS.AIStatus.FAILED
+            ocs.save(update_fields=['ai_status'])
+
             return Response(
                 {'error': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
@@ -282,6 +345,10 @@ class MGInferenceView(APIView):
             inference.status = AIInference.Status.FAILED
             inference.error_message = str(e)
             inference.save()
+
+            # OCS ai_status도 FAILED로 업데이트
+            ocs.ai_status = OCS.AIStatus.FAILED
+            ocs.save(update_fields=['ai_status'])
 
             return Response(
                 {'error': f'FastAPI 호출 실패: {str(e)}'},
@@ -296,6 +363,8 @@ class InferenceCallbackView(APIView):
     POST /api/ai/callback/
     - FastAPI에서 추론 결과와 파일 내용을 함께 전송
     - Django에서 CDSS_STORAGE/AI/<job_id>/에 파일 저장
+
+    Note: AllowAny - FastAPI 내부 서버 콜백용 (로컬 네트워크)
     """
     permission_classes = [AllowAny]
 
@@ -344,6 +413,9 @@ class InferenceCallbackView(APIView):
 
         inference.save()
 
+        # OCS ai_status 업데이트
+        self._update_ocs_ai_status(inference, cb_status)
+
         # WebSocket 알림 (manual 모드만)
         if inference.mode == AIInference.Mode.MANUAL:
             self._send_websocket_notification(inference)
@@ -351,6 +423,37 @@ class InferenceCallbackView(APIView):
         logger.info(f'Callback 처리 완료: job_id={job_id}, status={cb_status}')
 
         return Response({'status': 'ok'})
+
+    def _update_ocs_ai_status(self, inference: AIInference, cb_status: str):
+        """
+        연결된 OCS들의 ai_status 업데이트
+
+        Args:
+            inference: AIInference 인스턴스
+            cb_status: 'completed' | 'failed'
+        """
+        ocs_list = []
+
+        # 모델 타입에 따라 연결된 OCS 수집
+        if inference.mri_ocs:
+            ocs_list.append(inference.mri_ocs)
+        if inference.rna_ocs:
+            ocs_list.append(inference.rna_ocs)
+        if inference.protein_ocs:
+            ocs_list.append(inference.protein_ocs)
+
+        # OCS 상태 업데이트
+        for ocs in ocs_list:
+            if cb_status == 'completed':
+                ocs.ai_status = OCS.AIStatus.COMPLETED
+                ocs.ai_completed_at = timezone.now()
+            else:
+                ocs.ai_status = OCS.AIStatus.FAILED
+
+            ocs.ai_inference = inference
+            ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_completed_at'])
+
+            logger.info(f'OCS ai_status 업데이트: ocs_id={ocs.ocs_id}, status={ocs.ai_status}')
 
     def _save_files(self, job_id: str, files_data: dict) -> dict:
         """
@@ -442,7 +545,7 @@ class AIInferenceListView(APIView):
     - model_type: M1, MG, MM (선택)
     - status: PENDING, PROCESSING, COMPLETED, FAILED (선택)
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         model_type = request.query_params.get('model_type')
@@ -468,7 +571,7 @@ class AIInferenceDetailView(APIView):
     GET /api/ai/inferences/<job_id>/
     DELETE /api/ai/inferences/<job_id>/
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     # CDSS_STORAGE 경로
     STORAGE_BASE = CDSS_STORAGE_AI
@@ -534,7 +637,7 @@ class AIInferenceDeleteByOCSView(APIView):
     DELETE /api/ai/inferences/by-ocs/<ocs_id>/
     - 해당 OCS와 연결된 모든 추론 결과 삭제 (DB + 파일)
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     STORAGE_BASE = CDSS_STORAGE_AI
 
@@ -597,7 +700,7 @@ class AIInferenceFileDownloadView(APIView):
 
     GET /api/ai/inferences/<job_id>/files/<filename>/
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     # CDSS_STORAGE 경로 (modAI에서 저장하는 위치)
     STORAGE_BASE = CDSS_STORAGE_AI
@@ -642,7 +745,7 @@ class AIInferenceFilesListView(APIView):
 
     GET /api/ai/inferences/<job_id>/files/
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     STORAGE_BASE = CDSS_STORAGE_AI
 
@@ -690,7 +793,7 @@ class AIInferenceSegmentationView(APIView):
         - volumes: 종양 볼륨 정보
         - encoding: 'base64' 또는 'list'
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     STORAGE_BASE = CDSS_STORAGE_AI
 
@@ -842,7 +945,7 @@ class MGGeneExpressionView(APIView):
     GET /api/ai/mg/gene-expression/<ocs_id>/
     - ocs_id를 기반으로 gene_expression.csv를 읽고 분석 데이터 반환
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     STORAGE_BASE = CDSS_STORAGE_BASE
 
@@ -1060,7 +1163,7 @@ class MMInferenceView(APIView):
 
     각 OCS에서 필요한 feature 파일을 읽어서 FastAPI에 전송
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     # CDSS_STORAGE 경로 (전역 변수 사용)
     STORAGE_AI = CDSS_STORAGE_AI
@@ -1301,7 +1404,7 @@ class MMAvailableOCSView(APIView):
     - RNA_SEQ OCS: MG 추론 완료 + OCS 상태 CONFIRMED
     - BIOMARKER OCS: OCS 상태 CONFIRMED
     """
-    permission_classes = [AllowAny]  # TODO: 개발용
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, patient_id):
         from apps.patients.models import Patient

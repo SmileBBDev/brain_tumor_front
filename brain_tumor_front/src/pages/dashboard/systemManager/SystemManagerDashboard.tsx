@@ -9,6 +9,7 @@ import RISDashboard from '../ris/RISDashboard';
 import PatientDashboardPreview from '../patient/PatientDashboardPreview';
 import ExternalDashboard from '../external/ExternalDashboard';
 import { DashboardHeader } from '../common/DashboardHeader';
+import { AIAnalysisBlock } from '@/components/AIAnalysisBlock';
 import './SystemManagerDashboard.css';
 
 type TabType = 'OVERVIEW' | 'ADMIN' | 'DOCTOR' | 'NURSE' | 'LIS' | 'RIS' | 'PATIENT' | 'EXTERNAL';
@@ -134,6 +135,9 @@ export default function SystemManagerDashboard() {
                 </div>
               </>
             )}
+
+            {/* AI 분석 블럭 */}
+            <AIAnalysisBlock />
           </div>
         ) : (
           <div className="sm-dashboard-preview">

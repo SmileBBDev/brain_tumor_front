@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { getOCS, startOCS, saveOCSResult, confirmOCS } from '@/services/ocs.api';
 import type { OCSDetail, RISWorkerResult } from '@/types/ocs';
 import { OCS_STATUS_LABELS } from '@/types/ocs';
+import { aiApi } from '@/services/ai.api';
 import AIAnalysisPanel from './components/AIAnalysisPanel';
 import AIViewerPanel from './components/AIViewerPanel';
 import DicomViewerPopup, { type UploadResult, type ExistingStudyInfo } from '@/components/DicomViewerPopup';
@@ -82,6 +83,11 @@ export default function RISStudyDetailPage() {
 
   // DICOM 뷰어 팝업
   const [viewerOpen, setViewerOpen] = useState(false);
+
+  // AI 추론 상태
+  const [aiInferenceStatus, setAiInferenceStatus] = useState<'none' | 'pending' | 'processing' | 'completed' | 'failed'>('none');
+  const [aiJobId, setAiJobId] = useState<string | null>(null);
+  const [aiRequesting, setAiRequesting] = useState(false);
 
   // URL 쿼리 파라미터 처리 (tab, openViewer)
   useEffect(() => {
@@ -379,6 +385,52 @@ export default function RISStudyDetailPage() {
     setViewerOpen(true);
   };
 
+  // M1 AI 추론 요청
+  const handleRequestAIInference = async () => {
+    if (!ocsDetail) return;
+
+    // DICOM 정보 확인
+    const workerResult = ocsDetail.worker_result as any;
+    const studyUid = workerResult?.orthanc?.study_uid || workerResult?.dicom?.study_uid;
+
+    if (!studyUid) {
+      alert('DICOM 영상 정보가 없습니다.\nDICOM Viewer에서 영상을 먼저 업로드해주세요.');
+      return;
+    }
+
+    if (!confirm('M1 AI 분석을 요청하시겠습니까?\n분석에는 수 분이 소요될 수 있습니다.')) {
+      return;
+    }
+
+    setAiRequesting(true);
+    try {
+      const response = await aiApi.requestM1Inference(ocsDetail.id, 'manual');
+
+      if (response.cached) {
+        // 캐시된 결과
+        setAiInferenceStatus('completed');
+        setAiJobId(response.job_id);
+        alert(`기존 분석 결과가 있습니다.\nJob ID: ${response.job_id}`);
+      } else {
+        // 새 추론 시작
+        setAiInferenceStatus('processing');
+        setAiJobId(response.job_id);
+        alert(`M1 AI 분석이 시작되었습니다.\nJob ID: ${response.job_id}\n완료 시 알림을 받게 됩니다.`);
+      }
+
+      // OCS 상세 새로고침
+      const updated = await getOCS(ocsDetail.id);
+      setOcsDetail(updated);
+    } catch (error: any) {
+      console.error('AI 추론 요청 실패:', error);
+      const errorMessage = error.response?.data?.error || error.message || '알 수 없는 오류';
+      alert(`AI 분석 요청 실패: ${errorMessage}`);
+      setAiInferenceStatus('failed');
+    } finally {
+      setAiRequesting(false);
+    }
+  };
+
   // 기존 업로드된 Study 정보 추출 (worker_result.orthanc에서)
   const getExistingStudyInfo = (): ExistingStudyInfo | undefined => {
     const result = ocsDetail?.worker_result as any;
@@ -572,6 +624,17 @@ export default function RISStudyDetailPage() {
           )}
           {isFinalized && (
             <>
+              {/* AI 분석 요청 버튼 (CONFIRMED 상태에서만) */}
+              {ocsDetail.ocs_status === 'CONFIRMED' && (
+                <button
+                  className="btn btn-ai"
+                  onClick={handleRequestAIInference}
+                  disabled={aiRequesting}
+                  title="M1 AI 분석 요청"
+                >
+                  {aiRequesting ? '요청 중...' : '🤖 AI 분석'}
+                </button>
+              )}
               <button className="btn btn-success" onClick={handleSendToEMR}>
                 EMR 전송
               </button>

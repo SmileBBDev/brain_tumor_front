@@ -12,6 +12,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { getOCS, startOCS, saveOCSResult, confirmOCS } from '@/services/ocs.api';
 import type { OCSDetail, GeneMutation, ProteinMarker } from '@/types/ocs';
 import { getLISCategory, LIS_CATEGORY_LABELS } from '@/utils/ocs.utils';
+import { aiApi } from '@/services/ai.api';
 import {
   type StoredFileInfo,
   type FileWithData,
@@ -107,6 +108,9 @@ export default function LISStudyDetailPage() {
     uploadedAt: string;
     rowCount: number;
   } | null>(null);
+
+  // AI 추론 상태
+  const [aiRequesting, setAiRequesting] = useState(false);
 
   // 검사 카테고리 확인
   const testCategory = ocs ? getLISCategory(ocs.job_type) : 'BLOOD';
@@ -569,6 +573,41 @@ export default function LISStudyDetailPage() {
     }
   };
 
+  // MG AI 추론 요청 (RNA_SEQ 전용)
+  const handleRequestAIInference = async () => {
+    if (!ocs) return;
+
+    // RNA_SEQ 타입만 MG 추론 가능
+    if (ocs.job_type !== 'RNA_SEQ') {
+      alert('MG AI 분석은 RNA_SEQ 검사에서만 사용 가능합니다.');
+      return;
+    }
+
+    if (!confirm('MG AI 분석을 요청하시겠습니까?\n분석에는 수 분이 소요될 수 있습니다.')) {
+      return;
+    }
+
+    setAiRequesting(true);
+    try {
+      const response = await aiApi.requestMGInference(ocs.id, 'manual');
+
+      if (response.cached) {
+        alert(`기존 분석 결과가 있습니다.\nJob ID: ${response.job_id}`);
+      } else {
+        alert(`MG AI 분석이 시작되었습니다.\nJob ID: ${response.job_id}\n완료 시 알림을 받게 됩니다.`);
+      }
+
+      // OCS 상세 새로고침
+      await fetchOCSDetail();
+    } catch (error: any) {
+      console.error('AI 추론 요청 실패:', error);
+      const errorMessage = error.response?.data?.error || error.message || '알 수 없는 오류';
+      alert(`AI 분석 요청 실패: ${errorMessage}`);
+    } finally {
+      setAiRequesting(false);
+    }
+  };
+
   // 결과 제출 및 확정 (IN_PROGRESS → CONFIRMED)
   const handleSubmit = async () => {
     if (!ocs) return;
@@ -665,9 +704,22 @@ export default function LISStudyDetailPage() {
             </>
           )}
           {['RESULT_READY', 'CONFIRMED'].includes(ocs.ocs_status) && (
-            <button className="btn btn-secondary" onClick={handleExportPDF}>
-              PDF 출력
-            </button>
+            <>
+              {/* AI 분석 요청 버튼 (CONFIRMED 상태 + RNA_SEQ만) */}
+              {ocs.ocs_status === 'CONFIRMED' && ocs.job_type === 'RNA_SEQ' && (
+                <button
+                  className="btn btn-ai"
+                  onClick={handleRequestAIInference}
+                  disabled={aiRequesting}
+                  title="MG AI 분석 요청"
+                >
+                  {aiRequesting ? '요청 중...' : '🤖 AI 분석'}
+                </button>
+              )}
+              <button className="btn btn-secondary" onClick={handleExportPDF}>
+                PDF 출력
+              </button>
+            </>
           )}
         </div>
       </header>
