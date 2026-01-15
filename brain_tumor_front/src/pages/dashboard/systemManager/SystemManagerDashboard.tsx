@@ -46,7 +46,7 @@ export default function SystemManagerDashboard() {
     ADMIN: '관리자',
     DOCTOR: '의사',
     NURSE: '간호사',
-    LIS: '검사실',
+    LIS: '병리실',
     RIS: '영상실',
     PATIENT: '환자',
     EXTERNAL: '외부기관',

@@ -1,13 +1,15 @@
 /**
  * AI 분석 결과 패널 (P.82-83)
  * - AI 분석 결과 요약 표시
- * - 목업 데이터 사용 (실제 연동 대비 인터페이스 정의)
+ * - 실제 AI API 연동
  */
 import { useState, useEffect } from 'react';
+import { getPatientAIRequests } from '@/services/ai.api';
+import type { AIInferenceRequest, AIInferenceResult } from '@/services/ai.api';
 import './AIAnalysisPanel.css';
 
 // =============================================================================
-// AI 연동 인터페이스 정의 (향후 실제 연동시 사용)
+// AI 연동 인터페이스 정의 (UI 표시용)
 // =============================================================================
 export interface AIAnalysisResult {
   analysis_id: string;
@@ -45,111 +47,115 @@ export interface AIAnalysisDetail {
   metrics: { name: string; value: string | number; unit?: string }[];
 }
 
-// =============================================================================
-// 목업 데이터 생성 (TODO: 실제 AI 연동 시 제거)
-// =============================================================================
-// const generateMockAIResult = (jobType: string): AIAnalysisResult => {
-//   const isBrainScan = ['MRI', 'CT'].includes(jobType.toUpperCase());
-//
-//   return {
-//     analysis_id: `AI-${Date.now()}`,
-//     analysis_date: new Date().toISOString(),
-//     model_version: 'BrainTumor-CDSS v2.1.0',
-//     status: 'completed',
-//
-//     risk_level: isBrainScan ? 'medium' : 'low',
-//     risk_score: isBrainScan ? 65 : 25,
-//     confidence: 87,
-//
-//     findings: isBrainScan ? [
-//       {
-//         id: 'f1',
-//         type: 'lesion',
-//         description: '좌측 측두엽에 불규칙한 조영증강 병변 관찰',
-//         location: 'Left temporal lobe',
-//         severity: 'major',
-//         confidence: 89,
-//       },
-//       {
-//         id: 'f2',
-//         type: 'abnormality',
-//         description: '주변 부종 소견',
-//         location: 'Perilesional area',
-//         severity: 'minor',
-//         confidence: 78,
-//       },
-//     ] : [
-//       {
-//         id: 'f1',
-//         type: 'observation',
-//         description: '특이 소견 없음',
-//         severity: 'observation',
-//         confidence: 95,
-//       },
-//     ],
-//
-//     summary: isBrainScan
-//       ? '좌측 측두엽에 약 2.3cm 크기의 조영증강 병변이 관찰됩니다. 신경교종(Glioma) 가능성이 있으며, 추가 검사를 권고합니다.'
-//       : '분석 결과 특이 소견이 발견되지 않았습니다.',
-//
-//     details: isBrainScan ? [
-//       {
-//         category: '병변 정보',
-//         metrics: [
-//           { name: '크기', value: '2.3 x 1.8', unit: 'cm' },
-//           { name: '위치', value: 'Left temporal lobe' },
-//           { name: '조영증강', value: '불균일' },
-//         ],
-//       },
-//       {
-//         category: '정량 분석',
-//         metrics: [
-//           { name: 'ADC', value: '0.85', unit: '×10⁻³ mm²/s' },
-//           { name: 'rCBV', value: '2.1', unit: 'ratio' },
-//         ],
-//       },
-//     ] : undefined,
-//   };
-// };
 
 // =============================================================================
 // 컴포넌트
 // =============================================================================
 interface AIAnalysisPanelProps {
   ocsId: number;
+  patientId?: number;
   jobType: string;
   compact?: boolean;
 }
 
-export default function AIAnalysisPanel({ ocsId, jobType, compact = false }: AIAnalysisPanelProps) {
+// AI 추론 결과를 UI 표시용 AIAnalysisResult로 변환
+const convertToDisplayResult = (
+  request: AIInferenceRequest,
+  inferenceResult: AIInferenceResult
+): AIAnalysisResult => {
+  const resultData = inferenceResult.result_data || {};
+
+  // 결과 데이터에서 정보 추출 (백엔드 result_data 구조에 따라 조정)
+  const riskLevel = (resultData.risk_level as string) || 'normal';
+  const riskScore = typeof resultData.risk_score === 'number' ? resultData.risk_score : 0;
+  const confidence = inferenceResult.confidence_score ?? (typeof resultData.confidence === 'number' ? resultData.confidence : 0);
+  const summary = (resultData.summary as string) || (resultData.diagnosis as string) || '분석이 완료되었습니다.';
+
+  // findings 추출
+  const rawFindings = (resultData.findings as any[]) || [];
+  const findings: AIFinding[] = rawFindings.map((f, idx) => ({
+    id: `f${idx + 1}`,
+    type: f.type || 'observation',
+    description: f.description || f.text || '',
+    location: f.location,
+    severity: f.severity || 'observation',
+    confidence: f.confidence ?? 0,
+    bbox: f.bbox,
+  }));
+
+  // details 추출
+  const rawDetails = (resultData.details as any[]) || [];
+  const details: AIAnalysisDetail[] = rawDetails.map((d) => ({
+    category: d.category || d.name || '',
+    metrics: (d.metrics || []).map((m: any) => ({
+      name: m.name,
+      value: m.value,
+      unit: m.unit,
+    })),
+  }));
+
+  return {
+    analysis_id: request.request_id,
+    analysis_date: request.completed_at || request.created_at,
+    model_version: request.model_name,
+    status: request.status === 'COMPLETED' ? 'completed'
+      : request.status === 'PROCESSING' || request.status === 'VALIDATING' ? 'processing'
+      : request.status === 'FAILED' ? 'failed' : 'pending',
+    risk_level: riskLevel as 'high' | 'medium' | 'low' | 'normal',
+    risk_score: riskScore,
+    confidence: confidence,
+    findings: findings,
+    summary: summary,
+    details: details.length > 0 ? details : undefined,
+  };
+};
+
+export default function AIAnalysisPanel({ ocsId, patientId, jobType, compact = false }: AIAnalysisPanelProps) {
   const [result, setResult] = useState<AIAnalysisResult | null>(null);
+  const [aiRequest, setAiRequest] = useState<AIInferenceRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    // TODO: 실제 AI 분석 API 연동 시 구현
     const fetchAIResult = async () => {
+      if (!patientId) {
+        setLoading(false);
+        setResult(null);
+        return;
+      }
+
       setLoading(true);
       try {
-        // TODO: 실제 API 연동
-        // const data = await getAIAnalysisResult(ocsId);
+        // 환자의 AI 추론 요청 목록 조회
+        const requests = await getPatientAIRequests(patientId);
 
-        // 현재는 AI 분석 결과가 없음 (API 연동 전)
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setResult(null);
+        // 현재 OCS를 참조하는 AI 요청 찾기 (가장 최신 것)
+        const matchingRequest = requests
+          .filter(req => req.ocs_references.includes(ocsId))
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
-        // 목업 데이터 사용 (주석 처리됨)
-        // const mockData = generateMockAIResult(jobType);
-        // setResult(mockData);
+        if (matchingRequest && matchingRequest.has_result && matchingRequest.result) {
+          setAiRequest(matchingRequest);
+          const displayResult = convertToDisplayResult(matchingRequest, matchingRequest.result);
+          setResult(displayResult);
+        } else if (matchingRequest) {
+          // 결과가 아직 없는 경우 (처리 중 등)
+          setAiRequest(matchingRequest);
+          setResult(null);
+        } else {
+          setAiRequest(null);
+          setResult(null);
+        }
       } catch (error) {
         console.error('Failed to fetch AI result:', error);
+        setResult(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchAIResult();
-  }, [ocsId, jobType]);
+  }, [ocsId, patientId]);
 
   if (loading) {
     return (
@@ -163,6 +169,36 @@ export default function AIAnalysisPanel({ ocsId, jobType, compact = false }: AIA
   }
 
   if (!result) {
+    // AI 요청이 있지만 결과가 아직 없는 경우 (처리 중)
+    if (aiRequest) {
+      const statusText = aiRequest.status === 'PENDING' ? '대기 중'
+        : aiRequest.status === 'VALIDATING' ? '검증 중'
+        : aiRequest.status === 'PROCESSING' ? '분석 중'
+        : aiRequest.status === 'FAILED' ? '분석 실패'
+        : '처리 중';
+      const isFailed = aiRequest.status === 'FAILED';
+
+      return (
+        <div className={`ai-analysis-panel ${compact ? 'compact' : ''}`}>
+          <div className="panel-header">
+            <h3>AI 분석 결과</h3>
+            <span className="model-version">{aiRequest.model_name}</span>
+          </div>
+          <div className={`processing-state ${isFailed ? 'failed' : ''}`}>
+            {!isFailed && <div className="spinner"></div>}
+            <span>{statusText}</span>
+            {isFailed && aiRequest.error_message && (
+              <p className="error-message">{aiRequest.error_message}</p>
+            )}
+            <p className="processing-desc">
+              {isFailed ? 'AI 분석에 실패했습니다.' : 'AI 모델이 영상을 분석하고 있습니다.'}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // AI 요청 자체가 없는 경우
     return (
       <div className={`ai-analysis-panel ${compact ? 'compact' : ''}`}>
         <div className="panel-header">
@@ -170,8 +206,8 @@ export default function AIAnalysisPanel({ ocsId, jobType, compact = false }: AIA
         </div>
         <div className="empty-state">
           <div className="empty-icon">🔬</div>
-          <span>AI 분석 기능 준비 중</span>
-          <p className="empty-desc">추후 AI 모델 연동 시 분석 결과가 표시됩니다.</p>
+          <span>AI 분석 결과 없음</span>
+          <p className="empty-desc">이 검사에 대한 AI 분석이 요청되지 않았습니다.</p>
         </div>
       </div>
     );

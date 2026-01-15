@@ -24,9 +24,10 @@
   font-size: 0.85rem;
 }
 
-/* 로딩/빈 상태 */
+/* 로딩/빈 상태/처리 중 상태 */
 .loading-state,
-.empty-state {
+.empty-state,
+.processing-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -35,6 +36,38 @@
   color: #666;
   gap: 12px;
   min-height: 200px;
+}
+
+.processing-state span {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1976d2;
+}
+
+.processing-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
+  text-align: center;
+}
+
+.processing-state.failed span {
+  color: #d32f2f;
+}
+
+.processing-state.failed .processing-desc {
+  color: #b71c1c;
+}
+
+.error-message {
+  margin: 8px 0 0 0;
+  font-size: 0.8rem;
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 8px 12px;
+  border-radius: 4px;
+  max-width: 100%;
+  word-break: break-word;
 }
 
 .empty-icon {

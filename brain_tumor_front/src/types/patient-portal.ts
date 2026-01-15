@@ -18,30 +18,50 @@ export interface MyPatientInfo {
   registered_at: string;
 }
 
-// 환자 진료 이력
+// 환자 진료 이력 (백엔드 PatientEncounterListSerializer 응답)
 export interface MyEncounter {
   id: number;
+  encounter_type: string;
   encounter_type_display: string;
+  status: string;
   status_display: string;
   attending_doctor_name: string;
   department_display?: string;
-  encounter_date: string;
+  admission_date: string;
+  discharge_date?: string;
   chief_complaint?: string;
   primary_diagnosis?: string;
+  scheduled_time?: string;
 }
 
-// 환자 검사 결과
-export interface MyOCSResult {
-  ris: MyOCSItem[];
-  lis: MyOCSItem[];
+// 진료 이력 목록 (페이지네이션 포함)
+export interface MyEncounterListResponse {
+  count: number;
+  next?: string;
+  previous?: string;
+  results: MyEncounter[];
 }
 
+// 환자 검사 결과 항목 (백엔드 PatientOCSListSerializer 응답)
 export interface MyOCSItem {
   id: number;
+  ocs_id: string;
+  job_role: 'RIS' | 'LIS';
   job_type: string;
+  ocs_status: string;
   ocs_status_display: string;
+  ocs_result?: string;
+  doctor_name: string;
   created_at: string;
-  result_summary?: string;
+  confirmed_at?: string;
+}
+
+// 검사 결과 목록 (페이지네이션 포함)
+export interface MyOCSListResponse {
+  count: number;
+  next?: string;
+  previous?: string;
+  results: MyOCSItem[];
 }
 
 // 환자 주의사항

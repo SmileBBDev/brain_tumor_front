@@ -679,7 +679,7 @@ export default function RISStudyDetailPage() {
 
               {/* 우측: AI 분석 결과 */}
               <div className="panel-section ai-section">
-                <AIAnalysisPanel ocsId={ocsDetail.id} jobType={ocsDetail.job_type} />
+                <AIAnalysisPanel ocsId={ocsDetail.id} patientId={ocsDetail.patient.id} jobType={ocsDetail.job_type} />
               </div>
             </div>
 
@@ -858,6 +858,7 @@ export default function RISStudyDetailPage() {
             <div className="ai-preview">
               <AIAnalysisPanel
                 ocsId={ocsDetail.id}
+                patientId={ocsDetail.patient.id}
                 jobType={ocsDetail.job_type}
                 compact
               />

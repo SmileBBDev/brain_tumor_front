@@ -493,6 +493,92 @@ def setup_test_users():
     return True
 
 
+def setup_audit_logs():
+    """
+    감사 로그 더미 데이터 생성
+    - 다양한 사용자의 로그인/로그아웃 이력
+    """
+    print("\n[감사 로그 더미 데이터 생성]")
+
+    from apps.audit.models import AuditLog
+    from apps.accounts.models import User
+    from datetime import datetime, timedelta
+    import random
+
+    # 기존 데이터가 있으면 스킵
+    existing_count = AuditLog.objects.count()
+    if existing_count >= 50:
+        print(f"  기존 감사 로그 {existing_count}건 존재 - 스킵")
+        return True
+
+    # 사용자 목록
+    users = list(User.objects.filter(is_active=True)[:20])
+    if not users:
+        print("  사용자가 없습니다 - 스킵")
+        return False
+
+    actions = [
+        ('LOGIN_SUCCESS', 0.7),   # 70% 확률
+        ('LOGIN_FAIL', 0.15),     # 15% 확률
+        ('LOGOUT', 0.13),         # 13% 확률
+        ('LOGIN_LOCKED', 0.02),   # 2% 확률
+    ]
+
+    ip_addresses = [
+        '192.168.1.100', '192.168.1.101', '192.168.1.102',
+        '10.0.0.50', '10.0.0.51', '10.0.0.52',
+        '172.16.0.10', '172.16.0.11',
+    ]
+
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 Mobile',
+    ]
+
+    created_count = 0
+    base_time = datetime.now()
+
+    # 최근 30일간의 로그 생성
+    for days_ago in range(30, 0, -1):
+        # 하루에 5~15개 로그
+        daily_logs = random.randint(5, 15)
+
+        for _ in range(daily_logs):
+            # 랜덤 시간 (9시~18시)
+            hour = random.randint(8, 18)
+            minute = random.randint(0, 59)
+            log_time = base_time - timedelta(days=days_ago, hours=random.randint(0, 23), minutes=minute)
+
+            # 액션 선택 (가중치 기반)
+            rand = random.random()
+            cumulative = 0
+            action = 'LOGIN_SUCCESS'
+            for act, weight in actions:
+                cumulative += weight
+                if rand <= cumulative:
+                    action = act
+                    break
+
+            # 사용자 선택 (LOGIN_FAIL은 가끔 None)
+            user = random.choice(users)
+            if action == 'LOGIN_FAIL' and random.random() < 0.3:
+                user = None  # 존재하지 않는 사용자 시도
+
+            AuditLog.objects.create(
+                user=user,
+                action=action,
+                ip_address=random.choice(ip_addresses),
+                user_agent=random.choice(user_agents),
+                created_at=log_time,
+            )
+            created_count += 1
+
+    print(f"[OK] 감사 로그 {created_count}건 생성 (전체: {AuditLog.objects.count()}건)")
+    return True
+
+
 def load_menu_permission_seed():
     """
     메뉴/권한 시드 데이터 로드
@@ -1832,8 +1918,14 @@ def reset_base_data():
     from apps.treatment.models import TreatmentPlan, TreatmentSession
     from apps.followup.models import FollowUp
     from apps.prescriptions.models import Prescription, PrescriptionItem
+    from apps.audit.models import AuditLog
 
     # 삭제 순서: 의존성 역순
+    # 감사 로그 삭제
+    audit_log_count = AuditLog.objects.count()
+    AuditLog.objects.all().delete()
+    print(f"  AuditLog: {audit_log_count}건 삭제")
+
     # 환자 주의사항 삭제
     patient_alert_count = PatientAlert.objects.count()
     PatientAlert.objects.all().delete()
@@ -1920,6 +2012,7 @@ def print_summary_base():
 
     from apps.menus.models import Menu, MenuLabel, MenuPermission
     from apps.accounts.models import Permission, Role, User
+    from apps.audit.models import AuditLog
 
     print(f"\n[통계 - 기본 데이터]")
     print(f"  - 역할: {Role.objects.count()}개")
@@ -1928,6 +2021,7 @@ def print_summary_base():
     print(f"  - 메뉴 라벨: {MenuLabel.objects.count()}개")
     print(f"  - 메뉴-권한 매핑: {MenuPermission.objects.count()}개")
     print(f"  - 권한: {Permission.objects.count()}개")
+    print(f"  - 감사 로그: {AuditLog.objects.count()}건")
 
     print(f"\n[다음 단계]")
     print(f"  임상 데이터 생성:")
@@ -2020,6 +2114,9 @@ def main():
 
     # 메뉴/권한 시드 데이터 로드
     load_menu_permission_seed()
+
+    # 감사 로그 더미 데이터 생성
+    setup_audit_logs()
 
     # 요약 출력
     print_summary_base()
