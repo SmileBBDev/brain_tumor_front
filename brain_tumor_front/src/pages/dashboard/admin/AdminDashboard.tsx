@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAdminStats } from '@/services/dashboard.api';
+import { fetchUsers } from '@/services/users.api';
 import type { AdminStats } from '@/services/dashboard.api';
+import type { User } from '@/types/user';
 import { UnifiedCalendar } from '@/components/calendar/UnifiedCalendar';
 import DashboardDetailModal, { type ModalType } from './DashboardDetailModal';
 import type { OcsStatus } from '@/types/ocs';
@@ -15,7 +17,7 @@ interface ModalState {
   ocsStatusFilter?: OcsStatus;
 }
 
-const USERS_PER_PAGE = 5;
+const USERS_PER_PAGE = 10;
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -26,7 +28,13 @@ export default function AdminDashboard() {
     type: 'users',
     title: '',
   });
+
+  // 역할별 사용자 리스트 상태
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [roleUsers, setRoleUsers] = useState<User[]>([]);
+  const [roleUsersLoading, setRoleUsersLoading] = useState(false);
   const [roleUserPage, setRoleUserPage] = useState(1);
+  const [roleUserTotalCount, setRoleUserTotalCount] = useState(0);
 
   const openModal = (type: ModalType, title: string, roleFilter?: string, ocsStatusFilter?: OcsStatus) => {
     setModal({ open: true, type, title, roleFilter, ocsStatusFilter });
@@ -34,6 +42,46 @@ export default function AdminDashboard() {
 
   const closeModal = () => {
     setModal({ open: false, type: 'users', title: '' });
+  };
+
+  // 역할 클릭 시 해당 역할의 사용자 목록 로드
+  const handleRoleClick = async (role: string) => {
+    if (selectedRole === role) {
+      // 같은 역할 클릭 시 토글 (닫기)
+      setSelectedRole(null);
+      setRoleUsers([]);
+      return;
+    }
+
+    setSelectedRole(role);
+    setRoleUserPage(1);
+    await loadRoleUsers(role, 1);
+  };
+
+  const loadRoleUsers = async (role: string, page: number) => {
+    setRoleUsersLoading(true);
+    try {
+      const response = await fetchUsers({
+        role__code: role,
+        page,
+        size: USERS_PER_PAGE,
+      });
+      setRoleUsers(response.results || []);
+      setRoleUserTotalCount(response.count || 0);
+    } catch (err) {
+      console.error('Failed to fetch role users:', err);
+      setRoleUsers([]);
+    } finally {
+      setRoleUsersLoading(false);
+    }
+  };
+
+  // 페이지 변경 시
+  const handleRoleUserPageChange = (newPage: number) => {
+    setRoleUserPage(newPage);
+    if (selectedRole) {
+      loadRoleUsers(selectedRole, newPage);
+    }
   };
 
   useEffect(() => {
@@ -113,11 +161,12 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* 역할별 사용자 현황 + 캘린더 */}
+      {/* 역할별 사용자 현황 + 캘린더 (병렬) */}
       <div className="dashboard-main-row">
+        {/* 역할별 사용자 */}
         <div className="dashboard-section">
           <div className="section-header">
-            <h3>역할별 사용자 현황</h3>
+            <h3>역할별 사용자</h3>
             <button
               className="manage-btn"
               onClick={() => navigate('/admin/users')}
@@ -125,59 +174,81 @@ export default function AdminDashboard() {
               사용자 관리
             </button>
           </div>
-          <div className="role-list">
-            {(() => {
-              const roleEntries = Object.entries(stats.users.by_role);
-              const totalPages = Math.ceil(roleEntries.length / USERS_PER_PAGE);
-              const startIndex = (roleUserPage - 1) * USERS_PER_PAGE;
-              const paginatedRoles = roleEntries.slice(startIndex, startIndex + USERS_PER_PAGE);
+          <div className="role-grid">
+            {Object.entries(stats.users.by_role).map(([role, count]) => (
+              <div
+                key={role}
+                className={`role-item clickable ${selectedRole === role ? 'active' : ''}`}
+                onClick={() => handleRoleClick(role)}
+              >
+                <span className="role-name">{role}</span>
+                <span className="role-count">{count}명</span>
+              </div>
+            ))}
+          </div>
 
-              return (
+          {/* 선택된 역할의 사용자 리스트 */}
+          {selectedRole && (
+            <div className="role-user-list">
+              <h4>{selectedRole} 사용자 목록</h4>
+              {roleUsersLoading ? (
+                <div className="loading-small">로딩 중...</div>
+              ) : roleUsers.length === 0 ? (
+                <div className="empty-small">사용자가 없습니다.</div>
+              ) : (
                 <>
-                  <table className="role-table">
+                  <table className="user-table">
                     <thead>
                       <tr>
-                        <th>역할</th>
-                        <th>인원</th>
+                        <th>이름</th>
+                        <th>아이디</th>
+                        <th>이메일</th>
+                        <th>상태</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedRoles.map(([role, count]) => (
-                        <tr
-                          key={role}
-                          className="clickable"
-                          onClick={() => openModal('role', `${role} 사용자 목록`, role)}
-                        >
-                          <td>{role}</td>
-                          <td>{count}명</td>
+                      {roleUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td>{user.name}</td>
+                          <td>{user.login_id}</td>
+                          <td>{user.email || '-'}</td>
+                          <td>
+                            <span className={`user-status ${user.is_active ? 'active' : 'inactive'}`}>
+                              {user.is_active ? '활성' : '비활성'}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {totalPages > 1 && (
+                  {roleUserTotalCount > USERS_PER_PAGE && (
                     <div className="pagination">
                       <button
                         className="page-btn"
                         disabled={roleUserPage === 1}
-                        onClick={() => setRoleUserPage(roleUserPage - 1)}
+                        onClick={() => handleRoleUserPageChange(roleUserPage - 1)}
                       >
                         이전
                       </button>
-                      <span className="page-info">{roleUserPage} / {totalPages}</span>
+                      <span className="page-info">
+                        {roleUserPage} / {Math.ceil(roleUserTotalCount / USERS_PER_PAGE)}
+                      </span>
                       <button
                         className="page-btn"
-                        disabled={roleUserPage === totalPages}
-                        onClick={() => setRoleUserPage(roleUserPage + 1)}
+                        disabled={roleUserPage >= Math.ceil(roleUserTotalCount / USERS_PER_PAGE)}
+                        onClick={() => handleRoleUserPageChange(roleUserPage + 1)}
                       >
                         다음
                       </button>
                     </div>
                   )}
                 </>
-              );
-            })()}
-          </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* 캘린더 */}
         <UnifiedCalendar
           title="관리자 통합 캘린더"
           showManageButton

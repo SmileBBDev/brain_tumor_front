@@ -6,6 +6,7 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
 1. setup_dummy_data_1_base.py     - 기본 데이터 (DB생성, 마이그레이션, 역할, 사용자, 메뉴/권한)
 2. setup_dummy_data_2_clinical.py - 임상 데이터 (환자, 진료, OCS, AI모델, 치료계획, 경과, 처방)
 3. setup_dummy_data_3_extended.py - 확장 데이터 (대량 진료/OCS, 오늘 진료, 일정)
+4. setup_dummy_data_4_encounter_schedule.py - 진료 예약 스케줄 (의사별 일정 기간 예약)
 
 사용법:
     python -m setup_dummy_data          # 기존 데이터 유지, 부족분만 추가
@@ -16,6 +17,8 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
     python -m setup_dummy_data --clinical    # 임상 데이터만 생성
     python -m setup_dummy_data --extended    # 확장 데이터만 생성
     python -m setup_dummy_data --menu   # 메뉴/권한만 업데이트
+    python -m setup_dummy_data --schedule    # 진료 예약 스케줄만 생성 (기본: 2026-01-15 ~ 2026-02-28)
+    python -m setup_dummy_data --schedule --start 2026-03-01 --end 2026-03-31  # 기간 지정
 
 선행 조건:
     없음 (DB가 없으면 자동 생성)
@@ -270,6 +273,26 @@ def link_patient_accounts(reset=False):
     return True
 
 
+def run_schedule_generator(start_date='2026-01-15', end_date='2026-02-28', per_doctor=10, force=False):
+    """진료 예약 스케줄 생성"""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    os.chdir(PROJECT_ROOT)
+
+    import django
+    django.setup()
+
+    from setup_dummy_data.setup_dummy_data_4_encounter_schedule import create_scheduled_encounters
+
+    return create_scheduled_encounters(
+        start_date=start_date,
+        end_date=end_date,
+        per_doctor_per_day=per_doctor,
+        exclude_weekends=True,
+        time_interval_minutes=30,
+        force=force
+    )
+
+
 def main():
     """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='Brain Tumor CDSS 더미 데이터 생성 (통합)')
@@ -279,6 +302,10 @@ def main():
     parser.add_argument('--clinical', action='store_true', help='임상 데이터만 생성 (2_clinical)')
     parser.add_argument('--extended', action='store_true', help='확장 데이터만 생성 (3_extended)')
     parser.add_argument('--menu', action='store_true', help='메뉴/권한만 업데이트')
+    parser.add_argument('--schedule', action='store_true', help='진료 예약 스케줄 생성')
+    parser.add_argument('--start', type=str, default='2026-01-15', help='예약 시작 날짜 (YYYY-MM-DD)')
+    parser.add_argument('--end', type=str, default='2026-02-28', help='예약 종료 날짜 (YYYY-MM-DD)')
+    parser.add_argument('--per-doctor', type=int, default=10, help='의사당 하루 예약 수 (기본: 10)')
     parser.add_argument('-y', '--yes', action='store_true', help='확인 없이 자동 실행 (비대화형 모드)')
     args = parser.parse_args()
 
@@ -293,6 +320,24 @@ def main():
             ['--menu'],
             '메뉴/권한 업데이트'
         )
+        return
+
+    # --schedule 옵션: 진료 예약 스케줄만 생성
+    if args.schedule:
+        print(f"\n[실행] 진료 예약 스케줄 생성")
+        print(f"  기간: {args.start} ~ {args.end}")
+        print(f"  의사당 하루 예약: {args.per_doctor}건")
+        try:
+            run_schedule_generator(
+                start_date=args.start,
+                end_date=args.end,
+                per_doctor=args.per_doctor,
+                force=args.force
+            )
+        except Exception as e:
+            print(f"\n[ERROR] 스케줄 생성 실패: {e}")
+            import traceback
+            traceback.print_exc()
         return
 
     # 개별 실행 옵션 처리

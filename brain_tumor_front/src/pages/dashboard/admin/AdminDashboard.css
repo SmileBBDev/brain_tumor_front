@@ -335,20 +335,85 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-.admin-dashboard .role-item.clickable:hover {
+.admin-dashboard .role-item.clickable:hover,
+.admin-dashboard .role-item.clickable.active {
   background: var(--primary);
   color: white;
   transform: scale(1.02);
 }
 
 .admin-dashboard .role-item.clickable:hover .role-name,
-.admin-dashboard .role-item.clickable:hover .role-count {
+.admin-dashboard .role-item.clickable:hover .role-count,
+.admin-dashboard .role-item.clickable.active .role-name,
+.admin-dashboard .role-item.clickable.active .role-count {
   color: white;
 }
 
 .admin-dashboard .status-item.clickable:hover {
   transform: scale(1.05);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 역할별 사용자 리스트 */
+.admin-dashboard .role-user-list {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+}
+
+.admin-dashboard .role-user-list h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.admin-dashboard .user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-dashboard .user-table th,
+.admin-dashboard .user-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.admin-dashboard .user-table th {
+  background: var(--bg-main);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.admin-dashboard .user-table td {
+  color: var(--text-main);
+}
+
+.admin-dashboard .user-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-dashboard .user-status.active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.admin-dashboard .user-status.inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-dashboard .loading-small,
+.admin-dashboard .empty-small {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-sub);
+  font-size: 14px;
 }
 
 /* loading / error */
