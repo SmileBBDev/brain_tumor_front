@@ -48,8 +48,8 @@ export default function PatientListPage() {
       if (genderFilter) params.gender = genderFilter as Gender;
 
       const response = await getPatients(params);
-      setPatients(response.results);
-      setTotalCount(response.count);
+      setPatients(response?.results ?? []);
+      setTotalCount(response?.count ?? 0);
     } catch (error) {
       console.error('Failed to fetch patients:', error);
     } finally {

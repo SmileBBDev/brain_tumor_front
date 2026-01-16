@@ -1,0 +1,30 @@
+# [Versions]
+OPENEMR_VERSION=7.0.2
+MARIADB_VERSION=10.6
+POSTGRES_VERSION=15
+HAPI_FHIR_VERSION=v6.8.3
+ORTHANC_VERSION=1.12.4
+
+# [OpenEMR & MariaDB]
+OE_USER=admin
+OE_PASS=admin_password
+
+OE_MYSQL_ROOT_PASS=root_secure_password
+OE_MYSQL_USER=openemr
+OE_MYSQL_PASS=openemr_password
+OE_MYSQL_DB=openemr
+# 자동 설치 설정 (첫 설치 후 true로 변경)
+OE_SKIP_INSTALLER=false
+OE_MANUAL_SETUP=false
+OE_SITE=default
+
+# [HAPI FHIR]
+HAPI_DB_USER=hapifhir
+HAPI_DB_PASS=hapi_password
+HAPI_DB_NAME=hapifhir
+
+# [Orthanc]
+ORTHANC_DB_USER=orthanc
+ORTHANC_DB_PASS=orthanc_password
+ORTHANC_DB_NAME=orthanc
+USE_GPU=true

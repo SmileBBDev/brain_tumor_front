@@ -1,0 +1,14 @@
+{
+  "Name" : "DockerOrthanc",
+  "HttpPort" : 8042,
+  "DicomPort" : 4242,
+
+  "RemoteAccessAllowed" : true,
+  "AuthenticationEnabled" : false,
+  "RegisteredUsers" : {
+    "orthanc" : "orthanc"
+  },
+
+  "DicomAet" : "ORTHANC",
+  "SslEnabled" : false
+}

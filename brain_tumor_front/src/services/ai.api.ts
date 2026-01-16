@@ -98,54 +98,9 @@ export interface AvailableModel {
 // =============================================================================
 
 // 모델 목록 조회
-// NOTE: 백엔드에 /ai/models/ API가 없으므로 하드코딩된 모델 목록 반환
 export const getAIModels = async (): Promise<AIModel[]> => {
-  // 백엔드 API가 구현되면 아래 코드 활성화
-  // const response = await api.get<AIModel[]>('/ai/models/');
-  // return response.data;
-
-  // 임시 하드코딩된 모델 목록
-  return [
-    {
-      id: 1,
-      code: 'M1',
-      name: 'M1 MRI 분석',
-      description: 'MRI 영상을 분석하여 Grade, IDH, MGMT, 생존 예측',
-      ocs_sources: ['RIS'],
-      required_keys: { RIS: ['MRI'] },
-      version: '1.0.0',
-      is_active: true,
-      config: {},
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      code: 'MG',
-      name: 'MG Gene Analysis',
-      description: '유전자 발현 데이터 분석',
-      ocs_sources: ['LIS'],
-      required_keys: { LIS: ['RNA_SEQ'] },
-      version: '1.0.0',
-      is_active: true,
-      config: {},
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 3,
-      code: 'MM',
-      name: 'MM 멀티모달',
-      description: 'MRI + 유전자 통합 분석',
-      ocs_sources: ['RIS', 'LIS'],
-      required_keys: { RIS: ['MRI'], LIS: ['RNA_SEQ'] },
-      version: '1.0.0',
-      is_active: true,
-      config: {},
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
+  const response = await api.get<AIModel[]>('/ai/models/');
+  return response.data;
 };
 
 // 모델 상세 조회
@@ -171,7 +126,7 @@ export const getAIRequests = async (params?: {
   const data = response.data || [];
 
   // 백엔드 응답을 AIInferenceRequest 형식으로 매핑
-  return data.map((item: any) => ({
+  return data.map((item: AIInferenceBackendResponse) => ({
     id: item.id,
     request_id: item.job_id,
     patient: 0,
@@ -213,10 +168,53 @@ export const getAIRequests = async (params?: {
   }));
 };
 
-// 추론 요청 상세
-export const getAIRequest = async (id: number): Promise<AIInferenceRequest> => {
-  const response = await api.get<AIInferenceRequest>(`/ai/requests/${id}/`);
-  return response.data;
+// 추론 요청 상세 (job_id로 조회)
+export const getAIRequest = async (jobId: string): Promise<AIInferenceRequest> => {
+  // 백엔드 /ai/inferences/<job_id>/ 엔드포인트 사용
+  const response = await api.get(`/ai/inferences/${jobId}/`);
+  const item = response.data;
+
+  // 백엔드 응답을 AIInferenceRequest 형식으로 매핑
+  return {
+    id: item.id,
+    request_id: item.job_id,
+    patient: 0,
+    patient_name: item.patient_name || '',
+    patient_number: item.patient_number || '',
+    model: 0,
+    model_code: item.model_type,
+    model_name: item.model_type === 'M1' ? 'M1 MRI 분석' : item.model_type === 'MG' ? 'MG Gene Analysis' : 'MM 멀티모달',
+    requested_by: 0,
+    requested_by_name: '',
+    ocs_references: [],
+    input_data: {},
+    status: item.status,
+    status_display: item.status,
+    priority: 'normal' as const,
+    priority_display: '보통',
+    requested_at: item.created_at,
+    started_at: null,
+    completed_at: item.completed_at,
+    processing_time: item.result_data?.processing_time_ms || null,
+    error_message: item.error_message,
+    has_result: item.status === 'COMPLETED',
+    result: item.result_data ? {
+      id: item.id,
+      result_data: item.result_data,
+      confidence_score: null,
+      visualization_paths: [],
+      reviewed_by: null,
+      reviewed_by_name: null,
+      review_status: 'pending' as const,
+      review_status_display: '대기',
+      review_comment: null,
+      reviewed_at: null,
+      created_at: item.created_at,
+      updated_at: item.created_at,
+    } : undefined,
+    created_at: item.created_at,
+    updated_at: item.created_at,
+  };
 };
 
 // 추론 요청 생성
@@ -230,9 +228,9 @@ export const createAIRequest = async (data: {
   return response.data;
 };
 
-// 추론 요청 취소
-export const cancelAIRequest = async (id: number): Promise<{ message: string }> => {
-  const response = await api.post<{ message: string }>(`/ai/requests/${id}/cancel/`);
+// 추론 요청 취소 (job_id로 취소)
+export const cancelAIRequest = async (jobId: string): Promise<{ message: string }> => {
+  const response = await api.post<{ message: string }>(`/ai/inferences/${jobId}/cancel/`);
   return response.data;
 };
 
@@ -292,6 +290,20 @@ export interface OCSForModelItem {
   is_compatible: boolean;
   available_keys: string[];
   missing_keys: string[];
+}
+
+// 백엔드 AI 추론 응답 타입
+export interface AIInferenceBackendResponse {
+  id: number;
+  job_id: string;
+  model_type: string;
+  status: string;
+  patient_name?: string;
+  patient_number?: string;
+  created_at: string;
+  completed_at?: string;
+  result_data?: Record<string, unknown>;
+  error_message?: string;
 }
 
 export interface OCSForModelResponse {

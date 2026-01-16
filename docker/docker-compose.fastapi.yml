@@ -1,0 +1,134 @@
+# =============================================================
+# docker-compose.fastapi.yml - FastAPI + Celery (Separate VM Deployment)
+# =============================================================
+# This file is designed for STANDALONE deployment on a separate VM
+# It includes its own Redis instance for Celery task queue
+#
+# Usage:
+#   CPU 버전: docker compose -f docker-compose.fastapi.yml up -d
+#   GPU 버전: docker compose -f docker-compose.fastapi.yml up -d --build
+#             (USE_GPU=true 설정 필요 - 아래 build args 참고)
+# =============================================================
+
+services:
+  # --- FastAPI Application ---
+  fastapi:
+    build:
+      context: ../modAI
+      dockerfile: Dockerfile
+      args:
+        # GPU 사용 시 true로 변경
+        USE_GPU: ${USE_GPU:-false}
+    image: nn-fastapi:latest
+    container_name: nn-fastapi
+    restart: always
+    depends_on:
+      fastapi-redis:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    environment:
+      # FastAPI Settings
+      - APP_ENV=${APP_ENV:-production}
+      - DEBUG=${FASTAPI_DEBUG:-false}
+      # Redis (local to this VM)
+      - REDIS_URL=redis://fastapi-redis:6379/0
+      - CELERY_BROKER_URL=redis://fastapi-redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://fastapi-redis:6379/2
+      # External Services (Main VM - configure with actual IP)
+      - MAIN_VM_IP=${MAIN_VM_IP:-192.168.x.x}
+      - DJANGO_URL=http://${MAIN_VM_IP}:8000
+      - ORTHANC_URL=http://${MAIN_VM_IP}:8042
+      - HAPI_FHIR_URL=http://${MAIN_VM_IP}:8081
+      # GPU Settings
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    volumes:
+      - ../modAI:/app
+      - fastapi_models:/app/models
+      - fastapi_temp:/app/temp
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --workers 2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - fastapi-net
+      - medical-net
+    # GPU Support - 활성화됨
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # --- Celery Worker ---
+  # fastapi 서비스가 빌드한 이미지를 재사용 (동일한 Dockerfile)
+  fastapi-celery:
+    image: nn-fastapi:latest
+    container_name: nn-fastapi-celery
+    restart: always
+    depends_on:
+      fastapi-redis:
+        condition: service_healthy
+      fastapi:
+        condition: service_started
+    environment:
+      # Celery Settings
+      - CELERY_BROKER_URL=redis://fastapi-redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://fastapi-redis:6379/2
+      # External Services
+      - MAIN_VM_IP=${MAIN_VM_IP:-192.168.x.x}
+      - DJANGO_URL=http://${MAIN_VM_IP}:8000
+      - ORTHANC_URL=http://${MAIN_VM_IP}:8042
+      # GPU Settings
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    volumes:
+      - ../modAI:/app
+      - fastapi_models:/app/models
+      - fastapi_temp:/app/temp
+    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q m1_queue,mg_queue,mm_queue,celery
+    networks:
+      - fastapi-net
+      - medical-net
+    # GPU Support - 활성화됨
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # --- Redis for FastAPI/Celery (Local to this VM) ---
+  fastapi-redis:
+    image: redis:7-alpine
+    container_name: nn-fastapi-redis
+    restart: always
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - fastapi_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fastapi-net
+
+networks:
+  fastapi-net:
+    name: fastapi-net
+    driver: bridge
+  medical-net:
+    external: true
+
+volumes:
+  fastapi_models:
+  fastapi_temp:
+  fastapi_redis_data:

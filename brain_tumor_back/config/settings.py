@@ -11,9 +11,9 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# env 초기화
+# env 초기화 (.env 파일에서 환경변수 로드)
 env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, 'dbconn.env'))  # 여기서 파일명 변경
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 
 SECRET_KEY = env('SECRET_KEY')
@@ -234,6 +234,6 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = f"BrainTumor System <{EMAIL_HOST_USER}>"
 
 # Docker로 띄운 Orthanc (docker-compose에서 8042:8042 라고 가정)
-ORTHANC_BASE_URL = "http://localhost:8042"
+ORTHANC_BASE_URL = os.getenv("ORTHANC_URL", "http://localhost:8042")
 DATA_UPLOAD_MAX_NUMBER_FILES = None
 ORTHANC_DEBUG_LOG = True

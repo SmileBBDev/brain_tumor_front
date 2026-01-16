@@ -95,7 +95,7 @@ class MedicationViewSet(viewsets.ModelViewSet):
         file = request.FILES.get('file')
         if not file:
             return Response(
-                {'error': 'CSV 파일이 필요합니다.'},
+                {'detail': 'CSV 파일이 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -150,12 +150,12 @@ class MedicationViewSet(viewsets.ModelViewSet):
 
         except UnicodeDecodeError:
             return Response(
-                {'error': 'UTF-8 인코딩 파일만 지원합니다.'},
+                {'detail': 'UTF-8 인코딩 파일만 지원합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             return Response(
-                {'error': f'파일 처리 중 오류: {str(e)}'},
+                {'detail': f'파일 처리 중 오류: {str(e)}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -256,13 +256,13 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
         if prescription.status != Prescription.Status.DRAFT:
             return Response(
-                {'error': '작성 중인 처방전만 발행할 수 있습니다.'},
+                {'detail': '작성 중인 처방전만 발행할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         if prescription.items.count() == 0:
             return Response(
-                {'error': '처방 항목이 없습니다.'},
+                {'detail': '처방 항목이 없습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -283,7 +283,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
         if prescription.status in [Prescription.Status.DISPENSED, Prescription.Status.CANCELLED]:
             return Response(
-                {'error': '이미 조제 완료되었거나 취소된 처방전입니다.'},
+                {'detail': '이미 조제 완료되었거나 취소된 처방전입니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -308,7 +308,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
         if prescription.status != Prescription.Status.ISSUED:
             return Response(
-                {'error': '발행된 처방전만 조제 완료 처리할 수 있습니다.'},
+                {'detail': '발행된 처방전만 조제 완료 처리할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -334,7 +334,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
         if not prescription.is_editable:
             return Response(
-                {'error': '발행된 처방전은 수정할 수 없습니다.'},
+                {'detail': '발행된 처방전은 수정할 수 없습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -370,7 +370,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
         if not prescription.is_editable:
             return Response(
-                {'error': '발행된 처방전은 수정할 수 없습니다.'},
+                {'detail': '발행된 처방전은 수정할 수 없습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -391,7 +391,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
         if not prescription.is_editable:
             return Response(
-                {'error': '발행된 처방전은 수정할 수 없습니다.'},
+                {'detail': '발행된 처방전은 수정할 수 없습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -401,6 +401,6 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
             return Response({'message': '항목이 삭제되었습니다.'})
         except PrescriptionItem.DoesNotExist:
             return Response(
-                {'error': '존재하지 않는 항목입니다.'},
+                {'detail': '존재하지 않는 항목입니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )

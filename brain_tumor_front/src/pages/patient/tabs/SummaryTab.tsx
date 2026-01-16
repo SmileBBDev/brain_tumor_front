@@ -222,9 +222,9 @@ export default function SummaryTab({ role, patientId }: Props) {
                 <tbody>
                   {aiRequests.map((req) => (
                     <tr
-                      key={req.id}
+                      key={req.request_id}
                       className="clickable-row"
-                      onClick={() => navigate(`/ai/requests/${req.id}`)}
+                      onClick={() => navigate(`/ai/requests/${req.request_id}`)}
                     >
                       <td>{formatDate(req.requested_at)}</td>
                       <td>{req.model_name || req.model_code}</td>

@@ -1,0 +1,77 @@
+
+docker compose up -d
+docker compose ps
+docker compose logs -f
+
+docker compose logs -f hapi-fhir
+
+# 현재 디렉토리에 docker-compose.yml이 있는 경우
+docker compose down
+
+(볼룸 삭제)
+docker compose down -v
+
+docker volume rm $(docker volume ls -q)
+
+===
+서비스,확인 명령어,성공 시 나타나는 핵심 문구
+HAPI FHIR,docker compose logs hapi-fhir | tail -n 20,Tomcat started on port(s): 8080 (http)
+docker compose logs --tail=20 hapi-fhir
+
+OpenEMR,docker compose logs openemr | tail -n 20,"fpm is running, ready to handle connections"
+Orthanc,docker compose logs orthanc | tail -n 20,Orthanc has started
+데이터베이스,docker compose logs openemr-db,ready for connections
+===
+| 항목                | 입력값                  |
+| ----------------- | -------------------- |
+| **Server Host**   | `openemr-db`         |
+| **Server Port**   | `3306`               |
+| **Database Name** | `${OE_MYSQL_DB}` 값   |
+| **Login Name**    | `${OE_MYSQL_USER}` 값 |
+| **Password**      | `${OE_MYSQL_PASS}` 값 |
+
+
+# [OpenEMR & MariaDB]
+OE_USER=admin
+OE_PASS=admin_password
+
+OE_MYSQL_ROOT_PASS=root_secure_password
+
+OE_MYSQL_USER=openemr
+OE_MYSQL_PASS=openemr_password
+OE_MYSQL_DB=openemr
+===
+
+
+
+
+
+3단계: 웹 UI 접속 테스트 (최종 확인)
+브라우저를 열고 다음 주소들에 직접 접속하여 화면이 뜨는지 확인하세요.
+
+OpenEMR: http://localhost:8080
+
+설치 마법사 화면이나 로그인 화면이 나오면 성공입니다.
+
+HAPI FHIR: http://localhost:8081
+
+"HAPI FHIR Tester"라는 파란색 상단 바가 있는 페이지가 뜨면 성공입니다.
+
+Orthanc (PACS): http://localhost:8042
+
+로그인창이 뜨면 ID/PW에 orthanc / orthanc를 입력해 보세요.
+
+Redis: (웹 UI 없음)
+
+docker exec -it nn-redis redis-cli ping 입력 시 PONG이 오면 성공입니다.
+
+
+
+==============
+0106
+
+# 1. 실행 중인 컨테이너 중지 및 관련 네트워크, 볼륨(-v) 삭제
+docker-compose down -v
+
+# 2. (선택사항) 잔류하는 볼륨이 있는지 확인 후 강제 삭제
+docker volume prune -f

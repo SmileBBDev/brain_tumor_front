@@ -196,9 +196,9 @@ export default function AIProcessStatusPage() {
             <div className="request-list">
               {activeRequests.map((req) => (
                 <div
-                  key={req.id}
+                  key={req.request_id}
                   className="request-item"
-                  onClick={() => navigate(`/ai/requests/${req.id}`)}
+                  onClick={() => navigate(`/ai/requests/${req.request_id}`)}
                 >
                   <div className="request-info">
                     <span className="request-model">{req.model_name}</span>
@@ -229,9 +229,9 @@ export default function AIProcessStatusPage() {
             <div className="request-list">
               {recentResults.map((req) => (
                 <div
-                  key={req.id}
+                  key={req.request_id}
                   className="request-item"
-                  onClick={() => navigate(`/ai/requests/${req.id}`)}
+                  onClick={() => navigate(`/ai/requests/${req.request_id}`)}
                 >
                   <div className="request-info">
                     <span className="request-model">{req.model_name}</span>

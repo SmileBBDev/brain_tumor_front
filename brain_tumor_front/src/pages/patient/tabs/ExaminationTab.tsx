@@ -160,7 +160,7 @@ export default function ExaminationTab({ role, patientId }: Props) {
         ) : (
           <div className="ai-requests-list">
             {aiRequests.map((req) => (
-              <div key={req.id} className="ai-request-card">
+              <div key={req.request_id} className="ai-request-card">
                 <div className="ai-request-header">
                   <span className="model-name">{req.model_name || req.model_code}</span>
                   <span className={`status-badge status-${req.status.toLowerCase()}`}>

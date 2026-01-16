@@ -128,7 +128,7 @@ class DoctorScheduleViewSet(viewsets.ModelViewSet):
 
         if not year or not month:
             return Response(
-                {'error': 'year와 month 파라미터가 필요합니다.'},
+                {'detail': 'year와 month 파라미터가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -137,7 +137,7 @@ class DoctorScheduleViewSet(viewsets.ModelViewSet):
             month = int(month)
         except ValueError:
             return Response(
-                {'error': 'year와 month는 숫자여야 합니다.'},
+                {'detail': 'year와 month는 숫자여야 합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -338,7 +338,7 @@ class UnifiedCalendarView(APIView):
 
         if not year or not month:
             return Response(
-                {'error': 'year와 month 파라미터가 필요합니다.'},
+                {'detail': 'year와 month 파라미터가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -347,7 +347,7 @@ class UnifiedCalendarView(APIView):
             month = int(month)
         except ValueError:
             return Response(
-                {'error': 'year와 month는 숫자여야 합니다.'},
+                {'detail': 'year와 month는 숫자여야 합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

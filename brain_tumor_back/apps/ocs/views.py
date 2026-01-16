@@ -164,7 +164,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         ocs_id = request.query_params.get('ocs_id')
         if not ocs_id:
             return Response(
-                {'error': 'ocs_id 파라미터가 필요합니다.'},
+                {'detail': 'ocs_id 파라미터가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -174,7 +174,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except OCS.DoesNotExist:
             return Response(
-                {'error': '해당 OCS를 찾을 수 없습니다.'},
+                {'detail': '해당 OCS를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -195,7 +195,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         patient_id = request.query_params.get('patient_id')
         if not patient_id:
             return Response(
-                {'error': 'patient_id 파라미터가 필요합니다.'},
+                {'detail': 'patient_id 파라미터가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -210,7 +210,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         doctor_id = request.query_params.get('doctor_id')
         if not doctor_id:
             return Response(
-                {'error': 'doctor_id 파라미터가 필요합니다.'},
+                {'detail': 'doctor_id 파라미터가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -225,7 +225,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         worker_id = request.query_params.get('worker_id')
         if not worker_id:
             return Response(
-                {'error': 'worker_id 파라미터가 필요합니다.'},
+                {'detail': 'worker_id 파라미터가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -516,7 +516,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         # LIS job_role 검증
         if ocs.job_role != 'LIS':
             return Response(
-                {'error': 'LIS 오더에만 파일을 업로드할 수 있습니다.'},
+                {'detail': 'LIS 오더에만 파일을 업로드할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -524,7 +524,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response(
-                {'error': '파일이 필요합니다.'},
+                {'detail': '파일이 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -533,7 +533,25 @@ class OCSViewSet(viewsets.ModelViewSet):
         file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
         if file_ext not in allowed_extensions:
             return Response(
-                {'error': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                {'detail': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # MIME type 검증
+        import mimetypes
+        allowed_mimetypes = [
+            'text/csv', 'application/csv',
+            'application/json',
+            'application/xml', 'text/xml',
+            'application/octet-stream',  # HL7 파일
+            'text/plain',  # CSV, HL7 파일이 이 타입으로 올 수 있음
+        ]
+        content_type = uploaded_file.content_type
+        guessed_type, _ = mimetypes.guess_type(uploaded_file.name)
+
+        if content_type not in allowed_mimetypes and guessed_type not in allowed_mimetypes:
+            return Response(
+                {'detail': '허용되지 않은 파일 형식입니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -541,7 +559,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         max_size = 10 * 1024 * 1024
         if uploaded_file.size > max_size:
             return Response(
-                {'error': '파일 크기가 10MB를 초과합니다.'},
+                {'detail': '파일 크기가 10MB를 초과합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -633,7 +651,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         patient_id = request.data.get('patient_id')
         if not patient_id:
             return Response(
-                {'error': 'patient_id가 필요합니다.'},
+                {'detail': 'patient_id가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -641,7 +659,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             patient = Patient.objects.get(id=patient_id, is_deleted=False)
         except Patient.DoesNotExist:
             return Response(
-                {'error': '환자를 찾을 수 없습니다.'},
+                {'detail': '환자를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -653,7 +671,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
             if file_ext not in allowed_extensions:
                 return Response(
-                    {'error': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                    {'detail': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -661,7 +679,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             max_size = 10 * 1024 * 1024
             if uploaded_file.size > max_size:
                 return Response(
-                    {'error': '파일 크기가 10MB를 초과합니다.'},
+                    {'detail': '파일 크기가 10MB를 초과합니다.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -812,7 +830,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         # RIS job_role 검증
         if ocs.job_role != 'RIS':
             return Response(
-                {'error': 'RIS 오더에만 파일을 업로드할 수 있습니다.'},
+                {'detail': 'RIS 오더에만 파일을 업로드할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -820,7 +838,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response(
-                {'error': '파일이 필요합니다.'},
+                {'detail': '파일이 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -829,7 +847,25 @@ class OCSViewSet(viewsets.ModelViewSet):
         file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
         if file_ext not in allowed_extensions:
             return Response(
-                {'error': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                {'detail': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # MIME type 검증
+        import mimetypes
+        allowed_mimetypes = [
+            'application/dicom',
+            'image/jpeg', 'image/png',
+            'application/pdf',
+            'application/zip', 'application/x-zip-compressed',
+            'application/octet-stream',  # DICOM 파일
+        ]
+        content_type = uploaded_file.content_type
+        guessed_type, _ = mimetypes.guess_type(uploaded_file.name)
+
+        if content_type not in allowed_mimetypes and guessed_type not in allowed_mimetypes:
+            return Response(
+                {'detail': '허용되지 않은 파일 형식입니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -837,7 +873,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         max_size = 100 * 1024 * 1024
         if uploaded_file.size > max_size:
             return Response(
-                {'error': '파일 크기가 100MB를 초과합니다.'},
+                {'detail': '파일 크기가 100MB를 초과합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -922,7 +958,7 @@ class OCSViewSet(viewsets.ModelViewSet):
         patient_id = request.data.get('patient_id')
         if not patient_id:
             return Response(
-                {'error': 'patient_id가 필요합니다.'},
+                {'detail': 'patient_id가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -930,7 +966,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             patient = Patient.objects.get(id=patient_id, is_deleted=False)
         except Patient.DoesNotExist:
             return Response(
-                {'error': '환자를 찾을 수 없습니다.'},
+                {'detail': '환자를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -942,7 +978,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
             if file_ext not in allowed_extensions:
                 return Response(
-                    {'error': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
+                    {'detail': f'지원하지 않는 파일 형식입니다. (지원: {", ".join(allowed_extensions)})'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -950,7 +986,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             max_size = 100 * 1024 * 1024
             if uploaded_file.size > max_size:
                 return Response(
-                    {'error': '파일 크기가 100MB를 초과합니다.'},
+                    {'detail': '파일 크기가 100MB를 초과합니다.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -1128,7 +1164,7 @@ class OCSProcessStatusView(APIView):
         except Exception as e:
             logger.error(f"OCS process status error: {str(e)}")
             return Response(
-                {'error': '처리 현황을 불러오는 중 오류가 발생했습니다.'},
+                {'detail': '처리 현황을 불러오는 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

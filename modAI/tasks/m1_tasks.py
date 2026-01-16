@@ -5,6 +5,7 @@ M1 MRI 추론을 위한 비동기 Celery task
 - CDSS_STORAGE 직접 접근 없음
 - 결과 파일은 callback으로 Django에 전송
 """
+import os
 import time
 import logging
 import httpx
@@ -19,6 +20,35 @@ from services.m1_service import M1InferenceService
 from utils.orthanc_client import OrthancClient
 
 logger = get_task_logger(__name__)
+
+
+def resolve_callback_url(callback_url: str) -> str:
+    """
+    Docker 환경에서 callback URL의 localhost를 실제 Django URL로 대체
+
+    Docker 컨테이너 내부에서는 localhost로 호스트 머신에 접근할 수 없으므로,
+    DJANGO_URL 환경변수를 사용하여 올바른 URL로 변환합니다.
+    """
+    django_url = os.getenv('DJANGO_URL', '')
+
+    if not django_url:
+        return callback_url
+
+    # localhost 또는 127.0.0.1을 DJANGO_URL로 대체
+    if 'localhost' in callback_url or '127.0.0.1' in callback_url:
+        # callback_url에서 path 부분 추출
+        from urllib.parse import urlparse
+        parsed = urlparse(callback_url)
+        path = parsed.path
+        if parsed.query:
+            path += f'?{parsed.query}'
+
+        # DJANGO_URL과 path 결합
+        resolved_url = django_url.rstrip('/') + path
+        logger.info(f"[M1] Callback URL resolved: {callback_url} -> {resolved_url}")
+        return resolved_url
+
+    return callback_url
 
 
 @shared_task(bind=True, name='tasks.m1_tasks.run_m1_inference')
@@ -161,8 +191,9 @@ def run_m1_inference(
         }
 
         try:
+            resolved_callback_url = resolve_callback_url(callback_url)
             response = httpx.post(
-                callback_url,
+                resolved_callback_url,
                 json=callback_data,
                 timeout=120.0  # NPZ 파일이 크므로 타임아웃 증가
             )
@@ -185,8 +216,9 @@ def run_m1_inference(
 
         # Django에 실패 callback
         try:
+            resolved_callback_url = resolve_callback_url(callback_url)
             httpx.post(
-                callback_url,
+                resolved_callback_url,
                 json={
                     'job_id': job_id,
                     'status': 'failed',

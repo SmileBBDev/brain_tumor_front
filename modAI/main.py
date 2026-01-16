@@ -62,14 +62,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS 설정
+# CORS 설정 - 환경변수에서 MAIN_VM_IP 가져오기
+main_vm_ip = os.getenv('MAIN_VM_IP', '')
+cors_origins = [
+    "http://localhost:8000",  # Django
+    "http://localhost:5173",  # React (Vite)
+    "http://localhost:3000",  # React (CRA)
+]
+if main_vm_ip:
+    cors_origins.extend([
+        f"http://{main_vm_ip}:8000",  # Django on Main VM
+        f"http://{main_vm_ip}:5173",  # React (Vite) on Main VM
+        f"http://{main_vm_ip}:3000",  # React (CRA) on Main VM
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8000",  # Django
-        "http://localhost:5173",  # React (Vite)
-        "http://localhost:3000",  # React (CRA)
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

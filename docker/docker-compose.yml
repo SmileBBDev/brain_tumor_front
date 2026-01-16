@@ -1,0 +1,57 @@
+# =============================================================
+# docker-compose.yml - Base Infrastructure (Orthanc + Redis + Network)
+# =============================================================
+# Usage:
+#   docker compose up -d
+#
+# Combined with other services:
+#   docker compose -f docker-compose.yml -f docker-compose.django.yml -f docker-compose.emr.yml up -d
+# =============================================================
+
+services:
+  # --- Orthanc (DICOM/PACS Server) ---
+  orthanc:
+    image: orthancteam/orthanc:latest
+    container_name: nn-orthanc
+    restart: always
+    ports:
+      - "8042:8042"   # HTTP Web UI
+      - "4242:4242"   # DICOM Protocol
+    volumes:
+      - ./orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
+      - orthanc_data:/var/lib/orthanc/db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8042/system"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - medical-net
+
+  # --- Redis (Shared Cache/Message Broker) ---
+  redis:
+    image: redis:7-alpine
+    container_name: nn-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medical-net
+
+networks:
+  medical-net:
+    name: medical-net
+    driver: bridge
+
+volumes:
+  orthanc_data:
+  redis_data:

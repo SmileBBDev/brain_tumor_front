@@ -1,0 +1,137 @@
+# =============================================================
+# docker-compose.emr.yml - OpenEMR + HAPI FHIR + Databases
+# =============================================================
+# Usage (with base):
+#   docker compose -f docker-compose.yml -f docker-compose.emr.yml up -d
+# =============================================================
+
+services:
+  # --- OpenEMR ---
+  openemr:
+    image: openemr/openemr:${OPENEMR_VERSION:-7.0.2}
+    container_name: nn-openemr
+    restart: always
+    depends_on:
+      openemr-db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      # DB Connection
+      - MYSQL_HOSTNAME=openemr-db
+      - MYSQL_ROOT_PASSWORD=${OE_MYSQL_ROOT_PASS}
+      - MYSQL_USER=${OE_MYSQL_USER}
+      - MYSQL_PASS=${OE_MYSQL_PASS}
+      - MYSQL_DATABASE=${OE_MYSQL_DB}
+      # OpenEMR Admin Account
+      - OE_USER=${OE_USER}
+      - OE_PASS=${OE_PASS}
+      # Installation Settings
+      - SKIP_INSTALLER=${OE_SKIP_INSTALLER:-false}
+      - MANUAL_SETUP=${OE_MANUAL_SETUP:-false}
+      - OPENEMR_SITE=${OE_SITE:-default}
+      - SWARM_MODE=no
+    volumes:
+      - openemr_sites:/var/www/localhost/htdocs/openemr/sites
+      - openemr_logs:/var/log
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - medical-net
+
+  # --- OpenEMR Database (MariaDB) ---
+  openemr-db:
+    image: mariadb:${MARIADB_VERSION:-10.11}
+    container_name: nn-openemr-db
+    restart: always
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      - MYSQL_ROOT_PASSWORD=${OE_MYSQL_ROOT_PASS}
+      - MYSQL_DATABASE=${OE_MYSQL_DB}
+      - MYSQL_USER=${OE_MYSQL_USER}
+      - MYSQL_PASSWORD=${OE_MYSQL_PASS}
+    ports:
+      - "3308:3306"
+    volumes:
+      - openemr_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${OE_MYSQL_ROOT_PASS}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - medical-net
+
+  # --- HAPI FHIR Server ---
+  hapi-fhir:
+    image: hapiproject/hapi:${HAPI_FHIR_VERSION:-v7.0.0}
+    container_name: nn-hapi-fhir
+    restart: always
+    depends_on:
+      hapi-db:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      # PostgreSQL Connection
+      - spring.datasource.url=jdbc:postgresql://hapi-db:5432/${HAPI_DB_NAME}
+      - spring.datasource.username=${HAPI_DB_USER}
+      - spring.datasource.password=${HAPI_DB_PASS}
+      - spring.datasource.driverClassName=org.postgresql.Driver
+      - spring.jpa.properties.hibernate.dialect=ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgres94Dialect
+      # HAPI FHIR Settings
+      - hapi.fhir.allow_external_references=true
+      - hapi.fhir.allow_multiple_delete=true
+      - hapi.fhir.allow_contains_searches=true
+      - hapi.fhir.allow_override_default_search_params=true
+      - hapi.fhir.auto_create_placeholder_reference_targets=true
+      # Performance Settings
+      - hapi.fhir.bulk_export_enabled=true
+      - hapi.fhir.narrative_enabled=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/fhir/metadata"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - medical-net
+
+  # --- HAPI FHIR Database (PostgreSQL) ---
+  hapi-db:
+    image: postgres:${POSTGRES_VERSION:-15-alpine}
+    container_name: nn-hapi-db
+    restart: always
+    environment:
+      - POSTGRES_DB=${HAPI_DB_NAME}
+      - POSTGRES_USER=${HAPI_DB_USER}
+      - POSTGRES_PASSWORD=${HAPI_DB_PASS}
+    ports:
+      - "5432:5432"
+    volumes:
+      - hapi_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HAPI_DB_USER} -d ${HAPI_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - medical-net
+
+networks:
+  medical-net:
+    external: true
+
+volumes:
+  openemr_sites:
+  openemr_logs:
+  openemr_db_data:
+  hapi_db_data:

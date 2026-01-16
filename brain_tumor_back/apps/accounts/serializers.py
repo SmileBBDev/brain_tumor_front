@@ -1,4 +1,6 @@
-from venv import logger
+import logging
+
+logger = logging.getLogger(__name__)
 from rest_framework.exceptions import ValidationError
 from rest_framework import serializers
 from apps.authorization.serializers import RoleSerializer

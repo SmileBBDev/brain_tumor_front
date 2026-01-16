@@ -1,10 +1,17 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = 'dev-secret'
-DEBUG = False
+# Redis 설정 (환경변수 우선)
+REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+
+# SECRET_KEY: 환경변수 우선, 없으면 개발용 기본값 사용
+# ⚠️ 프로덕션에서는 반드시 환경변수로 안전한 키 설정 필요
+SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-do-not-use-in-production')
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = []
 
@@ -66,7 +73,7 @@ CHANNEL_LAYERS = {
     "default" : {
         "BACKEND" : "channels_redis.core.RedisChannelLayer",
         "CONFIG" : {
-            "hosts" : [("127.0.0.1", 6379)],
+            "hosts" : [(REDIS_HOST, REDIS_PORT)],
         }
     }
 }

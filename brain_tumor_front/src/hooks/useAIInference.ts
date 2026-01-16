@@ -115,14 +115,14 @@ export interface UseAIRequestDetailReturn {
   review: (status: 'approved' | 'rejected', comment?: string) => Promise<void>;
 }
 
-export function useAIRequestDetail(requestId: number | null): UseAIRequestDetailReturn {
+export function useAIRequestDetail(jobId: string | null): UseAIRequestDetailReturn {
   const [request, setRequest] = useState<AIInferenceRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchDetail = useCallback(async () => {
-    if (!requestId) {
+    if (!jobId) {
       setRequest(null);
       return;
     }
@@ -131,7 +131,7 @@ export function useAIRequestDetail(requestId: number | null): UseAIRequestDetail
     setError(null);
 
     try {
-      const data = await getAIRequest(requestId);
+      const data = await getAIRequest(jobId);
       setRequest(data);
     } catch (err) {
       console.error('[useAIRequestDetail] Failed to fetch:', err);
@@ -140,7 +140,7 @@ export function useAIRequestDetail(requestId: number | null): UseAIRequestDetail
     } finally {
       setLoading(false);
     }
-  }, [requestId]);
+  }, [jobId]);
 
   useEffect(() => {
     fetchDetail();
@@ -165,16 +165,16 @@ export function useAIRequestDetail(requestId: number | null): UseAIRequestDetail
   }, []);
 
   const cancel = useCallback(async () => {
-    if (!requestId) return;
+    if (!jobId) return;
 
     try {
-      await cancelAIRequest(requestId);
+      await cancelAIRequest(jobId);
       refresh();
     } catch (err) {
       console.error('[useAIRequestDetail] Failed to cancel:', err);
       throw err;
     }
-  }, [requestId, refresh]);
+  }, [jobId, refresh]);
 
   const review = useCallback(
     async (status: 'approved' | 'rejected', comment?: string) => {

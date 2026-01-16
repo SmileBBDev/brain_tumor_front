@@ -22,8 +22,8 @@ class InferenceCallbackSerializer(serializers.Serializer):
 
 class AIInferenceSerializer(serializers.ModelSerializer):
     """AI 추론 결과 직렬화"""
-    patient_name = serializers.CharField(source='patient.name', read_only=True)
-    patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
+    patient_name = serializers.SerializerMethodField()
+    patient_number = serializers.SerializerMethodField()
 
     class Meta:
         model = AIInference
@@ -35,3 +35,9 @@ class AIInferenceSerializer(serializers.ModelSerializer):
             'created_at', 'completed_at'
         ]
         read_only_fields = ['job_id', 'created_at', 'completed_at']
+
+    def get_patient_name(self, obj):
+        return obj.patient.name if obj.patient else None
+
+    def get_patient_number(self, obj):
+        return obj.patient.patient_number if obj.patient else None

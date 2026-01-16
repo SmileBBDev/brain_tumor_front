@@ -515,7 +515,7 @@ export default function ExaminationTab({
                               className="btn btn-sm btn-primary"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/ai/requests/${ocsAIResults[0].id}`);
+                                navigate(`/ai/requests/${ocsAIResults[0].request_id}`);
                               }}
                             >
                               AI결과 ({ocsAIResults.length})
@@ -572,9 +572,9 @@ export default function ExaminationTab({
                 <div className="result-list compact">
                   {aiRequests.slice(0, 5).map((req) => (
                     <div
-                      key={req.id}
+                      key={req.request_id}
                       className="result-item ai-request-item"
-                      onClick={() => navigate(`/ai/requests/${req.id}`)}
+                      onClick={() => navigate(`/ai/requests/${req.request_id}`)}
                     >
                       <div className="result-item-content">
                         <span className="result-type">{req.model_name}</span>

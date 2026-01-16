@@ -121,7 +121,7 @@ class AdminDashboardStatsView(APIView):
         except Exception as e:
             logger.error(f"Admin dashboard stats error: {str(e)}")
             return Response(
-                {'error': '통계를 불러오는 중 오류가 발생했습니다.'},
+                {'detail': '통계를 불러오는 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -191,7 +191,7 @@ class ExternalDashboardStatsView(APIView):
         except Exception as e:
             logger.error(f"External dashboard stats error: {str(e)}")
             return Response(
-                {'error': '통계를 불러오는 중 오류가 발생했습니다.'},
+                {'detail': '통계를 불러오는 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -258,6 +258,6 @@ class DoctorDashboardStatsView(APIView):
         except Exception as e:
             logger.error(f"Doctor dashboard stats error: {str(e)}")
             return Response(
-                {'error': '통계를 불러오는 중 오류가 발생했습니다.'},
+                {'detail': '통계를 불러오는 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

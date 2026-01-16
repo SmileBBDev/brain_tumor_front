@@ -124,7 +124,7 @@ class FinalReportDetailView(APIView):
         # DRAFT 상태에서만 삭제 가능
         if report.status != FinalReport.Status.DRAFT:
             return Response(
-                {'error': '작성 중 상태의 보고서만 삭제할 수 있습니다.'},
+                {'detail': '작성 중 상태의 보고서만 삭제할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -156,7 +156,7 @@ class FinalReportSubmitView(APIView):
 
         if report.status != FinalReport.Status.DRAFT:
             return Response(
-                {'error': '작성 중 상태의 보고서만 제출할 수 있습니다.'},
+                {'detail': '작성 중 상태의 보고서만 제출할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -189,7 +189,7 @@ class FinalReportApproveView(APIView):
 
         if report.status != FinalReport.Status.PENDING_REVIEW:
             return Response(
-                {'error': '검토 대기 상태의 보고서만 승인할 수 있습니다.'},
+                {'detail': '검토 대기 상태의 보고서만 승인할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -226,7 +226,7 @@ class FinalReportFinalizeView(APIView):
 
         if report.status != FinalReport.Status.APPROVED:
             return Response(
-                {'error': '승인된 보고서만 최종 확정할 수 있습니다.'},
+                {'detail': '승인된 보고서만 최종 확정할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -582,7 +582,7 @@ class PatientReportTimelineView(APIView):
             patient = Patient.objects.get(id=patient_id)
         except Patient.DoesNotExist:
             return Response(
-                {'error': '환자를 찾을 수 없습니다.'},
+                {'detail': '환자를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 

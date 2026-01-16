@@ -1,11 +1,14 @@
+import os
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.utils import timezone
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 import redis
 
-# Redis 클라이언트 객체 생성 (전역에서 재사용)
-redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
+# Redis 클라이언트 객체 생성 (환경변수 우선)
+redis_host = os.environ.get('REDIS_HOST', '127.0.0.1')
+redis_port = int(os.environ.get('REDIS_PORT', 6379))
+redis_client = redis.Redis(host=redis_host, port=redis_port, db=0)
 
 # 사용자 권한 변경 알림 Consumer
 class UserPermissionConsumer(AsyncJsonWebsocketConsumer):

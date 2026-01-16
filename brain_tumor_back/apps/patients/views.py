@@ -81,7 +81,7 @@ def patient_list_create(request):
                 )
             except Exception as e:
                 return Response(
-                    {'error': str(e)},
+                    {'detail': str(e)},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
@@ -127,12 +127,12 @@ def patient_detail(request, patient_id):
 
     except ObjectDoesNotExist:
         return Response(
-            {'error': '환자를 찾을 수 없습니다.'},
+            {'detail': '환자를 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
     except Exception as e:
         return Response(
-            {'error': str(e)},
+            {'detail': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -153,7 +153,7 @@ def patient_search(request):
 
     if len(query) < 2:
         return Response(
-            {'error': '검색어는 2자 이상 입력해주세요.'},
+            {'detail': '검색어는 2자 이상 입력해주세요.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -217,14 +217,14 @@ def create_external_patient(request):
 
     if not all([name, birth_date, gender]):
         return Response(
-            {'error': '필수 정보가 누락되었습니다. (이름, 생년월일, 성별)'},
+            {'detail': '필수 정보가 누락되었습니다. (이름, 생년월일, 성별)'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     # 성별 검증
     if gender not in ['M', 'F', 'O']:
         return Response(
-            {'error': '성별은 M, F, O 중 하나여야 합니다.'},
+            {'detail': '성별은 M, F, O 중 하나여야 합니다.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -234,7 +234,7 @@ def create_external_patient(request):
         birth_date_parsed = datetime.strptime(birth_date, '%Y-%m-%d').date()
     except ValueError:
         return Response(
-            {'error': '생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)'},
+            {'detail': '생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -275,7 +275,7 @@ def create_external_patient(request):
 
     except Exception as e:
         return Response(
-            {'error': f'환자 등록 중 오류가 발생했습니다: {str(e)}'},
+            {'detail': f'환자 등록 중 오류가 발생했습니다: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -299,7 +299,7 @@ def patient_summary(request, patient_id):
         patient = PatientService.get_patient_by_id(patient_id)
     except ObjectDoesNotExist:
         return Response(
-            {'error': '환자를 찾을 수 없습니다.'},
+            {'detail': '환자를 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
 
@@ -378,7 +378,7 @@ def patient_alerts_list_create(request, patient_id):
         patient = PatientService.get_patient_by_id(patient_id)
     except ObjectDoesNotExist:
         return Response(
-            {'error': '환자를 찾을 수 없습니다.'},
+            {'detail': '환자를 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
 
@@ -428,7 +428,7 @@ def patient_alert_detail(request, patient_id, alert_id):
         alert = PatientAlert.objects.get(id=alert_id, patient=patient)
     except ObjectDoesNotExist:
         return Response(
-            {'error': '주의사항을 찾을 수 없습니다.'},
+            {'detail': '주의사항을 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
 
@@ -472,14 +472,14 @@ def patient_examination_summary(request, patient_id):
         patient = PatientService.get_patient_by_id(patient_id)
     except ObjectDoesNotExist:
         return Response(
-            {'error': '환자를 찾을 수 없습니다.'},
+            {'detail': '환자를 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
     except Exception as e:
         import traceback
         traceback.print_exc()
         return Response(
-            {'error': f'환자 조회 중 오류: {str(e)}'},
+            {'detail': f'환자 조회 중 오류: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -609,7 +609,7 @@ def _get_patient_from_user(user):
     # 역할 확인
     if not user.role or user.role.code != 'PATIENT':
         return None, Response(
-            {'error': '환자 계정으로만 접근할 수 있습니다.'},
+            {'detail': '환자 계정으로만 접근할 수 있습니다.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -618,13 +618,13 @@ def _get_patient_from_user(user):
         patient = user.patient_profile
         if patient.is_deleted:
             return None, Response(
-                {'error': '삭제된 환자 정보입니다.'},
+                {'detail': '삭제된 환자 정보입니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
         return patient, None
     except Patient.DoesNotExist:
         return None, Response(
-            {'error': '연결된 환자 정보가 없습니다. 관리자에게 문의하세요.'},
+            {'detail': '연결된 환자 정보가 없습니다. 관리자에게 문의하세요.'},
             status=status.HTTP_404_NOT_FOUND
         )
 

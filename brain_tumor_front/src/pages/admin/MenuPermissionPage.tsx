@@ -30,15 +30,19 @@ export default function MenuPermissionPage() {
      초기 로딩
   ========================= */
   useEffect(() => {
-    Promise.all([fetchRoles(), fetchMenuTree()]).then(
-      ([roles, menus]) => {
-        setRoles(roles);
-        setMenuTree(menus);
-        if (roles.length > 0) {
+    Promise.all([fetchRoles(), fetchMenuTree()])
+      .then(([roles, menus]) => {
+        setRoles(roles ?? []);
+        setMenuTree(menus ?? []);
+        if (roles && roles.length > 0) {
           setSelectedRole(roles[0]);
         }
-      }
-    );
+      })
+      .catch((error) => {
+        console.error('메뉴 권한 데이터 로딩 실패:', error);
+        setRoles([]);
+        setMenuTree([]);
+      });
   }, []);
 
   /* =========================

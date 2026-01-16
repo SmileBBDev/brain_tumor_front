@@ -56,7 +56,7 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
         plan = self.get_object()
         if plan.status != TreatmentPlan.Status.PLANNED:
             return Response(
-                {'error': '계획됨 상태에서만 시작할 수 있습니다.'},
+                {'detail': '계획됨 상태에서만 시작할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         plan.status = TreatmentPlan.Status.IN_PROGRESS
@@ -70,7 +70,7 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
         plan = self.get_object()
         if plan.status != TreatmentPlan.Status.IN_PROGRESS:
             return Response(
-                {'error': '진행 중 상태에서만 완료할 수 있습니다.'},
+                {'detail': '진행 중 상태에서만 완료할 수 있습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         plan.status = TreatmentPlan.Status.COMPLETED
@@ -84,7 +84,7 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
         plan = self.get_object()
         if plan.status in [TreatmentPlan.Status.COMPLETED, TreatmentPlan.Status.CANCELLED]:
             return Response(
-                {'error': '이미 완료되거나 취소된 계획입니다.'},
+                {'detail': '이미 완료되거나 취소된 계획입니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         plan.status = TreatmentPlan.Status.CANCELLED

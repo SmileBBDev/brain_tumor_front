@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from apps.patients.models import Patient
 from apps.accounts.models import User
 from apps.ocs.models import OCS
@@ -147,9 +147,13 @@ class AIInference(models.Model):
             self.job_id = self._generate_job_id()
         super().save(*args, **kwargs)
 
+    @transaction.atomic
     def _generate_job_id(self):
-        """job_id 자동 생성 (ai_req_0001 형식)"""
-        last = AIInference.objects.order_by('-id').first()
+        """job_id 자동 생성 (ai_req_0001 형식)
+
+        Race condition 방지를 위해 @transaction.atomic + select_for_update 사용
+        """
+        last = AIInference.objects.select_for_update().order_by('-id').first()
         if last and last.job_id:
             try:
                 num = int(last.job_id.split('_')[-1])

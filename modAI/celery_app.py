@@ -6,8 +6,8 @@ from config import settings
 
 celery_app = Celery(
     'modai_tasks',
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    broker=settings.CELERY_BROKER_URL or settings.REDIS_URL,
+    backend=settings.CELERY_RESULT_BACKEND or settings.REDIS_URL,
     include=['tasks.m1_tasks', 'tasks.mg_tasks', 'tasks.mm_tasks']
 )
 
@@ -41,8 +41,7 @@ celery_app.conf.update(
     # Task routing - 태스크를 적절한 큐로 라우팅
     task_routes={
         'tasks.m1_tasks.run_m1_inference': {'queue': 'm1_queue'},
-        'tasks.mg_tasks.run_mg_inference': {'queue': 'm2_queue'},
-        'tasks.m2_tasks.*': {'queue': 'm2_queue'},
+        'tasks.mg_tasks.run_mg_inference': {'queue': 'mg_queue'},
         'tasks.mm_tasks.*': {'queue': 'mm_queue'},
     },
 )

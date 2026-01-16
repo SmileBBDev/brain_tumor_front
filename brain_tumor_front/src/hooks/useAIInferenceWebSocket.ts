@@ -69,6 +69,11 @@ export function useAIInferenceWebSocket(): UseAIInferenceWebSocketReturn {
     }
 
     const token = localStorage.getItem('accessToken')
+    if (!token) {
+      console.log('[AI WS] No access token found, skipping connection')
+      return
+    }
+
     const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'
     const wsUrl = `${wsBaseUrl}/ws/ai-inference/?token=${token}`
 

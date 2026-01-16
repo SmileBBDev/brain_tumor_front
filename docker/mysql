@@ -1,0 +1,13 @@
+docker run -d `
+  --name mysql8 `
+  -e MYSQL_ROOT_PASSWORD=root1234 `
+  -e MYSQL_DATABASE=brain_tumor `
+  -p 3306:3306 `
+  mysql:8.0
+
+
+
+✔ MySQL 8.0
+✔ root 비번: root1234
+✔ DB: testdb
+✔ 포트: localhost:3306

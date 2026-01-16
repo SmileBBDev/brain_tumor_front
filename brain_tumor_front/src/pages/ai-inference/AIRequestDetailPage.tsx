@@ -41,9 +41,9 @@ export default function AIRequestDetailPage() {
   const [reviewComment, setReviewComment] = useState('');
   const [showLogs, setShowLogs] = useState(false);
 
-  // 데이터 조회
+  // 데이터 조회 (URL의 id는 job_id)
   const { request, loading, error, refresh, cancel, review } = useAIRequestDetail(
-    id ? Number(id) : null
+    id ?? null
   );
 
   // 시간 포맷

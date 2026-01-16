@@ -1,0 +1,99 @@
+# =============================================================
+# docker-compose.django.yml - Django Backend
+# =============================================================
+# Usage:
+#   docker compose -f docker-compose.django.yml up -d
+#
+# Note: medical-net 네트워크가 먼저 생성되어 있어야 합니다.
+#   docker compose -f docker-compose.yml up -d (먼저 실행)
+# =============================================================
+
+services:
+  # --- Django Application ---
+  django:
+    build:
+      context: ../brain_tumor_back
+      dockerfile: Dockerfile
+    image: nn-django:latest
+    container_name: nn-django
+    restart: always
+    depends_on:
+      django-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      # Django Settings
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DEBUG=${DJANGO_DEBUG:-True}
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
+      # Database (Django settings.py 환경변수명에 맞춤)
+      - MYSQL_HOST=django-db
+      - MYSQL_PORT=3306
+      - MYSQL_DB=${DJANGO_DB_NAME:-brain_tumor}
+      - MYSQL_USER=${DJANGO_DB_USER:-root}
+      - MYSQL_PASSWORD=${DJANGO_DB_PASS:-root1234}
+      # Redis (Docker 환경에서는 redis 서비스명 사용)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379/0
+      # Email
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      # External Services (FASTAPI_URL은 반드시 docker/.env에서 설정 필요)
+      - FASTAPI_URL=${FASTAPI_URL:-http://localhost:8001}
+      - ORTHANC_URL=http://orthanc:8042
+      - HAPI_FHIR_URL=http://hapi-fhir:8080
+    volumes:
+      - ../brain_tumor_back:/app
+      - django_static:/app/static
+      - django_media:/app/media
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - medical-net
+
+  # --- Django Database (MySQL) ---
+  django-db:
+    image: mysql:8.0
+    container_name: nn-django-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DJANGO_DB_ROOT_PASS:-root1234}
+      - MYSQL_DATABASE=${DJANGO_DB_NAME:-brain_tumor}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - django_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DJANGO_DB_ROOT_PASS:-root1234}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - medical-net
+
+networks:
+  medical-net:
+    external: true
+
+volumes:
+  django_db_data:
+  django_static:
+  django_media:

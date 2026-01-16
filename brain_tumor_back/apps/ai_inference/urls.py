@@ -7,16 +7,23 @@ from .views import (
     InferenceCallbackView,
     AIInferenceListView,
     AIInferenceDetailView,
+    AIInferenceCancelView,
     AIInferenceDeleteByOCSView,
     AIInferenceFileDownloadView,
     AIInferenceFilesListView,
     AIInferenceSegmentationView,
     MGGeneExpressionView,
+    AIModelsListView,
+    AIModelDetailView,
 )
 
 app_name = 'ai_inference'
 
 urlpatterns = [
+    # AI Models
+    path('models/', AIModelsListView.as_view(), name='models-list'),
+    path('models/<str:code>/', AIModelDetailView.as_view(), name='models-detail'),
+
     # M1 inference
     path('m1/inference/', M1InferenceView.as_view(), name='m1-inference'),
 
@@ -35,6 +42,7 @@ urlpatterns = [
     path('inferences/', AIInferenceListView.as_view(), name='inference-list'),
     path('inferences/by-ocs/<int:ocs_id>/', AIInferenceDeleteByOCSView.as_view(), name='inference-delete-by-ocs'),
     path('inferences/<str:job_id>/', AIInferenceDetailView.as_view(), name='inference-detail'),
+    path('inferences/<str:job_id>/cancel/', AIInferenceCancelView.as_view(), name='inference-cancel'),
 
     # Files
     path('inferences/<str:job_id>/files/', AIInferenceFilesListView.as_view(), name='inference-files'),

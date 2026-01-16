@@ -42,7 +42,10 @@ class Settings(BaseSettings):
     ORTHANC_PASSWORD: str = "orthanc"
 
     # Redis (for Celery)
-    REDIS_URL: str = "redis://localhost:6379/2"
+    REDIS_URL: str = "redis://localhost:6379/0"
+    # Celery Broker/Backend (Docker에서 별도 DB 번호 사용 가능)
+    CELERY_BROKER_URL: str = ""  # 비어있으면 REDIS_URL 사용
+    CELERY_RESULT_BACKEND: str = ""  # 비어있으면 REDIS_URL 사용
 
     # Django callback URL
     DJANGO_URL: str = "http://localhost:8000"

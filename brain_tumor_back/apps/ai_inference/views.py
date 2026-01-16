@@ -1,3 +1,4 @@
+import json
 import logging
 import httpx
 import os
@@ -57,14 +58,14 @@ class M1InferenceView(APIView):
             ocs = OCS.objects.select_related('patient').get(id=ocs_id)
         except OCS.DoesNotExist:
             return Response(
-                {'error': 'OCS를 찾을 수 없습니다.'},
+                {'detail': 'OCS를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
         # 2. MRI 타입 검증
         if ocs.job_role != 'RIS' or ocs.job_type != 'MRI':
             return Response(
-                {'error': 'M1 추론은 MRI OCS에서만 가능합니다.'},
+                {'detail': 'M1 추론은 MRI OCS에서만 가능합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -76,7 +77,7 @@ class M1InferenceView(APIView):
 
         if not (is_worker or is_doctor):
             return Response(
-                {'error': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
+                {'detail': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -87,7 +88,7 @@ class M1InferenceView(APIView):
 
         if not study_uid:
             return Response(
-                {'error': 'DICOM study_uid 정보가 없습니다.'},
+                {'detail': 'DICOM study_uid 정보가 없습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -157,17 +158,29 @@ class M1InferenceView(APIView):
                 'message': 'M1 추론이 시작되었습니다.'
             })
 
+        except httpx.TimeoutException:
+            inference.status = AIInference.Status.FAILED
+            inference.error_message = 'FastAPI 서버 응답 시간 초과'
+            inference.save()
+
+            ocs.ai_status = OCS.AIStatus.FAILED
+            ocs.save(update_fields=['ai_status'])
+
+            return Response(
+                {'detail': 'FastAPI 서버 응답 시간이 초과되었습니다.'},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+
         except httpx.ConnectError:
             inference.status = AIInference.Status.FAILED
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
-            # OCS ai_status도 FAILED로 업데이트
             ocs.ai_status = OCS.AIStatus.FAILED
             ocs.save(update_fields=['ai_status'])
 
             return Response(
-                {'error': 'FastAPI 서버에 연결할 수 없습니다.'},
+                {'detail': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
@@ -176,13 +189,12 @@ class M1InferenceView(APIView):
             inference.error_message = str(e)
             inference.save()
 
-            # OCS ai_status도 FAILED로 업데이트
             ocs.ai_status = OCS.AIStatus.FAILED
             ocs.save(update_fields=['ai_status'])
 
             return Response(
-                {'error': f'FastAPI 호출 실패: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'detail': f'FastAPI 호출 실패: {e.response.status_code}'},
+                status=status.HTTP_502_BAD_GATEWAY
             )
 
 
@@ -215,14 +227,14 @@ class MGInferenceView(APIView):
             ocs = OCS.objects.select_related('patient').get(id=ocs_id)
         except OCS.DoesNotExist:
             return Response(
-                {'error': 'OCS를 찾을 수 없습니다.'},
+                {'detail': 'OCS를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
         # 2. LIS 타입 검증
         if ocs.job_role != 'LIS':
             return Response(
-                {'error': 'MG 추론은 LIS OCS에서만 가능합니다.'},
+                {'detail': 'MG 추론은 LIS OCS에서만 가능합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -233,7 +245,7 @@ class MGInferenceView(APIView):
 
         if not (is_worker or is_doctor):
             return Response(
-                {'error': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
+                {'detail': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -253,7 +265,7 @@ class MGInferenceView(APIView):
 
         if not csv_path.exists():
             return Response(
-                {'error': f'CSV 파일을 찾을 수 없습니다: {csv_path}'},
+                {'detail': f'CSV 파일을 찾을 수 없습니다: {csv_path}'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -290,12 +302,24 @@ class MGInferenceView(APIView):
         ocs.ai_requested_at = timezone.now()
         ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_requested_at'])
 
-        # 6. CSV 파일 읽기 및 FastAPI 호출
+        # 6. CSV 파일 읽기
         try:
-            # CSV 파일 내용 읽기 (FastAPI에 내용 전달)
             with open(csv_path, 'r', encoding='utf-8') as f:
                 csv_content = f.read()
+        except FileNotFoundError:
+            return Response(
+                {'detail': f'CSV 파일을 찾을 수 없습니다: {csv_path}'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except (IOError, UnicodeDecodeError) as e:
+            logger.error(f'CSV 파일 읽기 실패: {csv_path}, {e}')
+            return Response(
+                {'detail': 'CSV 파일을 읽을 수 없습니다.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
+        # 7. FastAPI 호출
+        try:
             callback_url = request.build_absolute_uri('/api/ai/callback/')
 
             response = httpx.post(
@@ -327,17 +351,29 @@ class MGInferenceView(APIView):
                 'message': 'MG 추론이 시작되었습니다.'
             })
 
+        except httpx.TimeoutException:
+            inference.status = AIInference.Status.FAILED
+            inference.error_message = 'FastAPI 서버 응답 시간 초과'
+            inference.save()
+
+            ocs.ai_status = OCS.AIStatus.FAILED
+            ocs.save(update_fields=['ai_status'])
+
+            return Response(
+                {'detail': 'FastAPI 서버 응답 시간이 초과되었습니다.'},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+
         except httpx.ConnectError:
             inference.status = AIInference.Status.FAILED
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
-            # OCS ai_status도 FAILED로 업데이트
             ocs.ai_status = OCS.AIStatus.FAILED
             ocs.save(update_fields=['ai_status'])
 
             return Response(
-                {'error': 'FastAPI 서버에 연결할 수 없습니다.'},
+                {'detail': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
@@ -346,13 +382,12 @@ class MGInferenceView(APIView):
             inference.error_message = str(e)
             inference.save()
 
-            # OCS ai_status도 FAILED로 업데이트
             ocs.ai_status = OCS.AIStatus.FAILED
             ocs.save(update_fields=['ai_status'])
 
             return Response(
-                {'error': f'FastAPI 호출 실패: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'detail': f'FastAPI 호출 실패: {e.response.status_code}'},
+                status=status.HTTP_502_BAD_GATEWAY
             )
 
 
@@ -365,13 +400,67 @@ class InferenceCallbackView(APIView):
     - Django에서 CDSS_STORAGE/AI/<job_id>/에 파일 저장
 
     Note: AllowAny - FastAPI 내부 서버 콜백용 (로컬 네트워크)
+    IP 화이트리스트로 보안 강화
     """
     permission_classes = [AllowAny]
 
     # CDSS_STORAGE 경로
     STORAGE_BASE = CDSS_STORAGE_AI
 
+    # 콜백 허용 IP 화이트리스트 (로컬 네트워크, Docker 내부)
+    ALLOWED_IPS = [
+        '127.0.0.1',
+        'localhost',
+        '172.17.0.1',      # Docker 기본 브릿지
+        '172.18.0.1',      # Docker 커스텀 네트워크
+        '10.0.0.0/8',      # 내부 네트워크 대역
+        '172.16.0.0/12',   # Docker/내부 네트워크 대역
+        '192.168.0.0/16',  # 내부 네트워크 대역
+    ]
+
+    def _get_client_ip(self, request):
+        """클라이언트 IP 추출"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '')
+
+    def _is_ip_allowed(self, ip: str) -> bool:
+        """IP가 화이트리스트에 있는지 확인"""
+        import ipaddress
+
+        if not ip:
+            return False
+
+        # 직접 매칭
+        if ip in ['127.0.0.1', 'localhost', '::1']:
+            return True
+
+        try:
+            client_ip = ipaddress.ip_address(ip)
+            for allowed in self.ALLOWED_IPS:
+                if '/' in allowed:
+                    # CIDR 표기법
+                    if client_ip in ipaddress.ip_network(allowed, strict=False):
+                        return True
+                elif allowed not in ['localhost']:
+                    if client_ip == ipaddress.ip_address(allowed):
+                        return True
+        except ValueError:
+            # 잘못된 IP 형식
+            return False
+
+        return False
+
     def post(self, request):
+        # IP 화이트리스트 검증
+        client_ip = self._get_client_ip(request)
+        if not self._is_ip_allowed(client_ip):
+            logger.warning(f'콜백 IP 차단: {client_ip}')
+            return Response(
+                {'detail': '허용되지 않은 IP입니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         import base64
         import numpy as np
 
@@ -383,7 +472,7 @@ class InferenceCallbackView(APIView):
 
         if not job_id:
             return Response(
-                {'error': 'job_id가 필요합니다.'},
+                {'detail': 'job_id가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -392,7 +481,7 @@ class InferenceCallbackView(APIView):
             inference = AIInference.objects.get(job_id=job_id)
         except AIInference.DoesNotExist:
             return Response(
-                {'error': 'Job을 찾을 수 없습니다.'},
+                {'detail': 'Job을 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -564,6 +653,41 @@ class AIInferenceListView(APIView):
         return Response(serializer.data)
 
 
+class AIInferenceCancelView(APIView):
+    """
+    AI 추론 취소
+
+    POST /api/ai/inferences/<job_id>/cancel/
+    - 진행 중인 추론을 취소 (CANCELLED 상태로 변경)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, job_id):
+        try:
+            inference = AIInference.objects.get(job_id=job_id)
+        except AIInference.DoesNotExist:
+            return Response(
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 이미 완료된 경우 취소 불가
+        if inference.status in [AIInference.Status.COMPLETED, AIInference.Status.FAILED, AIInference.Status.CANCELLED]:
+            return Response(
+                {'detail': f'이미 {inference.status} 상태인 추론은 취소할 수 없습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 상태를 CANCELLED로 변경
+        inference.status = AIInference.Status.CANCELLED
+        inference.error_message = '사용자에 의해 취소됨'
+        inference.save(update_fields=['status', 'error_message'])
+
+        logger.info(f'Inference cancelled: {job_id}')
+
+        return Response({'message': f'추론 {job_id}가 취소되었습니다.'})
+
+
 class AIInferenceDetailView(APIView):
     """
     AI 추론 상세 조회/삭제
@@ -581,7 +705,7 @@ class AIInferenceDetailView(APIView):
             inference = AIInference.objects.select_related('patient', 'mri_ocs').get(job_id=job_id)
         except AIInference.DoesNotExist:
             return Response(
-                {'error': '추론 결과를 찾을 수 없습니다.'},
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -603,7 +727,7 @@ class AIInferenceDetailView(APIView):
             inference = AIInference.objects.get(job_id=job_id)
         except AIInference.DoesNotExist:
             return Response(
-                {'error': '추론 결과를 찾을 수 없습니다.'},
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -658,7 +782,7 @@ class AIInferenceDeleteByOCSView(APIView):
 
         if not inferences.exists():
             return Response(
-                {'error': f'OCS ID {ocs_id}에 연결된 추론 결과가 없습니다.'},
+                {'detail': f'OCS ID {ocs_id}에 연결된 추론 결과가 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -754,7 +878,7 @@ class AIInferenceFilesListView(APIView):
             inference = AIInference.objects.get(job_id=job_id)
         except AIInference.DoesNotExist:
             return Response(
-                {'error': '추론 결과를 찾을 수 없습니다.'},
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -822,7 +946,7 @@ class AIInferenceSegmentationView(APIView):
             inference = AIInference.objects.get(job_id=job_id)
         except AIInference.DoesNotExist:
             return Response(
-                {'error': '추론 결과를 찾을 수 없습니다.'},
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -832,7 +956,7 @@ class AIInferenceSegmentationView(APIView):
 
         if not seg_file.exists():
             return Response(
-                {'error': '세그멘테이션 파일을 찾을 수 없습니다.'},
+                {'detail': '세그멘테이션 파일을 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -846,7 +970,8 @@ class AIInferenceSegmentationView(APIView):
             elif 'segmentation_mask' in seg_data:
                 seg_mask = seg_data['segmentation_mask']
             else:
-                raise KeyError(f"세그멘테이션 키를 찾을 수 없습니다. 가능한 키: {list(seg_data.keys())}")
+                logger.error(f"세그멘테이션 키를 찾을 수 없습니다. 가능한 키: {list(seg_data.keys())}")
+                raise KeyError("세그멘테이션 데이터를 찾을 수 없습니다.")
 
             # 볼륨 정보
             volumes = {}
@@ -933,7 +1058,7 @@ class AIInferenceSegmentationView(APIView):
         except Exception as e:
             logger.error(f'세그멘테이션 데이터 로드 실패: {str(e)}')
             return Response(
-                {'error': f'데이터 로드 실패: {str(e)}'},
+                {'detail': '데이터 로드에 실패했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -957,14 +1082,14 @@ class MGGeneExpressionView(APIView):
             ocs = OCS.objects.get(id=ocs_id)
         except OCS.DoesNotExist:
             return Response(
-                {'error': 'OCS를 찾을 수 없습니다.'},
+                {'detail': 'OCS를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
         # 2. LIS 타입 검증
         if ocs.job_role != 'LIS':
             return Response(
-                {'error': 'MG Gene Expression은 LIS OCS에서만 가능합니다.'},
+                {'detail': 'MG Gene Expression은 LIS OCS에서만 가능합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -983,7 +1108,7 @@ class MGGeneExpressionView(APIView):
 
         if not csv_path.exists():
             return Response(
-                {'error': f'CSV 파일을 찾을 수 없습니다: {csv_path}'},
+                {'detail': f'CSV 파일을 찾을 수 없습니다: {csv_path}'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -991,12 +1116,24 @@ class MGGeneExpressionView(APIView):
         try:
             with open(csv_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+        except FileNotFoundError:
+            return Response(
+                {'detail': 'CSV 파일을 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except (IOError, UnicodeDecodeError) as e:
+            logger.error(f'CSV 파일 읽기 실패: {csv_path}, {e}')
+            return Response(
+                {'detail': 'CSV 파일을 읽을 수 없습니다.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
+        try:
             gene_data = self._parse_csv(content)
 
             if not gene_data or len(gene_data['values']) == 0:
                 return Response(
-                    {'error': 'CSV 파싱 실패 또는 데이터 없음'},
+                    {'detail': 'CSV 파싱 실패 또는 데이터 없음'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -1015,10 +1152,16 @@ class MGGeneExpressionView(APIView):
                 'topGenes': top_genes,
             })
 
+        except json.JSONDecodeError as e:
+            logger.error(f'JSON 파싱 실패: {e}')
+            return Response(
+                {'detail': 'JSON 데이터 파싱에 실패했습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             logger.error(f'Gene Expression 분석 실패: {str(e)}')
             return Response(
-                {'error': f'분석 실패: {str(e)}'},
+                {'detail': '분석 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -1181,7 +1324,7 @@ class MMInferenceView(APIView):
         # 1. 최소 하나의 모달리티 필수
         if not any([mri_ocs_id, gene_ocs_id, protein_ocs_id]):
             return Response(
-                {'error': '최소 하나의 OCS ID가 필요합니다.'},
+                {'detail': '최소 하나의 OCS ID가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1198,12 +1341,12 @@ class MMInferenceView(APIView):
                         base_ocs = ocs
                     elif patient.id != ocs.patient_id:
                         return Response(
-                            {'error': '모든 OCS는 동일한 환자여야 합니다.'},
+                            {'detail': '모든 OCS는 동일한 환자여야 합니다.'},
                             status=status.HTTP_400_BAD_REQUEST
                         )
                 except OCS.DoesNotExist:
                     return Response(
-                        {'error': f'OCS {ocs_id}를 찾을 수 없습니다.'},
+                        {'detail': f'OCS {ocs_id}를 찾을 수 없습니다.'},
                         status=status.HTTP_404_NOT_FOUND
                     )
 
@@ -1227,7 +1370,7 @@ class MMInferenceView(APIView):
 
             if not m1_inference:
                 return Response(
-                    {'error': f'MRI OCS {mri_ocs_id}에 대한 M1 추론 결과가 없습니다.'},
+                    {'detail': f'MRI OCS {mri_ocs_id}에 대한 M1 추론 결과가 없습니다.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -1235,7 +1378,7 @@ class MMInferenceView(APIView):
             features_path = self.STORAGE_AI / m1_inference.job_id / 'm1_encoder_features.npz'
             if not features_path.exists():
                 return Response(
-                    {'error': f'M1 encoder features 파일을 찾을 수 없습니다: {features_path}'},
+                    {'detail': f'M1 encoder features 파일을 찾을 수 없습니다: {features_path}'},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
@@ -1245,7 +1388,7 @@ class MMInferenceView(APIView):
                 logger.info(f'[MM] Loaded MRI features: {len(mri_features)}-dim from {features_path}')
             except Exception as e:
                 return Response(
-                    {'error': f'M1 encoder features 로드 실패: {str(e)}'},
+                    {'detail': f'M1 encoder features 로드 실패: {str(e)}'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
@@ -1261,7 +1404,7 @@ class MMInferenceView(APIView):
 
             if not mg_inference:
                 return Response(
-                    {'error': f'RNA_SEQ OCS {gene_ocs_id}에 대한 MG 추론 결과가 없습니다.'},
+                    {'detail': f'RNA_SEQ OCS {gene_ocs_id}에 대한 MG 추론 결과가 없습니다.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -1269,7 +1412,7 @@ class MMInferenceView(APIView):
             features_path = self.STORAGE_AI / mg_inference.job_id / 'mg_gene_features.json'
             if not features_path.exists():
                 return Response(
-                    {'error': f'MG gene features 파일을 찾을 수 없습니다: {features_path}'},
+                    {'detail': 'MG gene features 파일을 찾을 수 없습니다.'},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
@@ -1278,9 +1421,20 @@ class MMInferenceView(APIView):
                     features_data = json.load(f)
                 gene_features = features_data.get('features', [])
                 logger.info(f'[MM] Loaded Gene features: {len(gene_features)}-dim from {features_path}')
-            except Exception as e:
+            except FileNotFoundError:
                 return Response(
-                    {'error': f'MG gene features 로드 실패: {str(e)}'},
+                    {'detail': 'MG gene features 파일을 찾을 수 없습니다.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except json.JSONDecodeError:
+                return Response(
+                    {'detail': 'MG gene features 파일 파싱에 실패했습니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except (IOError, UnicodeDecodeError) as e:
+                logger.error(f'MG gene features 파일 읽기 실패: {e}')
+                return Response(
+                    {'detail': 'MG gene features 파일을 읽을 수 없습니다.'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
@@ -1291,7 +1445,7 @@ class MMInferenceView(APIView):
             rppa_path = self.STORAGE_LIS / protein_ocs.ocs_id / 'rppa.csv'
             if not rppa_path.exists():
                 return Response(
-                    {'error': f'RPPA 파일을 찾을 수 없습니다: {rppa_path}'},
+                    {'detail': 'RPPA 파일을 찾을 수 없습니다.'},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
@@ -1299,9 +1453,15 @@ class MMInferenceView(APIView):
                 with open(rppa_path, 'r', encoding='utf-8') as f:
                     protein_data = f.read()
                 logger.info(f'[MM] Loaded Protein data: {len(protein_data)} chars from {rppa_path}')
-            except Exception as e:
+            except FileNotFoundError:
                 return Response(
-                    {'error': f'RPPA 파일 로드 실패: {str(e)}'},
+                    {'detail': 'RPPA 파일을 찾을 수 없습니다.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except (IOError, UnicodeDecodeError) as e:
+                logger.error(f'RPPA 파일 읽기 실패: {e}')
+                return Response(
+                    {'detail': 'RPPA 파일을 읽을 수 없습니다.'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
@@ -1374,13 +1534,23 @@ class MMInferenceView(APIView):
                 }
             })
 
+        except httpx.TimeoutException:
+            inference.status = AIInference.Status.FAILED
+            inference.error_message = 'FastAPI 서버 응답 시간 초과'
+            inference.save()
+
+            return Response(
+                {'detail': 'FastAPI 서버 응답 시간이 초과되었습니다.'},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+
         except httpx.ConnectError:
             inference.status = AIInference.Status.FAILED
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
             return Response(
-                {'error': 'FastAPI 서버에 연결할 수 없습니다.'},
+                {'detail': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
@@ -1390,8 +1560,8 @@ class MMInferenceView(APIView):
             inference.save()
 
             return Response(
-                {'error': f'FastAPI 호출 실패: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'detail': f'FastAPI 호출 실패: {e.response.status_code}'},
+                status=status.HTTP_502_BAD_GATEWAY
             )
 
 
@@ -1414,7 +1584,7 @@ class MMAvailableOCSView(APIView):
             patient = Patient.objects.get(patient_number=patient_id)
         except Patient.DoesNotExist:
             return Response(
-                {'error': '환자를 찾을 수 없습니다.'},
+                {'detail': '환자를 찾을 수 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -1488,3 +1658,89 @@ class MMAvailableOCSView(APIView):
             'rna_ocs': rna_ocs_list,
             'protein_ocs': protein_ocs_list,
         })
+
+
+# ============================================================
+# AI Models List View
+# ============================================================
+
+class AIModelsListView(APIView):
+    """
+    AI 모델 목록 조회
+
+    GET /api/ai/models/
+    - 사용 가능한 AI 모델 목록 반환
+    """
+    permission_classes = [IsAuthenticated]
+
+    # 지원되는 AI 모델 정의
+    AI_MODELS = [
+        {
+            'id': 1,
+            'code': 'M1',
+            'name': 'M1 MRI 분석',
+            'description': 'MRI 영상을 분석하여 Grade, IDH, MGMT, 생존 예측',
+            'ocs_sources': ['RIS'],
+            'required_keys': {'RIS': ['MRI']},
+            'version': '1.0.0',
+            'is_active': True,
+            'config': {},
+        },
+        {
+            'id': 2,
+            'code': 'MG',
+            'name': 'MG Gene Analysis',
+            'description': '유전자 발현 데이터 분석',
+            'ocs_sources': ['LIS'],
+            'required_keys': {'LIS': ['RNA_SEQ']},
+            'version': '1.0.0',
+            'is_active': True,
+            'config': {},
+        },
+        {
+            'id': 3,
+            'code': 'MM',
+            'name': 'MM 멀티모달',
+            'description': 'MRI + 유전자 통합 분석',
+            'ocs_sources': ['RIS', 'LIS'],
+            'required_keys': {'RIS': ['MRI'], 'LIS': ['RNA_SEQ']},
+            'version': '1.0.0',
+            'is_active': True,
+            'config': {},
+        },
+    ]
+
+    def get(self, request):
+        now = timezone.now().isoformat()
+        models = []
+        for model in self.AI_MODELS:
+            models.append({
+                **model,
+                'created_at': now,
+                'updated_at': now,
+            })
+        return Response(models)
+
+
+class AIModelDetailView(APIView):
+    """
+    AI 모델 상세 조회
+
+    GET /api/ai/models/<code>/
+    - 특정 AI 모델 상세 정보 반환
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, code):
+        for model in AIModelsListView.AI_MODELS:
+            if model['code'] == code:
+                now = timezone.now().isoformat()
+                return Response({
+                    **model,
+                    'created_at': now,
+                    'updated_at': now,
+                })
+        return Response(
+            {'detail': f'모델을 찾을 수 없습니다: {code}'},
+            status=status.HTTP_404_NOT_FOUND
+        )

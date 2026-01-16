@@ -67,10 +67,10 @@ export default function AIRequestListPage() {
   const totalPages = Math.ceil(requests.length / pageSize);
   const paginatedRequests = requests.slice((page - 1) * pageSize, page * pageSize);
 
-  // 요청 상세 페이지로 이동
+  // 요청 상세 페이지로 이동 (request_id = job_id)
   const handleRowClick = useCallback(
     (request: AIInferenceRequest) => {
-      navigate(`/ai/requests/${request.id}`);
+      navigate(`/ai/requests/${request.request_id}`);
     },
     [navigate]
   );
@@ -190,7 +190,7 @@ export default function AIRequestListPage() {
             <tbody>
               {paginatedRequests.map((request) => (
                 <tr
-                  key={request.id}
+                  key={request.request_id}
                   onClick={() => handleRowClick(request)}
                   className="clickable"
                 >

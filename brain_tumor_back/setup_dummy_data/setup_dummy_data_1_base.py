@@ -40,7 +40,7 @@ def create_database_if_not_exists():
     from dotenv import load_dotenv
     import environ
 
-    env_path = PROJECT_ROOT / 'dbconn.env'
+    env_path = PROJECT_ROOT / '.env'
     load_dotenv(env_path)
 
     env = environ.Env()
