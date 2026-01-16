@@ -47,7 +47,7 @@ async def start_mg_inference(request: MGInferenceRequest):
                 'callback_url': request.callback_url,
                 'mode': request.mode,
             },
-            queue='m2_queue'  # MG는 m2_queue 사용
+            queue='mg_queue'  # MG는 mg_queue 사용
         )
 
         return MGInferenceResponse(

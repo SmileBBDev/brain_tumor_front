@@ -965,7 +965,7 @@ python manage.py shell
 | treatment | `planned`, `in_progress`, `completed`, `cancelled`, `on_hold` |
 | followup | `stable`, `improved`, `deteriorated`, `recurrence`, `progression`, `remission` |
 | imaging (OCS 매핑) | `ordered`, `scheduled`, `in_progress`, `completed`, `reported`, `cancelled` |
-| ocs.ai_status | `NONE`, `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED` |
+| ai_inference.status | `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, `CANCELLED` |
 
 ---
 
@@ -995,9 +995,9 @@ AI 추론 요청은 **더미 데이터로 생성하지 않습니다**. RIS/LIS �
 │  4. 결과 제출 → RESULT_READY                                     │
 │  5. 확정 (담당자 또는 의사) → CONFIRMED                           │
 │  6. [AI 분석] 버튼 클릭 (RIS/LIS 담당자)                          │
-│     - OCS ai_status: NONE → PENDING → PROCESSING → COMPLETED    │
-│     - AIInference 생성 → modAI 서버 연동                         │
-│  7. 콜백 수신 → OCS ai_status, ai_completed_at 업데이트           │
+│     - AIInference 생성 (status: PENDING → PROCESSING → COMPLETED)│
+│     - modAI 서버 연동                                            │
+│  7. 콜백 수신 → AIInference status, completed_at 업데이트         │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1010,16 +1010,15 @@ AI 추론 요청은 **더미 데이터로 생성하지 않습니다**. RIS/LIS �
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### OCS AI 상태 필드
+### AI 추론 결과 조회
 
-OCS 모델에 다음 AI 관련 필드가 추가되었습니다:
+OCS의 AI 분석 정보는 `ai_inference` 테이블에서 OCS ID로 조회합니다:
 
-| 필드명 | 타입 | 설명 |
-|--------|------|------|
-| `ai_status` | CharField | AI 분석 상태 (NONE/PENDING/PROCESSING/COMPLETED/FAILED) |
-| `ai_inference` | ForeignKey | AIInference 참조 (nullable) |
-| `ai_requested_at` | DateTimeField | AI 요청 시각 (nullable) |
-| `ai_completed_at` | DateTimeField | AI 완료 시각 (nullable) |
+| OCS 조건 | AIInference 조회 |
+|----------|------------------|
+| job_role='RIS', job_type='MRI' | `AIInference.objects.filter(mri_ocs_id=ocs_id)` |
+| job_role='LIS', job_type='RNA_SEQ' | `AIInference.objects.filter(rna_ocs_id=ocs_id)` |
+| job_role='LIS', job_type='BIOMARKER' | `AIInference.objects.filter(protein_ocs_id=ocs_id)` |
 
 ### AI 분석 권한
 

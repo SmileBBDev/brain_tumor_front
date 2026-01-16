@@ -32,16 +32,6 @@ class OCS(models.Model):
         CANCELLED = 'CANCELLED', '취소됨'
 
     # =========================================================================
-    # AI 분석 상태 (ai_status)
-    # =========================================================================
-    class AIStatus(models.TextChoices):
-        NONE = 'NONE', '미요청'
-        PENDING = 'PENDING', '대기 중'
-        PROCESSING = 'PROCESSING', '분석 중'
-        COMPLETED = 'COMPLETED', '분석 완료'
-        FAILED = 'FAILED', '분석 실패'
-
-    # =========================================================================
     # 우선순위 (priority)
     # =========================================================================
     class Priority(models.TextChoices):
@@ -219,39 +209,6 @@ class OCS(models.Model):
         null=True,
         blank=True,
         verbose_name='취소 사유'
-    )
-
-    # =========================================================================
-    # AI 분석 연동
-    # =========================================================================
-    ai_status = models.CharField(
-        max_length=20,
-        choices=AIStatus.choices,
-        default=AIStatus.NONE,
-        verbose_name='AI 분석 상태',
-        help_text='AI 분석 요청/진행/완료 상태'
-    )
-
-    ai_inference = models.ForeignKey(
-        'ai_inference.AIInference',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='source_ocs',
-        verbose_name='AI 추론',
-        help_text='연결된 AI 추론 결과'
-    )
-
-    ai_requested_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name='AI 요청 일시'
-    )
-
-    ai_completed_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name='AI 완료 일시'
     )
 
     # =========================================================================

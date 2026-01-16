@@ -119,12 +119,6 @@ class M1InferenceView(APIView):
             status=AIInference.Status.PENDING
         )
 
-        # 5-1. OCS ai_status 업데이트 (PENDING)
-        ocs.ai_status = OCS.AIStatus.PENDING
-        ocs.ai_inference = inference
-        ocs.ai_requested_at = timezone.now()
-        ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_requested_at'])
-
         # 6. FastAPI 호출 (study_uid로 시리즈 자동 탐색)
         try:
             callback_url = request.build_absolute_uri('/api/ai/callback/')
@@ -147,10 +141,6 @@ class M1InferenceView(APIView):
             inference.status = AIInference.Status.PROCESSING
             inference.save()
 
-            # OCS ai_status도 PROCESSING으로 업데이트
-            ocs.ai_status = OCS.AIStatus.PROCESSING
-            ocs.save(update_fields=['ai_status'])
-
             return Response({
                 'job_id': inference.job_id,
                 'status': 'processing',
@@ -163,9 +153,6 @@ class M1InferenceView(APIView):
             inference.error_message = 'FastAPI 서버 응답 시간 초과'
             inference.save()
 
-            ocs.ai_status = OCS.AIStatus.FAILED
-            ocs.save(update_fields=['ai_status'])
-
             return Response(
                 {'detail': 'FastAPI 서버 응답 시간이 초과되었습니다.'},
                 status=status.HTTP_504_GATEWAY_TIMEOUT
@@ -176,9 +163,6 @@ class M1InferenceView(APIView):
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
-            ocs.ai_status = OCS.AIStatus.FAILED
-            ocs.save(update_fields=['ai_status'])
-
             return Response(
                 {'detail': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
@@ -188,9 +172,6 @@ class M1InferenceView(APIView):
             inference.status = AIInference.Status.FAILED
             inference.error_message = str(e)
             inference.save()
-
-            ocs.ai_status = OCS.AIStatus.FAILED
-            ocs.save(update_fields=['ai_status'])
 
             return Response(
                 {'detail': f'FastAPI 호출 실패: {e.response.status_code}'},
@@ -296,12 +277,6 @@ class MGInferenceView(APIView):
             status=AIInference.Status.PENDING
         )
 
-        # 5-1. OCS ai_status 업데이트 (PENDING)
-        ocs.ai_status = OCS.AIStatus.PENDING
-        ocs.ai_inference = inference
-        ocs.ai_requested_at = timezone.now()
-        ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_requested_at'])
-
         # 6. CSV 파일 읽기
         try:
             with open(csv_path, 'r', encoding='utf-8') as f:
@@ -340,10 +315,6 @@ class MGInferenceView(APIView):
             inference.status = AIInference.Status.PROCESSING
             inference.save()
 
-            # OCS ai_status도 PROCESSING으로 업데이트
-            ocs.ai_status = OCS.AIStatus.PROCESSING
-            ocs.save(update_fields=['ai_status'])
-
             return Response({
                 'job_id': inference.job_id,
                 'status': 'processing',
@@ -356,9 +327,6 @@ class MGInferenceView(APIView):
             inference.error_message = 'FastAPI 서버 응답 시간 초과'
             inference.save()
 
-            ocs.ai_status = OCS.AIStatus.FAILED
-            ocs.save(update_fields=['ai_status'])
-
             return Response(
                 {'detail': 'FastAPI 서버 응답 시간이 초과되었습니다.'},
                 status=status.HTTP_504_GATEWAY_TIMEOUT
@@ -369,9 +337,6 @@ class MGInferenceView(APIView):
             inference.error_message = 'FastAPI 서버 연결 실패'
             inference.save()
 
-            ocs.ai_status = OCS.AIStatus.FAILED
-            ocs.save(update_fields=['ai_status'])
-
             return Response(
                 {'detail': 'FastAPI 서버에 연결할 수 없습니다.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
@@ -381,9 +346,6 @@ class MGInferenceView(APIView):
             inference.status = AIInference.Status.FAILED
             inference.error_message = str(e)
             inference.save()
-
-            ocs.ai_status = OCS.AIStatus.FAILED
-            ocs.save(update_fields=['ai_status'])
 
             return Response(
                 {'detail': f'FastAPI 호출 실패: {e.response.status_code}'},
@@ -502,9 +464,6 @@ class InferenceCallbackView(APIView):
 
         inference.save()
 
-        # OCS ai_status 업데이트
-        self._update_ocs_ai_status(inference, cb_status)
-
         # WebSocket 알림 (manual 모드만)
         if inference.mode == AIInference.Mode.MANUAL:
             self._send_websocket_notification(inference)
@@ -512,37 +471,6 @@ class InferenceCallbackView(APIView):
         logger.info(f'Callback 처리 완료: job_id={job_id}, status={cb_status}')
 
         return Response({'status': 'ok'})
-
-    def _update_ocs_ai_status(self, inference: AIInference, cb_status: str):
-        """
-        연결된 OCS들의 ai_status 업데이트
-
-        Args:
-            inference: AIInference 인스턴스
-            cb_status: 'completed' | 'failed'
-        """
-        ocs_list = []
-
-        # 모델 타입에 따라 연결된 OCS 수집
-        if inference.mri_ocs:
-            ocs_list.append(inference.mri_ocs)
-        if inference.rna_ocs:
-            ocs_list.append(inference.rna_ocs)
-        if inference.protein_ocs:
-            ocs_list.append(inference.protein_ocs)
-
-        # OCS 상태 업데이트
-        for ocs in ocs_list:
-            if cb_status == 'completed':
-                ocs.ai_status = OCS.AIStatus.COMPLETED
-                ocs.ai_completed_at = timezone.now()
-            else:
-                ocs.ai_status = OCS.AIStatus.FAILED
-
-            ocs.ai_inference = inference
-            ocs.save(update_fields=['ai_status', 'ai_inference', 'ai_completed_at'])
-
-            logger.info(f'OCS ai_status 업데이트: ocs_id={ocs.ocs_id}, status={ocs.ai_status}')
 
     def _save_files(self, job_id: str, files_data: dict) -> dict:
         """

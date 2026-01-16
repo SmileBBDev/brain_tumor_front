@@ -18,7 +18,7 @@ django.setup()  # 앱 레지스트리 초기화
 
 from apps.common.middleware import JwtAuthMiddleware
 from config.routing import websocket_urlpatterns
-print("🔥 ASGI LOADED")
+print("ASGI LOADED")
 
 # ASGI(Asynchronous Server Gateway Interface)용 진입점
 django_asgi_app = get_asgi_application()
