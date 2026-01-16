@@ -1,17 +1,15 @@
 /**
  * AI 페이지 - 드롭다운 네비게이션 기반 구성
- * - AI 분석 뷰어
  * - AI 요청 목록 (/ai/requests)
  * - AI 처리 현황 (/ai/process-status)
  * - AI 모델 정보 (/ai/models)
  */
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
-import AiViewer from './AiViewer';
 import AiResultPanel from './AiResultPanel';
 import './AISummaryPage.css';
 
-type AIViewType = 'viewer' | 'requests' | 'process-status' | 'models';
+type AIViewType = 'requests' | 'process-status' | 'models';
 
 // AI 모델 정보 (AI_MODELS.md 기준)
 const AI_MODELS = [
@@ -50,12 +48,11 @@ const AI_MODELS = [
 export default function AiSummaryPage() {
   const { user } = useAuth();
   const role = user?.role?.code;
-  const [activeView, setActiveView] = useState<AIViewType>('viewer');
+  const [activeView, setActiveView] = useState<AIViewType>('requests');
 
   if (!role) return <div>접근 권한 정보 없음</div>;
 
   const viewLabels: Record<AIViewType, string> = {
-    viewer: 'AI 분석 뷰어',
     requests: 'AI 요청 목록',
     'process-status': 'AI 처리 현황',
     models: 'AI 모델 정보',
@@ -73,7 +70,6 @@ export default function AiSummaryPage() {
               onChange={(e) => setActiveView(e.target.value as AIViewType)}
               className="ai-view-select"
             >
-              <option value="viewer">AI 분석 뷰어</option>
               <option value="requests">AI 요청 목록</option>
               <option value="process-status">AI 처리 현황</option>
               <option value="models">AI 모델 정보</option>
@@ -87,17 +83,6 @@ export default function AiSummaryPage() {
 
       {/* 컨텐츠 영역 */}
       <div className="ai-content">
-        {activeView === 'viewer' && (
-          <div className="ai-body">
-            <section className="ai-viewer-area">
-              <AiViewer />
-            </section>
-            <aside className="ai-panel-area">
-              <AiResultPanel />
-            </aside>
-          </div>
-        )}
-
         {activeView === 'requests' && (
           <div className="ai-requests-view">
             <div className="ai-section-header">

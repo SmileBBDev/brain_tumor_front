@@ -69,13 +69,14 @@ class M1InferenceView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 2-1. 권한 검증 (RIS 담당자 또는 처방 의사만 요청 가능)
+        # 2-1. 권한 검증 (superuser, RIS 담당자 또는 처방 의사만 요청 가능)
         user = request.user
+        is_superuser = user.is_superuser
         is_worker = ocs.worker == user
         is_doctor = ocs.doctor == user
         user_role = getattr(user.role, 'code', '') if user.role else ''
 
-        if not (is_worker or is_doctor):
+        if not (is_superuser or is_worker or is_doctor):
             return Response(
                 {'detail': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
                 status=status.HTTP_403_FORBIDDEN
@@ -219,12 +220,13 @@ class MGInferenceView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 2-1. 권한 검증 (LIS 담당자 또는 처방 의사만 요청 가능)
+        # 2-1. 권한 검증 (superuser, LIS 담당자 또는 처방 의사만 요청 가능)
         user = request.user
+        is_superuser = user.is_superuser
         is_worker = ocs.worker == user
         is_doctor = ocs.doctor == user
 
-        if not (is_worker or is_doctor):
+        if not (is_superuser or is_worker or is_doctor):
             return Response(
                 {'detail': 'AI 분석 요청 권한이 없습니다. (담당자 또는 처방 의사만 가능)'},
                 status=status.HTTP_403_FORBIDDEN

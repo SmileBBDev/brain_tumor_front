@@ -4,10 +4,11 @@
  * - MG: Gene Expression 분석
  * - MM: 멀티모달 분석
  *
- * 독립적으로 동작하며 외부 의존성 최소화
+ * 전역 AIInferenceContext를 사용하여 페이지 이동 시에도 작업 상태 유지
  */
 import { useState, useEffect } from 'react'
 import { api } from '@/services/api'
+import { useAIInference, useAIJob, type AIJob } from '@/context/AIInferenceContext'
 import './AIAnalysisPopup.css'
 
 // ============================================================================
@@ -116,12 +117,17 @@ export default function AIAnalysisPopup({ isOpen, onClose }: AIAnalysisPopupProp
 // M1 Panel - MRI 분석
 // ============================================================================
 function M1Panel() {
+  const { requestInference, isFastAPIAvailable } = useAIInference()
   const [ocsList, setOcsList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [inferring, setInferring] = useState(false)
-  const [result, setResult] = useState<InferenceResult | null>(null)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [error, setError] = useState('')
+
+  // 현재 작업 구독
+  const { job } = useAIJob(currentJobId)
+  const inferring = job?.status === 'PENDING' || job?.status === 'PROCESSING'
+  const result = job?.status === 'COMPLETED' ? job.result : null
 
   useEffect(() => {
     loadOcsList()
@@ -154,30 +160,12 @@ function M1Panel() {
 
   const handleInference = async () => {
     if (!selectedId) return
-    try {
-      setInferring(true)
-      setError('')
-      setResult(null)
-      const res = await api.post('/ai/m1/inference/', { ocs_id: selectedId, mode: 'manual' })
-      if (res.data.cached && res.data.result) {
-        setResult(res.data.result)
-      } else {
-        // 실시간 결과는 WebSocket으로 받아야 하지만, 여기서는 간단히 폴링
-        setTimeout(async () => {
-          try {
-            const detail = await api.get(`/ai/inferences/${res.data.job_id}/`)
-            if (detail.data.status === 'COMPLETED') {
-              setResult(detail.data.result_data)
-            }
-          } catch {}
-          setInferring(false)
-        }, 5000)
-        return
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || '추론 요청 실패')
-    } finally {
-      setInferring(false)
+    setError('')
+    setCurrentJobId(null)
+
+    const job = await requestInference('M1', { ocs_id: selectedId, mode: 'manual' })
+    if (job) {
+      setCurrentJobId(job.job_id)
     }
   }
 
@@ -185,6 +173,13 @@ function M1Panel() {
     <div className="ai-panel">
       <h2>M1 MRI 분석</h2>
       <p className="ai-panel-desc">MRI 영상에서 Grade, IDH, MGMT, 생존 예측을 수행합니다.</p>
+
+      {/* FastAPI 서버 상태 경고 */}
+      {!isFastAPIAvailable && (
+        <div className="ai-server-warning">
+          ⚠️ FastAPI(추론 모델 서버)가 OFF 상태입니다
+        </div>
+      )}
 
       {/* OCS 테이블 */}
       <div className="ai-panel-section">
@@ -234,19 +229,25 @@ function M1Panel() {
         <button
           className="ai-btn primary"
           onClick={handleInference}
-          disabled={!selectedId || inferring}
+          disabled={!selectedId || inferring || !isFastAPIAvailable}
         >
-          {inferring ? '추론 중...' : 'M1 추론 요청'}
+          {inferring && currentJobId
+            ? `'${currentJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+            : 'M1 추론 요청'}
         </button>
+        {currentJobId && (
+          <span className="ai-job-id">Job: {currentJobId}</span>
+        )}
       </div>
 
       {/* 에러 */}
       {error && <div className="ai-error">{error}</div>}
+      {job?.error && <div className="ai-error">{job.error}</div>}
 
       {/* 결과 */}
       {result && (
         <div className="ai-result">
-          <h3>추론 결과</h3>
+          <h3>추론 결과 {job?.cached && <span className="ai-cached-badge">캐시</span>}</h3>
           <div className="ai-result-grid">
             {result.grade && (
               <div className="ai-result-card">
@@ -285,12 +286,17 @@ function M1Panel() {
 // MG Panel - Gene 분석
 // ============================================================================
 function MGPanel() {
+  const { requestInference, isFastAPIAvailable } = useAIInference()
   const [ocsList, setOcsList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [inferring, setInferring] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [error, setError] = useState('')
+
+  // 현재 작업 구독
+  const { job } = useAIJob(currentJobId)
+  const inferring = job?.status === 'PENDING' || job?.status === 'PROCESSING'
+  const result = job?.status === 'COMPLETED' ? job.result : null
 
   useEffect(() => {
     loadOcsList()
@@ -323,29 +329,12 @@ function MGPanel() {
 
   const handleInference = async () => {
     if (!selectedId) return
-    try {
-      setInferring(true)
-      setError('')
-      setResult(null)
-      const res = await api.post('/ai/mg/inference/', { ocs_id: selectedId, mode: 'manual' })
-      if (res.data.cached && res.data.result) {
-        setResult(res.data.result)
-      } else {
-        setTimeout(async () => {
-          try {
-            const detail = await api.get(`/ai/inferences/${res.data.job_id}/`)
-            if (detail.data.status === 'COMPLETED') {
-              setResult(detail.data.result_data)
-            }
-          } catch {}
-          setInferring(false)
-        }, 5000)
-        return
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || '추론 요청 실패')
-    } finally {
-      setInferring(false)
+    setError('')
+    setCurrentJobId(null)
+
+    const job = await requestInference('MG', { ocs_id: selectedId, mode: 'manual' })
+    if (job) {
+      setCurrentJobId(job.job_id)
     }
   }
 
@@ -353,6 +342,13 @@ function MGPanel() {
     <div className="ai-panel">
       <h2>MG Gene Analysis</h2>
       <p className="ai-panel-desc">유전자 발현 데이터를 분석합니다.</p>
+
+      {/* FastAPI 서버 상태 경고 */}
+      {!isFastAPIAvailable && (
+        <div className="ai-server-warning">
+          ⚠️ FastAPI(추론 모델 서버)가 OFF 상태입니다
+        </div>
+      )}
 
       <div className="ai-panel-section">
         <h3>LIS RNA_SEQ 목록 ({ocsList.length}건)</h3>
@@ -400,17 +396,23 @@ function MGPanel() {
         <button
           className="ai-btn primary purple"
           onClick={handleInference}
-          disabled={!selectedId || inferring}
+          disabled={!selectedId || inferring || !isFastAPIAvailable}
         >
-          {inferring ? '추론 중...' : 'MG 추론 요청'}
+          {inferring && currentJobId
+            ? `'${currentJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+            : 'MG 추론 요청'}
         </button>
+        {currentJobId && (
+          <span className="ai-job-id">Job: {currentJobId}</span>
+        )}
       </div>
 
       {error && <div className="ai-error">{error}</div>}
+      {job?.error && <div className="ai-error">{job.error}</div>}
 
       {result && (
         <div className="ai-result">
-          <h3>추론 결과</h3>
+          <h3>추론 결과 {job?.cached && <span className="ai-cached-badge">캐시</span>}</h3>
           <pre className="ai-result-json">{JSON.stringify(result, null, 2)}</pre>
         </div>
       )}
@@ -422,14 +424,19 @@ function MGPanel() {
 // MM Panel - 멀티모달 분석
 // ============================================================================
 function MMPanel() {
+  const { requestInference, isFastAPIAvailable } = useAIInference()
   const [mriList, setMriList] = useState<OCSItem[]>([])
   const [geneList, setGeneList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMri, setSelectedMri] = useState<number | null>(null)
   const [selectedGene, setSelectedGene] = useState<number | null>(null)
-  const [inferring, setInferring] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [error, setError] = useState('')
+
+  // 현재 작업 구독
+  const { job } = useAIJob(currentJobId)
+  const inferring = job?.status === 'PENDING' || job?.status === 'PROCESSING'
+  const result = job?.status === 'COMPLETED' ? job.result : null
 
   useEffect(() => {
     loadData()
@@ -468,34 +475,17 @@ function MMPanel() {
       setError('MRI 또는 Gene 데이터를 선택해주세요.')
       return
     }
-    try {
-      setInferring(true)
-      setError('')
-      setResult(null)
-      const res = await api.post('/ai/mm/inference/', {
-        mri_ocs_id: selectedMri,
-        gene_ocs_id: selectedGene,
-        protein_ocs_id: null,
-        mode: 'manual'
-      })
-      if (res.data.cached && res.data.result) {
-        setResult(res.data.result)
-      } else {
-        setTimeout(async () => {
-          try {
-            const detail = await api.get(`/ai/inferences/${res.data.job_id}/`)
-            if (detail.data.status === 'COMPLETED') {
-              setResult(detail.data.result_data)
-            }
-          } catch {}
-          setInferring(false)
-        }, 5000)
-        return
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || '추론 요청 실패')
-    } finally {
-      setInferring(false)
+    setError('')
+    setCurrentJobId(null)
+
+    const job = await requestInference('MM', {
+      mri_ocs_id: selectedMri,
+      gene_ocs_id: selectedGene,
+      protein_ocs_id: null,
+      mode: 'manual'
+    })
+    if (job) {
+      setCurrentJobId(job.job_id)
     }
   }
 
@@ -503,6 +493,13 @@ function MMPanel() {
     <div className="ai-panel">
       <h2>MM 멀티모달 분석</h2>
       <p className="ai-panel-desc">MRI + 유전자 데이터를 통합 분석합니다.</p>
+
+      {/* FastAPI 서버 상태 경고 */}
+      {!isFastAPIAvailable && (
+        <div className="ai-server-warning">
+          ⚠️ FastAPI(추론 모델 서버)가 OFF 상태입니다
+        </div>
+      )}
 
       {loading ? (
         <div className="ai-loading">로딩 중...</div>
@@ -586,17 +583,23 @@ function MMPanel() {
         <button
           className="ai-btn primary orange"
           onClick={handleInference}
-          disabled={(!selectedMri && !selectedGene) || inferring}
+          disabled={(!selectedMri && !selectedGene) || inferring || !isFastAPIAvailable}
         >
-          {inferring ? '추론 중...' : 'MM 추론 요청'}
+          {inferring && currentJobId
+            ? `'${currentJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+            : 'MM 추론 요청'}
         </button>
+        {currentJobId && (
+          <span className="ai-job-id">Job: {currentJobId}</span>
+        )}
       </div>
 
       {error && <div className="ai-error">{error}</div>}
+      {job?.error && <div className="ai-error">{job.error}</div>}
 
       {result && (
         <div className="ai-result">
-          <h3>추론 결과</h3>
+          <h3>추론 결과 {job?.cached && <span className="ai-cached-badge">캐시</span>}</h3>
           <pre className="ai-result-json">{JSON.stringify(result, null, 2)}</pre>
         </div>
       )}

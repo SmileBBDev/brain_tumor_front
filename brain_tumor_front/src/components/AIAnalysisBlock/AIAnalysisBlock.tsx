@@ -3,10 +3,12 @@
  * - 대시보드에 인라인으로 표시되는 AI 분석 UI
  * - M1/MG/MM 탭 전환
  * - WebSocket 실시간 알림 연동
+ * - 전역 AIInferenceContext 사용으로 FastAPI 상태 감지
  */
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@/services/api'
 import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 import './AIAnalysisBlock.css'
 
 // ============================================================================
@@ -92,6 +94,7 @@ function M1Panel() {
   const abortRef = useRef(false)
 
   const { lastMessage } = useAIInferenceWebSocket()
+  const { isFastAPIAvailable, requestInference } = useAIInference()
 
   useEffect(() => {
     loadOcsList()
@@ -179,13 +182,23 @@ function M1Panel() {
       setResult(null)
       setLastJobId(null)
       abortRef.current = false
-      const res = await api.post('/ai/m1/inference/', { ocs_id: selectedId, mode: 'manual' })
-      if (res.data.cached && res.data.result) {
-        setResult(res.data.result)
+
+      // 전역 context의 requestInference 사용 (FastAPI 상태 감지 포함)
+      const job = await requestInference('M1', { ocs_id: selectedId, mode: 'manual' })
+
+      if (!job) {
+        // requestInference가 null을 반환하면 에러 발생 (FastAPI OFF 등)
+        // 알림은 전역 context에서 이미 처리됨
+        setInferring(false)
+        return
+      }
+
+      if (job.cached && job.result) {
+        setResult(job.result)
         setInferring(false)
       } else {
-        setLastJobId(res.data.job_id)
-        pollResult(res.data.job_id)
+        setLastJobId(job.job_id)
+        pollResult(job.job_id)
       }
     } catch (err: any) {
       setError(err.response?.data?.error || '추론 요청 실패')
@@ -251,7 +264,9 @@ function M1Panel() {
             onClick={handleInference}
             disabled={!selectedId || inferring}
           >
-            {inferring ? '추론 중...' : 'M1 추론 요청'}
+            {inferring && lastJobId
+              ? `'${lastJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+              : 'M1 추론 요청'}
           </button>
         </div>
 
@@ -318,6 +333,7 @@ function MGPanel() {
   const abortRef = useRef(false)
 
   const { lastMessage } = useAIInferenceWebSocket()
+  const { isFastAPIAvailable, requestInference } = useAIInference()
 
   useEffect(() => {
     loadOcsList()
@@ -405,13 +421,23 @@ function MGPanel() {
       setResult(null)
       setLastJobId(null)
       abortRef.current = false
-      const res = await api.post('/ai/mg/inference/', { ocs_id: selectedId, mode: 'manual' })
-      if (res.data.cached && res.data.result) {
-        setResult(res.data.result)
+
+      // 전역 context의 requestInference 사용 (FastAPI 상태 감지 포함)
+      const job = await requestInference('MG', { ocs_id: selectedId, mode: 'manual' })
+
+      if (!job) {
+        // requestInference가 null을 반환하면 에러 발생 (FastAPI OFF 등)
+        // 알림은 전역 context에서 이미 처리됨
+        setInferring(false)
+        return
+      }
+
+      if (job.cached && job.result) {
+        setResult(job.result)
         setInferring(false)
       } else {
-        setLastJobId(res.data.job_id)
-        pollResult(res.data.job_id)
+        setLastJobId(job.job_id)
+        pollResult(job.job_id)
       }
     } catch (err: any) {
       setError(err.response?.data?.error || '추론 요청 실패')
@@ -476,7 +502,9 @@ function MGPanel() {
             onClick={handleInference}
             disabled={!selectedId || inferring}
           >
-            {inferring ? '추론 중...' : 'MG 추론 요청'}
+            {inferring && lastJobId
+              ? `'${lastJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+              : 'MG 추론 요청'}
           </button>
         </div>
 
@@ -519,6 +547,7 @@ function MMPanel() {
   const abortRef = useRef(false)
 
   const { lastMessage } = useAIInferenceWebSocket()
+  const { isFastAPIAvailable, requestInference } = useAIInference()
 
   useEffect(() => {
     loadData()
@@ -615,18 +644,28 @@ function MMPanel() {
       setResult(null)
       setLastJobId(null)
       abortRef.current = false
-      const res = await api.post('/ai/mm/inference/', {
+
+      // 전역 context의 requestInference 사용 (FastAPI 상태 감지 포함)
+      const job = await requestInference('MM', {
         mri_ocs_id: selectedMri,
         gene_ocs_id: selectedGene,
         protein_ocs_id: selectedProtein,
         mode: 'manual'
       })
-      if (res.data.cached && res.data.result) {
-        setResult(res.data.result)
+
+      if (!job) {
+        // requestInference가 null을 반환하면 에러 발생 (FastAPI OFF 등)
+        // 알림은 전역 context에서 이미 처리됨
+        setInferring(false)
+        return
+      }
+
+      if (job.cached && job.result) {
+        setResult(job.result)
         setInferring(false)
       } else {
-        setLastJobId(res.data.job_id)
-        pollResult(res.data.job_id)
+        setLastJobId(job.job_id)
+        pollResult(job.job_id)
       }
     } catch (err: any) {
       setError(err.response?.data?.error || '추론 요청 실패')
@@ -777,7 +816,9 @@ function MMPanel() {
               onClick={handleInference}
               disabled={!canInfer || inferring}
             >
-              {inferring ? '추론 중...' : 'MM 추론'}
+              {inferring && lastJobId
+                ? `'${lastJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+                : 'MM 추론'}
             </button>
             {!canInfer && !error && (
               <div className="ai-warning">{getMissingDataText()}</div>

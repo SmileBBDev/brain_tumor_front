@@ -453,10 +453,8 @@ export default function MMInferencePage() {
                 : 'bg-amber-600 hover:bg-amber-700'
             }`}
           >
-            {inferenceStatus === 'requesting'
-              ? '요청 중...'
-              : inferenceStatus === 'processing'
-              ? 'MM 추론 진행 중...'
+            {(inferenceStatus === 'requesting' || inferenceStatus === 'processing') && jobId
+              ? `'${jobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
               : 'MM 멀티모달 추론 요청'}
           </button>
         </div>

@@ -8,6 +8,8 @@ import Sidebar from '@/layout/Sidebar';
 import RequirePasswordChange from '@/pages/auth/RequirePasswordChange';
 import { OCSNotificationProvider, useOCSNotificationContext } from '@/context/OCSNotificationContext';
 import OCSNotificationToast from '@/components/OCSNotificationToast';
+import { AIInferenceProvider } from '@/context/AIInferenceContext';
+import AINotificationToast from '@/components/AINotificationToast';
 
 // 전역 Toast 렌더링 컴포넌트
 function GlobalOCSToast() {
@@ -91,6 +93,9 @@ function AppLayoutContent() {
 
         {/* 전역 OCS 알림 Toast */}
         <GlobalOCSToast />
+
+        {/* 전역 AI 추론 알림 Toast */}
+        <AINotificationToast />
       </div>
     </RequirePasswordChange>
   );
@@ -99,7 +104,9 @@ function AppLayoutContent() {
 function AppLayout() {
   return (
     <OCSNotificationProvider>
-      <AppLayoutContent />
+      <AIInferenceProvider>
+        <AppLayoutContent />
+      </AIInferenceProvider>
     </OCSNotificationProvider>
   );
 }

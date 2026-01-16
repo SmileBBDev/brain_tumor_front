@@ -638,7 +638,6 @@ def load_menu_permission_seed():
         ('LAB_RESULT_VIEW', '병리 결과 조회', '병리 결과 조회 화면'),
         ('LAB_RESULT_UPLOAD', '병리 결과 업로드', '병리 결과 업로드 화면'),
         ('AI', 'AI 분석', 'AI 분석 메뉴'),
-        ('AI_VIEWER', 'AI 분석 뷰어', 'AI 분석 뷰어 화면'),
         ('AI_REQUEST_LIST', 'AI 요청 목록', 'AI 추론 요청 목록'),
         ('AI_REQUEST_CREATE', 'AI 요청 생성', 'AI 추론 요청 생성'),
         ('AI_REQUEST_DETAIL', 'AI 요청 상세', 'AI 추론 요청 상세'),
@@ -781,8 +780,7 @@ def load_menu_permission_seed():
     create_menu(16, code='LAB_RESULT_UPLOAD', path='/lab/upload', icon='upload', order=5, is_active=True, parent=menu_lab)
 
     # AI 하위 메뉴
-    create_menu(50, code='AI_VIEWER', path='/ai/viewer', icon='eye', order=1, is_active=True, parent=menu_ai)
-    menu_ai_request, _ = create_menu(34, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=2, is_active=True, parent=menu_ai)
+    menu_ai_request, _ = create_menu(34, code='AI_REQUEST_LIST', path='/ai/requests', icon='list', order=1, is_active=True, parent=menu_ai)
     create_menu(35, code='AI_REQUEST_CREATE', path='/ai/requests/create', breadcrumb_only=True, order=1, is_active=True, parent=menu_ai_request)
     create_menu(44, code='AI_REQUEST_DETAIL', path='/ai/requests/:id', breadcrumb_only=True, order=2, is_active=True, parent=menu_ai_request)
     create_menu(42, code='AI_PROCESS_STATUS', path='/ai/process-status', icon='chart-bar', order=3, is_active=True, parent=menu_ai)
@@ -950,14 +948,14 @@ def load_menu_permission_seed():
             'OCS_RIS', 'OCS_RIS_DETAIL', 'OCS_LIS', 'OCS_LIS_DETAIL',
             'IMAGING', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD',
             'LAB', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'LIS_PROCESS_STATUS',
-            'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'AI_PROCESS_STATUS', 'AI_MODELS',
+            'AI', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'AI_PROCESS_STATUS', 'AI_MODELS',
             'REPORT', 'REPORT_DASHBOARD', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL',
             'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG', 'ADMIN_SYSTEM_MONITOR'
         ],
-        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'REPORT', 'REPORT_DASHBOARD', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL'],
+        'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'REPORT', 'REPORT_DASHBOARD', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL'],
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'OCS_STATUS', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'REPORT', 'REPORT_DASHBOARD'],  # 보고서 대시보드 추가
-        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'REPORT', 'REPORT_DASHBOARD'],
-        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS', 'AI', 'AI_VIEWER', 'AI_REQUEST_LIST', 'REPORT', 'REPORT_DASHBOARD'],
+        'RIS': ['DASHBOARD', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'OCS_RIS', 'OCS_RIS_DETAIL', 'RIS_DASHBOARD', 'RIS_RESULT_UPLOAD', 'AI', 'AI_REQUEST_LIST', 'REPORT', 'REPORT_DASHBOARD'],
+        'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS', 'AI', 'AI_REQUEST_LIST', 'REPORT', 'REPORT_DASHBOARD'],
         # 환자 전용 메뉴 (MY_CARE 그룹)
         'PATIENT': ['DASHBOARD', 'MY_CARE', 'MY_SUMMARY', 'MY_VISITS', 'MY_IMAGING', 'MY_LAB', 'ABOUT_HOSPITAL'],
     }

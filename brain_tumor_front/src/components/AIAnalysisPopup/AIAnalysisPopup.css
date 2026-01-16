@@ -312,6 +312,42 @@
   color: #1e293b;
 }
 
+/* FastAPI 서버 경고 */
+.ai-server-warning {
+  background: linear-gradient(to right, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #92400e;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Job ID 표시 */
+.ai-job-id {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: monospace;
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-left: 12px;
+}
+
+/* 캐시 배지 */
+.ai-cached-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  font-weight: 500;
+}
+
 .ai-result-sub {
   font-size: 0.8rem;
   color: #64748b;

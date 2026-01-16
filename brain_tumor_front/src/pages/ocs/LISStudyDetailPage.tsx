@@ -111,6 +111,7 @@ export default function LISStudyDetailPage() {
 
   // AI 추론 상태
   const [aiRequesting, setAiRequesting] = useState(false);
+  const [aiJobId, setAiJobId] = useState<string | null>(null);
 
   // 검사 카테고리 확인
   const testCategory = ocs ? getLISCategory(ocs.job_type) : 'BLOOD';
@@ -588,8 +589,10 @@ export default function LISStudyDetailPage() {
     }
 
     setAiRequesting(true);
+    setAiJobId(null);
     try {
       const response = await aiApi.requestMGInference(ocs.id, 'manual');
+      setAiJobId(response.job_id);
 
       if (response.cached) {
         alert(`기존 분석 결과가 있습니다.\nJob ID: ${response.job_id}`);
@@ -713,7 +716,9 @@ export default function LISStudyDetailPage() {
                   disabled={aiRequesting}
                   title="MG AI 분석 요청"
                 >
-                  {aiRequesting ? '요청 중...' : '🤖 AI 분석'}
+                  {aiRequesting && aiJobId
+                    ? `'${aiJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+                    : '🤖 AI 분석'}
                 </button>
               )}
               <button className="btn btn-secondary" onClick={handleExportPDF}>

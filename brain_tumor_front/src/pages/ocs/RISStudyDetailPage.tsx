@@ -86,7 +86,7 @@ export default function RISStudyDetailPage() {
 
   // AI 추론 상태
   const [_aiInferenceStatus, setAiInferenceStatus] = useState<'none' | 'pending' | 'processing' | 'completed' | 'failed'>('none');
-  const [_aiJobId, setAiJobId] = useState<string | null>(null);
+  const [aiJobId, setAiJobId] = useState<string | null>(null);
   const [aiRequesting, setAiRequesting] = useState(false);
 
   // URL 쿼리 파라미터 처리 (tab, openViewer)
@@ -632,7 +632,9 @@ export default function RISStudyDetailPage() {
                   disabled={aiRequesting}
                   title="M1 AI 분석 요청"
                 >
-                  {aiRequesting ? '요청 중...' : '🤖 AI 분석'}
+                  {aiRequesting && aiJobId
+                    ? `'${aiJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
+                    : '🤖 AI 분석'}
                 </button>
               )}
               <button className="btn btn-success" onClick={handleSendToEMR}>

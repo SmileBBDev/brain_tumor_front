@@ -43,8 +43,6 @@ const AIRequestCreatePage = lazy(() => import('@/pages/ai-inference/AIRequestCre
 const AIRequestDetailPage = lazy(() => import('@/pages/ai-inference/AIRequestDetailPage'));
 const AIProcessStatusPage = lazy(() => import('@/pages/ai-inference/AIProcessStatusPage'));
 const AIModelsPage = lazy(() => import('@/pages/ai-inference/AIModelsPage'));
-const AISummaryPage = lazy(() => import('@/pages/ai/AISummaryPage'));
-
 // Patient Portal (환자 전용 - MY_CARE)
 const MySummaryPage = lazy(() => import('@/pages/patient-portal/MySummaryPage'));
 const MyVisitsPage = lazy(() => import('@/pages/patient-portal/MyVisitsPage'));
@@ -105,7 +103,6 @@ export const routeMap: Record<string, ComponentType> = {
   LIS_PROCESS_STATUS: LISProcessStatusPage,
 
   // === AI 그룹 ===
-  AI_VIEWER: AISummaryPage,
   AI_REQUEST_LIST: AIRequestListPage,
   AI_REQUEST_CREATE: AIRequestCreatePage,
   AI_REQUEST_DETAIL: AIRequestDetailPage,
