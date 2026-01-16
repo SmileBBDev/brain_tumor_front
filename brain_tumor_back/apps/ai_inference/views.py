@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 FASTAPI_URL = "http://localhost:9000"
 
 # CDSS_STORAGE 경로 동적 설정
-# 현재 파일 위치: backend/brain_tumor_back/apps/ai_inference/views.py
-# CDSS_STORAGE 위치: ../../CDSS_STORAGE (프로젝트 루트 기준)
+# 현재 파일 위치: brain_tumor_back/apps/ai_inference/views.py
+# CDSS_STORAGE 위치: ../CDSS_STORAGE (프로젝트 루트 기준)
 _CURRENT_FILE = Path(__file__).resolve()
-_PROJECT_ROOT = _CURRENT_FILE.parent.parent.parent.parent.parent  # ml-server-final-beforemerge
+_PROJECT_ROOT = _CURRENT_FILE.parent.parent.parent.parent  # brain_tumor_dev
 CDSS_STORAGE_BASE = _PROJECT_ROOT / "CDSS_STORAGE"
 CDSS_STORAGE_AI = CDSS_STORAGE_BASE / "AI"
 CDSS_STORAGE_LIS = CDSS_STORAGE_BASE / "LIS"

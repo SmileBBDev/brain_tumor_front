@@ -79,7 +79,7 @@ htmlcov/
 *.hdf5
 *.pkl
 *.joblib
-backend/modAI/model/
+modAI/model/
 
 # ======================
 # CDSS Storage (Runtime Data)
