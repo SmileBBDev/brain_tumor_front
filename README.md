@@ -119,7 +119,7 @@ venv\Scripts\activate <br/> // 리눅스 : source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt <br/>
 daphne -b 127.0.0.1 -p 8000 config.asgi:application
- python -m daphne -b 127.0.0.1 -p 8000 config.asgi:application
+python -m daphne -b 127.0.0.1 -p 8000 config.asgi:application
 
 pip freeze > requirements.txt
 
@@ -160,6 +160,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8001
 - 메뉴, 사용자 데이터 생성 가능
 
 **더미 데이터 생성 스크립트**
+python -m setup_dummy_data
+
 
 
 <br/>
