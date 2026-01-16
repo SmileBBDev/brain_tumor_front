@@ -18,8 +18,8 @@ from .serializers import InferenceRequestSerializer, InferenceCallbackSerializer
 
 logger = logging.getLogger(__name__)
 
-# FastAPI modAI URL
-FASTAPI_URL = "http://localhost:9000"
+# FastAPI modAI URL (환경변수로 유연하게 설정)
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://localhost:8001")
 
 # CDSS_STORAGE 경로 동적 설정
 # 현재 파일 위치: brain_tumor_back/apps/ai_inference/views.py

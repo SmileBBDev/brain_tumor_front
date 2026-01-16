@@ -430,28 +430,37 @@ export const aiApi = {
     if (data.encoding === 'base64') {
       const shape = data.shape as [number, number, number];
 
-      // base64 → Float32Array → 3D 배열 변환
-      const decodeBase64To3D = (base64: string): number[][][] => {
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
+      // base64 → Float32Array → 3D 배열 변환 (에러 처리 포함)
+      const decodeBase64To3D = (base64: string): number[][][] | null => {
+        if (!base64 || typeof base64 !== 'string') {
+          console.warn('Invalid base64 input');
+          return null;
         }
-        const float32 = new Float32Array(bytes.buffer);
+        try {
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const float32 = new Float32Array(bytes.buffer);
 
-        // 1D → 3D 변환
-        const result: number[][][] = [];
-        let idx = 0;
-        for (let x = 0; x < shape[0]; x++) {
-          result[x] = [];
-          for (let y = 0; y < shape[1]; y++) {
-            result[x][y] = [];
-            for (let z = 0; z < shape[2]; z++) {
-              result[x][y][z] = float32[idx++];
+          // 1D → 3D 변환
+          const result: number[][][] = [];
+          let idx = 0;
+          for (let x = 0; x < shape[0]; x++) {
+            result[x] = [];
+            for (let y = 0; y < shape[1]; y++) {
+              result[x][y] = [];
+              for (let z = 0; z < shape[2]; z++) {
+                result[x][y][z] = float32[idx++] ?? 0;
+              }
             }
           }
+          return result;
+        } catch (error) {
+          console.error('Base64 디코딩 실패:', error);
+          return null;
         }
-        return result;
       };
 
       // MRI 및 prediction 디코딩

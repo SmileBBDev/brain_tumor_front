@@ -128,6 +128,9 @@ pip freeze > requirements.txt
 
 
 
+Mon ai
+
+
 방법 1: Docker Compose (권장)
 cd c:\0000\docker
 docker compose -f docker-compose.fastapi.yml up -d
@@ -137,11 +140,15 @@ cd /mnt/c/0000/brain_tumor_dev/modAI
 
 venv\Scripts\activate
 
+install 
+requuire
+
 # 1. Celery Worker (백그라운드 작업 처리)
 celery -A celery_app worker --loglevel=info
 
 # 2. FastAPI 서버 (별도 터미널)
-uvicorn main:app --reload --host 0.0.0.0 --port 8001 -->
+uvicorn main:app --reload --host 0.0.0.0 --port 8001 
+-->
 
 
 

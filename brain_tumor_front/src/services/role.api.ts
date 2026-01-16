@@ -17,8 +17,8 @@ export const fetchRoles = async (
   });
 
   return {
-    roles: res.data.results, // DRF pagination 결과
-    total: res.data.count, // 전체 개수
+    roles: res?.data?.results ?? [], // DRF pagination 결과 (null 안전)
+    total: res?.data?.count ?? 0, // 전체 개수 (null 안전)
   };
 };
 

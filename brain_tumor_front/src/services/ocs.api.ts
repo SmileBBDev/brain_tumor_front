@@ -448,15 +448,32 @@ export const getLocalStorageKey = (
   return `${STORAGE_PREFIX}:${role}:${ocsId}:${type}`;
 };
 
-// Draft 저장
-export const saveDraft = <T>(key: string, data: T): void => {
-  localStorage.setItem(key, JSON.stringify(data));
+// Draft 저장 (quota 초과 처리 포함)
+export const saveDraft = <T>(key: string, data: T): boolean => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.warn('localStorage 용량 초과:', key);
+    } else {
+      console.error('Draft 저장 실패:', error);
+    }
+    return false;
+  }
 };
 
-// Draft 조회
-export const getDraft = <T>(key: string): T | null => {
+// Draft 조회 (JSON 파싱 에러 처리 포함)
+export const getDraft = <T>(key: string, fallback: T | null = null): T | null => {
   const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : null;
+  if (!data) return fallback;
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Draft JSON 파싱 실패:', key, error);
+    localStorage.removeItem(key);  // 손상된 데이터 제거
+    return fallback;
+  }
 };
 
 // Draft 삭제

@@ -47,12 +47,14 @@ export const fetchUsers = async (params?: UserListParams) => {
 
 /* 활성 / 비활성 토글 */
 export const toggleUserActive = async (id: number) => {
-  await api.patch(`/users/${id}/toggle-active/`);
+  const res = await api.patch(`/users/${id}/toggle-active/`);
+  return res.data;
 };
 
 /* 잠금 해제 */
 export const unlockUser = async (id: number) => {
-  await api.patch(`/users/${id}/unlock/`);
+  const res = await api.patch(`/users/${id}/unlock/`);
+  return res.data;
 };
 
 /* 사용자 단건 조회 (상세) */
@@ -78,7 +80,8 @@ export const updateUser = async (
 
 /* 사용자 삭제 */
 export const deleteUser = async (id: number) => {
-  await api.delete(`/users/${id}/toggle-active/`);
+  const res = await api.delete(`/users/${id}/`);
+  return res.data;
 };
 
 // ========== 외부기관 (EXTERNAL) API ==========
