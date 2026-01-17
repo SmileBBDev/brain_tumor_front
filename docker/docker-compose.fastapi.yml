@@ -40,13 +40,13 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://fastapi-redis:6379/0}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://fastapi-redis:6379/1}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://fastapi-redis:6379/2}
-      # External Services (Main VM - configure with actual IP)
+      # External Services (로컬 테스트: host.docker.internal, VM 배포: MAIN_VM_IP)
       - MAIN_VM_IP=${MAIN_VM_IP:-192.168.x.x}
-      - DJANGO_URL=http://${MAIN_VM_IP}:8000
-      - ORTHANC_URL=http://${MAIN_VM_IP}:8042
+      - DJANGO_URL=${DJANGO_URL:-http://${MAIN_VM_IP}:8000}
+      - ORTHANC_URL=${ORTHANC_URL:-http://${MAIN_VM_IP}:8042}
       - ORTHANC_USER=${ORTHANC_USER:-orthanc}
       - ORTHANC_PASSWORD=${ORTHANC_PASSWORD:-orthanc}
-      - HAPI_FHIR_URL=http://${MAIN_VM_IP}:8081
+      - HAPI_FHIR_URL=${HAPI_FHIR_URL:-http://${MAIN_VM_IP}:8081}
       # GPU Settings
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
     volumes:
@@ -89,10 +89,10 @@ services:
       # Celery Settings: 로컬 테스트 시 host.docker.internal 사용
       - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://fastapi-redis:6379/1}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://fastapi-redis:6379/2}
-      # External Services
+      # External Services (로컬 테스트: host.docker.internal, VM 배포: MAIN_VM_IP)
       - MAIN_VM_IP=${MAIN_VM_IP:-192.168.x.x}
-      - DJANGO_URL=http://${MAIN_VM_IP}:8000
-      - ORTHANC_URL=http://${MAIN_VM_IP}:8042
+      - DJANGO_URL=${DJANGO_URL:-http://${MAIN_VM_IP}:8000}
+      - ORTHANC_URL=${ORTHANC_URL:-http://${MAIN_VM_IP}:8042}
       - ORTHANC_USER=${ORTHANC_USER:-orthanc}
       - ORTHANC_PASSWORD=${ORTHANC_PASSWORD:-orthanc}
       # GPU Settings

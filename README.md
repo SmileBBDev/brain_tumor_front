@@ -134,8 +134,8 @@ Mon ai
 
 방법 1: Docker Compose (권장)
 cd c:\0000\docker
+docker compose -f docker-compose.fastapi.yml down
 docker compose -f docker-compose.fastapi.yml up -d
-
 <!-- 
 cd /mnt/c/0000/brain_tumor_dev/modAI
 
