@@ -5,7 +5,7 @@
  * - WebSocket 실시간 알림 연동
  * - 전역 AIInferenceContext 사용으로 FastAPI 상태 감지
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { api } from '@/services/api'
 import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
 import { useAIInference } from '@/context/AIInferenceContext'
@@ -113,7 +113,11 @@ export default function AIAnalysisBlock() {
 // ============================================================================
 // M1 Panel
 // ============================================================================
-function M1Panel() {
+interface PanelProps {
+  isResearch: boolean
+}
+
+function M1Panel({ isResearch }: PanelProps) {
   const [ocsList, setOcsList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -135,6 +139,17 @@ function M1Panel() {
     loadOcsList()
     return () => { abortRef.current = true }
   }, [])
+
+  // 선택된 MRI OCS의 환자 정보
+  const selectedPatientNumber = ocsList.find(o => o.id === selectedId)?.patient_number || null
+
+  // 진료용 모드: 선택된 환자의 OCS만 필터링
+  // 연구용 모드: 전체 OCS 표시
+  const filteredOcsList = useMemo(() => {
+    if (isResearch) return ocsList
+    // 진료용 모드에서도 처음에는 전체 목록 표시 (선택 전)
+    return ocsList
+  }, [ocsList, isResearch])
 
   // WebSocket 메시지 수신 시 결과 반영
   useEffect(() => {
@@ -512,7 +527,7 @@ function M1Panel() {
 // ============================================================================
 // MG Panel
 // ============================================================================
-function MGPanel() {
+function MGPanel({ isResearch }: PanelProps) {
   const [ocsList, setOcsList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -779,7 +794,7 @@ function MGPanel() {
 // ============================================================================
 // MM Panel (MRI + Gene + Protein 3개 필수)
 // ============================================================================
-function MMPanel() {
+function MMPanel({ isResearch }: PanelProps) {
   const [mriList, setMriList] = useState<OCSItem[]>([])
   const [geneList, setGeneList] = useState<OCSItem[]>([])
   const [proteinList, setProteinList] = useState<OCSItem[]>([])
@@ -800,6 +815,38 @@ function MMPanel() {
     loadData()
     return () => { abortRef.current = true }
   }, [])
+
+  // 선택된 MRI OCS의 환자 정보 (기준 환자)
+  const selectedPatientNumber = mriList.find(o => o.id === selectedMri)?.patient_number || null
+
+  // 진료용 모드: MRI 선택 시 해당 환자의 Gene/Protein 데이터만 필터링
+  // 연구용 모드: 전체 목록 표시
+  const filteredGeneList = useMemo(() => {
+    if (isResearch || !selectedPatientNumber) return geneList
+    return geneList.filter(o => o.patient_number === selectedPatientNumber)
+  }, [geneList, selectedPatientNumber, isResearch])
+
+  const filteredProteinList = useMemo(() => {
+    if (isResearch || !selectedPatientNumber) return proteinList
+    return proteinList.filter(o => o.patient_number === selectedPatientNumber)
+  }, [proteinList, selectedPatientNumber, isResearch])
+
+  // MRI 선택 변경 시 Gene/Protein 선택 초기화 (진료용 모드에서만)
+  useEffect(() => {
+    if (!isResearch && selectedMri) {
+      // 새로 선택한 MRI의 환자와 현재 선택된 Gene/Protein 환자가 다르면 초기화
+      const mriPatient = mriList.find(o => o.id === selectedMri)?.patient_number
+      const genePatient = geneList.find(o => o.id === selectedGene)?.patient_number
+      const proteinPatient = proteinList.find(o => o.id === selectedProtein)?.patient_number
+
+      if (genePatient && genePatient !== mriPatient) {
+        setSelectedGene(null)
+      }
+      if (proteinPatient && proteinPatient !== mriPatient) {
+        setSelectedProtein(null)
+      }
+    }
+  }, [selectedMri, isResearch, mriList, geneList, proteinList, selectedGene, selectedProtein])
 
   // WebSocket 메시지 수신 시 결과 반영
   useEffect(() => {
@@ -986,11 +1033,17 @@ function MMPanel() {
           {/* Gene 선택 */}
           <div className="ai-panel-col">
             <div className="ai-section-title">
-              Gene ({geneList.length})
+              Gene ({filteredGeneList.length}{!isResearch && selectedPatientNumber ? ` / ${geneList.length}` : ''})
               {selectedGene && <span className="ai-selected-badge">✓</span>}
             </div>
-            {geneList.length === 0 ? (
-              <div className="ai-empty small">Gene 데이터 없음</div>
+            {!selectedMri && !isResearch ? (
+              <div className="ai-empty small">MRI를 먼저 선택하세요</div>
+            ) : filteredGeneList.length === 0 ? (
+              <div className="ai-empty small">
+                {!isResearch && selectedPatientNumber
+                  ? `${selectedPatientNumber} 환자의 Gene 데이터 없음`
+                  : 'Gene 데이터 없음'}
+              </div>
             ) : (
               <div className="ai-table-container small">
                 <table className="ai-table">
@@ -1002,7 +1055,7 @@ function MMPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {geneList.map(ocs => (
+                    {filteredGeneList.map(ocs => (
                       <tr
                         key={ocs.id}
                         className={selectedGene === ocs.id ? 'selected' : ''}
@@ -1022,11 +1075,17 @@ function MMPanel() {
           {/* Protein 선택 */}
           <div className="ai-panel-col">
             <div className="ai-section-title">
-              Protein ({proteinList.length})
+              Protein ({filteredProteinList.length}{!isResearch && selectedPatientNumber ? ` / ${proteinList.length}` : ''})
               {selectedProtein && <span className="ai-selected-badge">✓</span>}
             </div>
-            {proteinList.length === 0 ? (
-              <div className="ai-empty small">Protein 데이터 없음</div>
+            {!selectedMri && !isResearch ? (
+              <div className="ai-empty small">MRI를 먼저 선택하세요</div>
+            ) : filteredProteinList.length === 0 ? (
+              <div className="ai-empty small">
+                {!isResearch && selectedPatientNumber
+                  ? `${selectedPatientNumber} 환자의 Protein 데이터 없음`
+                  : 'Protein 데이터 없음'}
+              </div>
             ) : (
               <div className="ai-table-container small">
                 <table className="ai-table">
@@ -1038,7 +1097,7 @@ function MMPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {proteinList.map(ocs => (
+                    {filteredProteinList.map(ocs => (
                       <tr
                         key={ocs.id}
                         className={selectedProtein === ocs.id ? 'selected' : ''}

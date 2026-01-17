@@ -5,6 +5,7 @@ Multimodal (MRI + Gene + Protein) 추론을 위한 비동기 Celery task
 - CDSS_STORAGE 직접 접근 없음
 - 결과 파일은 callback으로 Django에 전송
 """
+import os
 import time
 import json
 import httpx
@@ -14,6 +15,29 @@ from celery.utils.log import get_task_logger
 from services.mm_service import MMInferenceService
 
 logger = get_task_logger(__name__)
+
+
+def resolve_callback_url(callback_url: str) -> str:
+    """
+    Docker 환경에서 callback URL의 localhost를 실제 Django URL로 대체
+    """
+    django_url = os.getenv('DJANGO_URL', '')
+
+    if not django_url:
+        return callback_url
+
+    if 'localhost' in callback_url or '127.0.0.1' in callback_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(callback_url)
+        path = parsed.path
+        if parsed.query:
+            path += f'?{parsed.query}'
+
+        resolved_url = django_url.rstrip('/') + path
+        logger.info(f"[MM] Callback URL resolved: {callback_url} -> {resolved_url}")
+        return resolved_url
+
+    return callback_url
 
 
 @shared_task(bind=True, name='tasks.mm_tasks.run_mm_inference')
