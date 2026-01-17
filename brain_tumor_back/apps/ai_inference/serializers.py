@@ -30,6 +30,7 @@ class AIInferenceSerializer(serializers.ModelSerializer):
     reviewed_by_name = serializers.SerializerMethodField()
     review_comment = serializers.SerializerMethodField()
     reviewed_at = serializers.SerializerMethodField()
+    mri_thumbnails = serializers.SerializerMethodField()
 
     class Meta:
         model = AIInference
@@ -40,7 +41,8 @@ class AIInferenceSerializer(serializers.ModelSerializer):
             'mri_ocs', 'rna_ocs', 'protein_ocs',
             'result_data', 'error_message',
             'created_at', 'completed_at', 'processing_time',
-            'review_status', 'reviewed_by_name', 'review_comment', 'reviewed_at'
+            'review_status', 'reviewed_by_name', 'review_comment', 'reviewed_at',
+            'mri_thumbnails'
         ]
         read_only_fields = ['job_id', 'created_at', 'completed_at']
 
@@ -85,3 +87,38 @@ class AIInferenceSerializer(serializers.ModelSerializer):
         if obj.result_data:
             return obj.result_data.get('reviewed_at')
         return None
+
+    def get_mri_thumbnails(self, obj):
+        """M1 추론의 경우 MRI OCS에서 4채널 썸네일 URL 반환"""
+        if obj.model_type != AIInference.ModelType.M1:
+            return None
+        if not obj.mri_ocs:
+            return None
+
+        # MRI OCS의 worker_result에서 orthanc 정보 추출
+        worker_result = obj.mri_ocs.worker_result or {}
+        orthanc_info = worker_result.get('orthanc', {})
+        series_list = orthanc_info.get('series', [])
+
+        if not series_list:
+            return None
+
+        # 4채널 (T1, T1C, T2, FLAIR) 썸네일 URL 생성
+        channel_order = {'T1': 0, 'T1C': 1, 'T2': 2, 'FLAIR': 3}
+        thumbnails = []
+
+        for series in series_list:
+            series_type = series.get('series_type', 'OTHER')
+            orthanc_id = series.get('orthanc_id')
+
+            if series_type in channel_order and orthanc_id:
+                thumbnails.append({
+                    'channel': series_type,
+                    'url': f'/api/orthanc/series/{orthanc_id}/thumbnail/',
+                    'description': series.get('description', series_type),
+                })
+
+        # 채널 순서로 정렬
+        thumbnails.sort(key=lambda x: channel_order.get(x['channel'], 99))
+
+        return thumbnails if thumbnails else None

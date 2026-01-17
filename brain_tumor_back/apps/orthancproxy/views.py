@@ -652,6 +652,7 @@ def get_series_thumbnail(request, series_id: str):
     시리즈의 중간 슬라이스 썸네일 이미지 반환
 
     Orthanc의 preview 기능을 활용하여 DICOM 이미지를 PNG로 변환
+    슬라이스 위치(SliceLocation 또는 InstanceNumber)를 기준으로 정렬하여 일관된 중간 슬라이스 선택
     """
     try:
         # 시리즈 정보 조회
@@ -661,9 +662,48 @@ def get_series_thumbnail(request, series_id: str):
         if not instances:
             return Response({"detail": "No instances in series"}, status=404)
 
-        # 중간 슬라이스 선택
-        middle_idx = len(instances) // 2
-        middle_instance_id = instances[middle_idx]
+        # 각 인스턴스의 슬라이스 위치 정보 수집
+        instance_positions = []
+        for inst_id in instances:
+            try:
+                # Orthanc simplified-tags에서 슬라이스 정보 가져오기
+                tags = _get(f"/instances/{inst_id}/simplified-tags")
+
+                # SliceLocation이 가장 정확, 없으면 InstanceNumber 사용
+                slice_loc = tags.get("SliceLocation")
+                instance_num = tags.get("InstanceNumber")
+
+                # 정렬 기준 값 결정
+                if slice_loc is not None:
+                    try:
+                        position = float(slice_loc)
+                    except (ValueError, TypeError):
+                        position = None
+                else:
+                    position = None
+
+                # SliceLocation이 없으면 InstanceNumber 사용
+                if position is None and instance_num is not None:
+                    try:
+                        position = float(instance_num)
+                    except (ValueError, TypeError):
+                        position = None
+
+                instance_positions.append({
+                    "id": inst_id,
+                    "position": position if position is not None else 0
+                })
+            except Exception as e:
+                # 개별 인스턴스 조회 실패 시 기본값 사용
+                logger.warning(f"Failed to get tags for instance {inst_id}: {e}")
+                instance_positions.append({"id": inst_id, "position": 0})
+
+        # 슬라이스 위치로 정렬
+        instance_positions.sort(key=lambda x: x["position"])
+
+        # 정렬된 목록에서 중간 슬라이스 선택
+        middle_idx = len(instance_positions) // 2
+        middle_instance_id = instance_positions[middle_idx]["id"]
 
         # Orthanc의 preview 기능 사용 (PNG 반환)
         preview_url = f"{ORTHANC}/instances/{middle_instance_id}/preview"

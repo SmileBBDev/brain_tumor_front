@@ -36,9 +36,16 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 const toAbsoluteUrl = (url: string): string => {
   if (url.startsWith('http')) return url;
   if (url.startsWith('/api/')) {
-    return url.replace('/api/', `${API_BASE_URL}/`);
+    // '/api/' 제거 후 API_BASE_URL 추가 (예: '/api/foo' -> 'http://localhost:8000/api/foo')
+    return `${API_BASE_URL}${url.slice(4)}`;
   }
   return url;
+};
+
+// SEG 채널 색상 추가
+const CHANNEL_COLORS_EXT: Record<string, string> = {
+  ...CHANNEL_COLORS,
+  SEG: '#8b5cf6',  // purple (세그멘테이션 오버레이)
 };
 
 interface ReportCardProps {
@@ -164,6 +171,74 @@ export default function ReportCard({ report, onClick }: ReportCardProps) {
         <div className="thumbnail-segmentation" style={{ backgroundColor: thumbnail.color || '#ef4444' }}>
           <span className="icon">{ICON_MAP.brain}</span>
           <span className="label">3D MRI</span>
+        </div>
+      );
+    }
+
+    // M1 추론: MRI 4채널 + 세그멘테이션 오버레이
+    if (thumbnail.type === 'segmentation_with_mri') {
+      if (showThumbnail && thumbnail.channels && thumbnail.channels.length > 0) {
+        // 첫 번째 채널을 SEG 오버레이로 대체, 나머지 3개는 원본 MRI
+        const overlayChannel = {
+          channel: 'SEG' as const,
+          url: (thumbnail as any).overlay_url || '',
+          description: 'Segmentation Overlay',
+        };
+        const displayChannels = [overlayChannel, ...thumbnail.channels.slice(0, 3)];
+        return (
+          <div className="thumbnail-dicom-multi">
+            {displayChannels.map((ch, idx) => (
+              <div key={ch.channel + idx} className="dicom-channel">
+                {imageErrors.has(ch.channel) ? (
+                  <div
+                    className="channel-fallback"
+                    style={{ backgroundColor: CHANNEL_COLORS_EXT[ch.channel] || '#6b7280' }}
+                  >
+                    <span className="channel-label">{ch.channel}</span>
+                  </div>
+                ) : (
+                  <>
+                    <img
+                      src={toAbsoluteUrl(ch.url)}
+                      alt={ch.description}
+                      onError={() => handleImageError(ch.channel)}
+                      loading="lazy"
+                    />
+                    <span
+                      className="channel-badge"
+                      style={{ backgroundColor: CHANNEL_COLORS_EXT[ch.channel] || '#6b7280' }}
+                    >
+                      {ch.channel}
+                    </span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      }
+      // 캐시되지 않은 경우 M1 아이콘
+      return (
+        <div className="thumbnail-icon" style={{ backgroundColor: thumbnail.color || '#ef4444' }}>
+          <span className="icon">{ICON_MAP.brain}</span>
+          <span className="label">M1</span>
+        </div>
+      );
+    }
+
+    // M1 추론: 세그멘테이션 오버레이만 (MRI 채널 없음)
+    if (thumbnail.type === 'segmentation_overlay') {
+      if (showThumbnail && (thumbnail as any).overlay_url) {
+        return (
+          <div className="thumbnail-image">
+            <img src={toAbsoluteUrl((thumbnail as any).overlay_url)} alt="Segmentation Overlay" />
+          </div>
+        );
+      }
+      return (
+        <div className="thumbnail-icon" style={{ backgroundColor: thumbnail.color || '#ef4444' }}>
+          <span className="icon">{ICON_MAP.brain}</span>
+          <span className="label">M1</span>
         </div>
       );
     }

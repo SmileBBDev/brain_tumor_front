@@ -14,6 +14,7 @@ from .views import (
     AIInferenceSegmentationView,
     AIInferenceSegmentationCompareView,
     AIInferenceReviewView,
+    AIInferenceM1ThumbnailView,
     MGGeneExpressionView,
     AIModelsListView,
     AIModelDetailView,
@@ -54,4 +55,7 @@ urlpatterns = [
     # Segmentation data
     path('inferences/<str:job_id>/segmentation/', AIInferenceSegmentationView.as_view(), name='inference-segmentation'),
     path('inferences/<str:job_id>/segmentation/compare/', AIInferenceSegmentationCompareView.as_view(), name='inference-segmentation-compare'),
+
+    # Thumbnail (M1)
+    path('inferences/<str:job_id>/thumbnail/', AIInferenceM1ThumbnailView.as_view(), name='inference-thumbnail'),
 ]

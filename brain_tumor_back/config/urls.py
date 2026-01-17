@@ -13,6 +13,7 @@ from apps.common.views import (
     DoctorDashboardStatsView,
     HealthCheckView,
     SystemMonitorView,
+    MonitorAlertConfigView,
 )
 
 
@@ -70,6 +71,7 @@ urlpatterns = [
 
     # System Monitor API
     path("api/system/monitor/", SystemMonitorView.as_view(), name="system_monitor"),
+    path("api/system/config/monitor-alerts/", MonitorAlertConfigView.as_view(), name="monitor_alert_config"),
 
     # 진료 보고서 API
     path("api/reports/", include("apps.reports.urls")),

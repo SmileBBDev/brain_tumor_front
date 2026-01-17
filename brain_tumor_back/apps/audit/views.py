@@ -2,12 +2,20 @@ from rest_framework import generics, filters, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import FilterSet, CharFilter, ChoiceFilter, DateFilter
 from django.db.models import Count, Max
 
 from .models import AuditLog, AccessLog
 from .serializers import AuditLogSerializer, AccessLogSerializer, AccessLogDetailSerializer
+
+
+class AuditLogPagination(PageNumberPagination):
+    """감사 로그 페이지네이션"""
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 class AuditLogFilter(FilterSet):
@@ -33,6 +41,7 @@ class AuditLogListView(generics.ListAPIView):
     queryset = AuditLog.objects.select_related('user', 'user__role').order_by('-created_at')
     serializer_class = AuditLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = AuditLogPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = AuditLogFilter
     ordering_fields = ['created_at', 'action']
@@ -65,6 +74,7 @@ class AccessLogListView(generics.ListAPIView):
     queryset = AccessLog.objects.select_related('user').order_by('-created_at')
     serializer_class = AccessLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = AuditLogPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = AccessLogFilter
     ordering_fields = ['created_at', 'action', 'result']

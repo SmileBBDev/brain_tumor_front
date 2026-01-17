@@ -2046,3 +2046,136 @@ class AIInferenceReviewView(APIView):
             'review_status': review_status,
             'review_status_display': '승인됨' if review_status == 'approved' else '반려됨'
         })
+
+
+class AIInferenceM1ThumbnailView(APIView):
+    """
+    M1 추론 결과 썸네일 (MRI + 세그멘테이션 오버레이)
+
+    GET /api/ai/inferences/<job_id>/thumbnail/
+
+    Returns:
+        - PNG 이미지: T1CE MRI 중간 슬라이스에 세그멘테이션 마스크 오버레이
+    """
+    permission_classes = [AllowAny]
+
+    STORAGE_BASE = CDSS_STORAGE_AI
+
+    def get(self, request, job_id):
+        import numpy as np
+        from PIL import Image
+        import io
+        from django.http import HttpResponse
+
+        try:
+            inference = AIInference.objects.get(job_id=job_id)
+        except AIInference.DoesNotExist:
+            return Response(
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # M1 모델만 지원
+        if inference.model_type != AIInference.ModelType.M1:
+            return Response(
+                {'detail': 'M1 모델만 썸네일을 지원합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        result_dir = self.STORAGE_BASE / job_id
+        seg_file = result_dir / "m1_segmentation.npz"
+        mri_file = result_dir / "m1_preprocessed_mri.npz"
+
+        if not seg_file.exists():
+            return Response(
+                {'detail': '세그멘테이션 파일을 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            # 세그멘테이션 마스크 로드
+            seg_data = np.load(seg_file, allow_pickle=True)
+            if 'mask' in seg_data:
+                seg_mask = seg_data['mask']
+            elif 'segmentation_mask' in seg_data:
+                seg_mask = seg_data['segmentation_mask']
+            else:
+                raise KeyError("세그멘테이션 데이터를 찾을 수 없습니다.")
+
+            # MRI 데이터 로드
+            mri_data = None
+            if mri_file.exists():
+                mri_npz = np.load(mri_file, allow_pickle=True)
+                # T1CE 채널 우선, 없으면 다른 채널 사용
+                for key in ['t1ce', 't1c', 'T1CE', 'T1C', 't1', 'T1']:
+                    if key in mri_npz:
+                        mri_data = mri_npz[key]
+                        break
+                if mri_data is None and len(mri_npz.files) > 0:
+                    mri_data = mri_npz[mri_npz.files[0]]
+
+            # MRI 없으면 세그멘테이션에서 MRI 찾기 (legacy)
+            if mri_data is None and 'mri' in seg_data:
+                mri_data = seg_data['mri']
+
+            # 중간 슬라이스 선택
+            mid_slice = seg_mask.shape[2] // 2
+            seg_slice = seg_mask[:, :, mid_slice]
+
+            if mri_data is not None:
+                mri_slice = mri_data[:, :, mid_slice]
+            else:
+                # MRI 없으면 빈 배경 사용
+                mri_slice = np.zeros_like(seg_slice)
+
+            # 오버레이 이미지 생성
+            img_bytes = self._create_overlay(mri_slice, seg_slice)
+
+            return HttpResponse(img_bytes, content_type='image/png')
+
+        except Exception as e:
+            logger.error(f'M1 썸네일 생성 실패: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'detail': f'썸네일 생성에 실패했습니다: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def _create_overlay(self, mri_slice, seg_slice):
+        """MRI 슬라이스에 세그멘테이션 마스크를 오버레이한 PNG 이미지 생성"""
+        import numpy as np
+        from PIL import Image
+        import io
+
+        # MRI 정규화 (0-255)
+        if mri_slice.max() > mri_slice.min():
+            mri_norm = ((mri_slice - mri_slice.min()) / (mri_slice.max() - mri_slice.min()) * 255).astype(np.uint8)
+        else:
+            mri_norm = np.zeros_like(mri_slice, dtype=np.uint8)
+
+        # 그레이스케일 → RGB
+        rgb = np.stack([mri_norm] * 3, axis=-1)
+
+        # 세그멘테이션 마스크 컬러 오버레이
+        # BraTS 레이블: 1=NCR/NET (빨강), 2=ED (노랑), 4=ET (초록)
+        colors = {
+            1: [255, 100, 100],   # NCR/NET: 빨강
+            2: [255, 255, 100],   # ED: 노랑
+            4: [100, 255, 100],   # ET: 초록
+        }
+        alpha = 0.5
+
+        for label, color in colors.items():
+            mask = seg_slice == label
+            if np.any(mask):
+                rgb[mask] = (rgb[mask] * (1-alpha) + np.array(color) * alpha).astype(np.uint8)
+
+        # 이미지 회전 (상하 반전하여 정상 방향으로)
+        rgb = np.flipud(rgb)
+
+        # PNG 인코딩
+        img = Image.fromarray(rgb)
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        return buffer.getvalue()

@@ -487,18 +487,23 @@ class UnifiedReportDashboardView(APIView):
         saved_files = result_data.get('saved_files', {})
 
         if ai.model_type == AIInference.ModelType.M1:
-            # M1: 세그멘테이션 미리보기
-            if saved_files.get('job_id'):
-                return {
-                    'type': 'segmentation',
-                    'job_id': ai.job_id,
-                    'api_url': f'/api/ai/inferences/{ai.job_id}/segmentation/',
-                }
-            return {
-                'type': 'icon',
+            # M1: MRI 채널 + 세그멘테이션 오버레이 썸네일
+            thumbnail_data = {
+                'type': 'segmentation_overlay',
+                'job_id': ai.job_id,
+                'overlay_url': f'/api/ai/inferences/{ai.job_id}/thumbnail/',
                 'icon': 'brain',
-                'color': '#ef4444',  # red
+                'color': '#ef4444',
             }
+
+            # mri_ocs가 있으면 원본 MRI 채널 정보도 포함
+            if ai.mri_ocs:
+                mri_thumb = self._get_ocs_thumbnail(ai.mri_ocs)
+                if mri_thumb.get('type') == 'dicom_multi':
+                    thumbnail_data['channels'] = mri_thumb.get('channels', [])
+                    thumbnail_data['type'] = 'segmentation_with_mri'
+
+            return thumbnail_data
         elif ai.model_type == AIInference.ModelType.MG:
             # MG: 유전자 발현 차트
             return {

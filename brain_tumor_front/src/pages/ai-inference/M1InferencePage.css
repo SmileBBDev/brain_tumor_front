@@ -115,7 +115,7 @@
 
 /* OCS Section */
 .m1-ocs-section {
-  max-height: 400px;
+  max-height: 700px;
   overflow: hidden;
   display: flex;
   flex-direction: column;

@@ -199,10 +199,10 @@ export default function M1InferencePage() {
       return
     }
 
-    // DICOM 정보 확인
-    const dicomInfo = selectedOcs.worker_result?.dicom
-    if (!dicomInfo?.study_uid) {
-      setError('선택한 OCS에 DICOM 정보가 없습니다.')
+    // DICOM study_uid 검증 (백엔드에서 필수)
+    const studyUid = selectedOcs.worker_result?.dicom?.study_uid
+    if (!studyUid) {
+      setError('DICOM study_uid 정보가 없습니다. OCS 데이터를 확인해주세요.')
       return
     }
 
@@ -212,6 +212,8 @@ export default function M1InferencePage() {
       setInferenceResult(null)
       setIsCached(false)
 
+      console.log('[M1] 추론 요청:', { ocs_id: selectedOcs.id, study_uid: studyUid })
+
       // 전역 context의 requestInference 사용 (FastAPI 상태 감지 및 토스트 알림 포함)
       const job = await requestInference('M1', { ocs_id: selectedOcs.id, mode: 'manual' })
 
@@ -219,7 +221,7 @@ export default function M1InferencePage() {
         // requestInference가 null을 반환하면 에러 발생 (FastAPI OFF 등)
         // 알림은 전역 context에서 이미 처리됨
         setInferenceStatus('failed')
-        setError('AI 서버 연결 실패. 서버 상태를 확인해주세요.')
+        setError('AI 서버 연결 실패. 토스트 알림을 확인해주세요.')
         return
       }
 

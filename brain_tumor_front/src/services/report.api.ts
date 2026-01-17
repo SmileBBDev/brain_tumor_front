@@ -22,15 +22,16 @@ export interface UnifiedReport {
   link: string;
 }
 
-// 채널별 썸네일 정보 (T1, T1C, T2, FLAIR)
+// 채널별 썸네일 정보 (T1, T1C, T2, FLAIR, SEG)
 export interface ChannelThumbnail {
-  channel: 'T1' | 'T1C' | 'T2' | 'FLAIR';
+  channel: 'T1' | 'T1C' | 'T2' | 'FLAIR' | 'SEG';
   url: string;
   description: string;
 }
 
 export interface ReportThumbnail {
-  type: 'image' | 'icon' | 'segmentation' | 'chart' | 'dicom' | 'dicom_multi';
+  type: 'image' | 'icon' | 'segmentation' | 'chart' | 'dicom' | 'dicom_multi'
+      | 'segmentation_overlay' | 'segmentation_with_mri';
   url?: string;
   icon?: string;
   color?: string;
@@ -41,6 +42,8 @@ export interface ReportThumbnail {
   orthanc_study_id?: string;
   thumbnails_url?: string;
   channels?: ChannelThumbnail[];
+  // 세그멘테이션 오버레이 관련 (M1 추론)
+  overlay_url?: string;
 }
 
 export interface UnifiedReportResponse {

@@ -388,3 +388,122 @@ class SystemMonitorView(APIView):
                 {'detail': '시스템 모니터링 데이터를 불러오는 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# 모니터링 알림 설정 기본값
+DEFAULT_MONITOR_ALERTS = {
+    "server_warning": {
+        "title": "서버 상태 주의",
+        "description": "CPU 또는 메모리 사용률이 임계값을 초과했습니다.",
+        "actions": [
+            "불필요한 프로세스 종료",
+            "서버 리소스 확장 검토",
+            "메모리 누수 점검"
+        ]
+    },
+    "server_error": {
+        "title": "서버 상태 오류",
+        "description": "데이터베이스 연결에 실패했습니다.",
+        "actions": [
+            "DB 서버 상태 확인",
+            "네트워크 연결 점검",
+            "DB 서비스 재시작"
+        ]
+    },
+    "cpu_warning": {
+        "title": "CPU 사용률 주의",
+        "description": "CPU 사용률이 임계값을 초과했습니다.",
+        "threshold": 90,
+        "actions": [
+            "CPU 집약적 작업 확인",
+            "프로세스 모니터링",
+            "서버 스케일업 검토"
+        ]
+    },
+    "memory_warning": {
+        "title": "메모리 사용률 주의",
+        "description": "메모리 사용률이 임계값을 초과했습니다.",
+        "threshold": 90,
+        "actions": [
+            "메모리 누수 점검",
+            "캐시 정리",
+            "불필요한 프로세스 종료"
+        ]
+    },
+    "disk_warning": {
+        "title": "디스크 사용률 주의",
+        "description": "디스크 사용률이 임계값을 초과했습니다.",
+        "threshold": 90,
+        "actions": [
+            "로그 파일 정리",
+            "불필요한 파일 삭제",
+            "디스크 용량 확장"
+        ]
+    },
+    "error_warning": {
+        "title": "오류 발생 주의",
+        "description": "로그인 실패 및 계정 잠금이 다수 발생했습니다.",
+        "threshold": 10,
+        "actions": [
+            "로그인 실패 원인 분석",
+            "보안 점검",
+            "비정상 접근 시도 확인"
+        ]
+    }
+}
+
+
+class MonitorAlertConfigView(APIView):
+    """
+    시스템 모니터링 알림 설정 API
+    - GET: 현재 설정 조회
+    - PUT: 설정 수정
+    """
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        """모니터링 알림 설정 조회"""
+        from .models import SystemConfig
+
+        config = SystemConfig.get_value('monitor_alerts', DEFAULT_MONITOR_ALERTS)
+        return Response(config)
+
+    def put(self, request):
+        """모니터링 알림 설정 수정"""
+        from .models import SystemConfig
+        import json
+
+        try:
+            data = request.data
+
+            # 유효성 검사: 필수 키 확인
+            required_keys = ['server_warning', 'server_error', 'cpu_warning',
+                           'memory_warning', 'disk_warning', 'error_warning']
+            for key in required_keys:
+                if key not in data:
+                    return Response(
+                        {'detail': f'필수 설정 항목이 누락되었습니다: {key}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # 설정 저장
+            SystemConfig.set_value(
+                key='monitor_alerts',
+                value=data,
+                description='시스템 모니터링 알림 설정',
+                user=request.user
+            )
+
+            return Response({'detail': '설정이 저장되었습니다.', 'data': data})
+
+        except json.JSONDecodeError:
+            return Response(
+                {'detail': '잘못된 JSON 형식입니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Monitor alert config save error: {str(e)}")
+            return Response(
+                {'detail': '설정 저장 중 오류가 발생했습니다.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

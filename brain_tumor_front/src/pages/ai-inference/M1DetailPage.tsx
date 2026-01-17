@@ -6,6 +6,17 @@ import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
 import './M1DetailPage.css'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+
+// 채널별 색상
+const CHANNEL_COLORS: Record<string, string> = {
+  T1: '#3b82f6',    // 파랑
+  T1C: '#ef4444',   // 빨강
+  T2: '#10b981',    // 초록
+  FLAIR: '#f59e0b', // 주황
+  SEG: '#8b5cf6',   // 보라
+}
+
 interface M1Result {
   grade?: {
     predicted_class: string
@@ -31,6 +42,13 @@ interface M1Result {
   processing_time_ms?: number
 }
 
+// MRI 썸네일 채널 정보
+interface MRIThumbnail {
+  channel: 'T1' | 'T1C' | 'T2' | 'FLAIR'
+  url: string
+  description: string
+}
+
 interface InferenceDetail {
   id: number
   job_id: string
@@ -44,6 +62,7 @@ interface InferenceDetail {
   error_message: string | null
   created_at: string
   completed_at: string | null
+  mri_thumbnails?: MRIThumbnail[] | null
 }
 
 export default function M1DetailPage() {
@@ -270,6 +289,63 @@ export default function M1DetailPage() {
         </div>
       </div>
 
+      {/* MRI Thumbnails & Segmentation Overlay */}
+      {inferenceDetail.status === 'COMPLETED' && (
+        <div className="section">
+          <h3 className="section-title">MRI 이미지 미리보기</h3>
+          <div className="mri-thumbnails-container">
+            {/* Segmentation Overlay Thumbnail */}
+            <div className="mri-thumbnail-card">
+              <div className="thumbnail-wrapper">
+                <img
+                  src={`${API_BASE_URL}/ai/inferences/${jobId}/thumbnail/`}
+                  alt="Segmentation Overlay"
+                  className="thumbnail-image"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    target.parentElement?.classList.add('thumbnail-error')
+                  }}
+                />
+              </div>
+              <div className="thumbnail-label" style={{ backgroundColor: CHANNEL_COLORS.SEG }}>
+                SEG
+              </div>
+              <span className="thumbnail-description">세그멘테이션 오버레이</span>
+            </div>
+
+            {/* Original MRI Channel Thumbnails */}
+            {inferenceDetail.mri_thumbnails?.map((thumb) => (
+              <div key={thumb.channel} className="mri-thumbnail-card">
+                <div className="thumbnail-wrapper">
+                  <img
+                    src={`${API_BASE_URL}${thumb.url.startsWith('/api/') ? thumb.url.slice(4) : thumb.url}`}
+                    alt={thumb.channel}
+                    className="thumbnail-image"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                      target.parentElement?.classList.add('thumbnail-error')
+                    }}
+                  />
+                </div>
+                <div className="thumbnail-label" style={{ backgroundColor: CHANNEL_COLORS[thumb.channel] }}>
+                  {thumb.channel}
+                </div>
+                <span className="thumbnail-description">{thumb.description}</span>
+              </div>
+            ))}
+
+            {/* No MRI thumbnails available */}
+            {!inferenceDetail.mri_thumbnails?.length && (
+              <div className="no-thumbnails-message">
+                원본 MRI OCS 연결 정보가 없습니다.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Inference Result */}
       {inferenceDetail.status === 'COMPLETED' && inferenceDetail.result_data && (
         <div className="section">
@@ -289,95 +365,6 @@ export default function M1DetailPage() {
           <h3 className="section-title">오류 정보</h3>
           <div className="error-container">
             <p className="error-message">{inferenceDetail.error_message}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Probability Distribution */}
-      {inferenceDetail.result_data?.grade?.probabilities && (
-        <div className="section">
-          <h3 className="section-title">확률 분포</h3>
-          <div className="probability-grid">
-            {/* Grade Probabilities */}
-            <div className="probability-card">
-              <h4 className="card-subtitle">Grade 분류</h4>
-              {Object.entries(inferenceDetail.result_data.grade.probabilities).map(([grade, prob]) => (
-                <div key={grade} className="probability-bar-container">
-                  <div className="probability-label">
-                    <span>{grade}</span>
-                    <span>{(prob * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="probability-bar">
-                    <div
-                      className="probability-fill"
-                      style={{ width: `${prob * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* IDH Probability */}
-            {inferenceDetail.result_data.idh && (
-              <div className="probability-card">
-                <h4 className="card-subtitle">IDH 상태</h4>
-                <div className="probability-bar-container">
-                  <div className="probability-label">
-                    <span>IDH Mutant</span>
-                    <span>{((inferenceDetail.result_data.idh.mutant_probability || 0) * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="probability-bar">
-                    <div
-                      className="probability-fill idh"
-                      style={{ width: `${(inferenceDetail.result_data.idh.mutant_probability || 0) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="probability-bar-container">
-                  <div className="probability-label">
-                    <span>IDH Wild Type</span>
-                    <span>{((1 - (inferenceDetail.result_data.idh.mutant_probability || 0)) * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="probability-bar">
-                    <div
-                      className="probability-fill"
-                      style={{ width: `${(1 - (inferenceDetail.result_data.idh.mutant_probability || 0)) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* MGMT Probability */}
-            {inferenceDetail.result_data.mgmt && (
-              <div className="probability-card">
-                <h4 className="card-subtitle">MGMT 상태</h4>
-                <div className="probability-bar-container">
-                  <div className="probability-label">
-                    <span>MGMT Methylated</span>
-                    <span>{((inferenceDetail.result_data.mgmt.methylated_probability || 0) * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="probability-bar">
-                    <div
-                      className="probability-fill mgmt"
-                      style={{ width: `${(inferenceDetail.result_data.mgmt.methylated_probability || 0) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="probability-bar-container">
-                  <div className="probability-label">
-                    <span>MGMT Unmethylated</span>
-                    <span>{((1 - (inferenceDetail.result_data.mgmt.methylated_probability || 0)) * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="probability-bar">
-                    <div
-                      className="probability-fill"
-                      style={{ width: `${(1 - (inferenceDetail.result_data.mgmt.methylated_probability || 0)) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
