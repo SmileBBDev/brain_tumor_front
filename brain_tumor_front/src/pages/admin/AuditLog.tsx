@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getAuditLogs } from '@/services/audit.api';
 import type { AuditLog as AuditLogType } from '@/services/audit.api';
+import SearchableUserDropdown from '@/components/common/SearchableUserDropdown';
+import '@/assets/style/adminPageStyle.css';
 
 // 시스템 접근 감사 로그 페이지
 export default function AuditLog() {
@@ -66,11 +68,13 @@ export default function AuditLog() {
   return (
     <div className="admin-card">
       <div className="admin-toolbar">
-        <input
-          placeholder="사용자 ID"
+        <SearchableUserDropdown
           value={userIdFilter}
-          onChange={(e) => setUserIdFilter(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+          onChange={(userId) => {
+            setUserIdFilter(userId);
+            setPage(1);
+          }}
+          placeholder="사용자 검색"
         />
         <input
           type="date"

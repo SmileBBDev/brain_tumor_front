@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import MMResultViewer from '@/components/MMResultViewer'
 import { aiApi } from '@/services/ai.api'
+import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
 import './MMDetailPage.css'
 
 interface MMResult {
@@ -80,6 +81,7 @@ interface InferenceDetail {
 export default function MMDetailPage() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
+  const { markAsCached } = useThumbnailCache()
 
   // State
   const [loading, setLoading] = useState(true)
@@ -90,8 +92,10 @@ export default function MMDetailPage() {
   useEffect(() => {
     if (jobId) {
       loadInferenceDetail(jobId)
+      // 보고서 방문 시 캐시에 등록 (목록 페이지에서 썸네일 표시용)
+      markAsCached(`ai_${jobId}`)
     }
-  }, [jobId])
+  }, [jobId, markAsCached])
 
   const loadInferenceDetail = async (id: string) => {
     try {

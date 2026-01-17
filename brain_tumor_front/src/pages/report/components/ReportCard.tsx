@@ -2,9 +2,11 @@
  * 보고서 카드 컴포넌트
  * - 썸네일 + 정보를 카드 형태로 표시
  * - OCS_RIS: 4채널 DICOM 이미지 썸네일 (T1, T1C, T2, FLAIR)
+ * - 캐시되지 않은 보고서는 아이콘으로 표시, 상세 방문 후 캐시되면 썸네일 표시
  */
 import { useState } from 'react';
 import type { UnifiedReport, ChannelThumbnail } from '@/services/report.api';
+import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
 import './ReportCard.css';
 
 // 아이콘 매핑
@@ -27,14 +29,30 @@ const CHANNEL_COLORS: Record<string, string> = {
   FLAIR: '#f59e0b', // amber
 };
 
+// API Base URL (Vite 프록시 우회용)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+// 상대 경로 URL을 절대 URL로 변환
+const toAbsoluteUrl = (url: string): string => {
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('/api/')) {
+    return url.replace('/api/', `${API_BASE_URL}/`);
+  }
+  return url;
+};
+
 interface ReportCardProps {
   report: UnifiedReport;
   onClick: () => void;
 }
 
 export default function ReportCard({ report, onClick }: ReportCardProps) {
-  const { thumbnail, type, type_display, sub_type, patient_name, patient_number, title, result_display, completed_at, status_display } = report;
+  const { thumbnail, type, type_display, sub_type, patient_name, patient_number, title, result_display, completed_at, status_display, id } = report;
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const { isCached } = useThumbnailCache();
+
+  // 캐시된 보고서인지 확인 (캐시된 경우만 썸네일 로드)
+  const showThumbnail = isCached(id);
 
   // 날짜 포맷
   const formatDate = (dateStr: string | null) => {
@@ -86,7 +104,7 @@ export default function ReportCard({ report, onClick }: ReportCardProps) {
             ) : (
               <>
                 <img
-                  src={ch.url}
+                  src={toAbsoluteUrl(ch.url)}
                   alt={ch.description}
                   onError={() => handleImageError(ch.channel)}
                   loading="lazy"
@@ -107,14 +125,23 @@ export default function ReportCard({ report, onClick }: ReportCardProps) {
 
   // 썸네일 렌더링
   const renderThumbnail = () => {
-    // DICOM 멀티채널 (4채널 그리드)
+    // DICOM 멀티채널 (4채널 그리드) - 캐시된 경우에만 실제 이미지 로드
     if (thumbnail.type === 'dicom_multi' && thumbnail.channels && thumbnail.channels.length > 0) {
-      return renderDicomMultiThumbnail(thumbnail.channels);
+      if (showThumbnail) {
+        return renderDicomMultiThumbnail(thumbnail.channels);
+      }
+      // 캐시되지 않은 경우 MRI 아이콘 표시
+      return (
+        <div className="thumbnail-icon" style={{ backgroundColor: '#3b82f6' }}>
+          <span className="icon">{ICON_MAP.mri}</span>
+          <span className="label">MRI</span>
+        </div>
+      );
     }
 
     // DICOM 단일 (동적 로드 필요 시)
     if (thumbnail.type === 'dicom' && thumbnail.thumbnails_url) {
-      // 아직 channels 정보가 없으면 아이콘 표시 (API에서 동적 로드 필요)
+      // 아이콘 표시
       return (
         <div className="thumbnail-icon" style={{ backgroundColor: '#3b82f6' }}>
           <span className="icon">{ICON_MAP.mri}</span>
@@ -126,7 +153,7 @@ export default function ReportCard({ report, onClick }: ReportCardProps) {
     if (thumbnail.type === 'image' && thumbnail.url) {
       return (
         <div className="thumbnail-image">
-          <img src={thumbnail.url} alt="thumbnail" />
+          <img src={toAbsoluteUrl(thumbnail.url)} alt="thumbnail" />
         </div>
       );
     }

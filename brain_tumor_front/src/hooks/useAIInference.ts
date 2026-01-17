@@ -178,10 +178,10 @@ export function useAIRequestDetail(jobId: string | null): UseAIRequestDetailRetu
 
   const review = useCallback(
     async (status: 'approved' | 'rejected', comment?: string) => {
-      if (!request?.result) return;
+      if (!jobId) return;
 
       try {
-        await reviewAIResult(request.result.id, {
+        await reviewAIResult(jobId, {
           review_status: status,
           review_comment: comment,
         });
@@ -191,7 +191,7 @@ export function useAIRequestDetail(jobId: string | null): UseAIRequestDetailRetu
         throw err;
       }
     },
-    [request, refresh]
+    [jobId, refresh]
   );
 
   return { request, loading, error, refresh, cancel, review };

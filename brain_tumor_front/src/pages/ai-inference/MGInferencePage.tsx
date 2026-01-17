@@ -5,6 +5,7 @@ import GeneVisualization from '@/components/GeneVisualization'
 import type { GeneExpressionData } from '@/components/GeneVisualization/GeneVisualization'
 import MGResultViewer from '@/components/MGResultViewer'
 import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 import './MGInferencePage.css'
 
@@ -81,6 +82,9 @@ interface InferenceRecord {
 
 export default function MGInferencePage() {
   const navigate = useNavigate()
+
+  // AI Inference Context (전역 알림 및 FastAPI 상태 감지)
+  const { requestInference, isFastAPIAvailable } = useAIInference()
 
   // State
   const [ocsData, setOcsData] = useState<OCSItem[]>([])
@@ -247,18 +251,27 @@ export default function MGInferencePage() {
       setInferenceResult(null)
       setIsCached(false)
 
-      const response = await aiApi.requestMGInference(selectedOcs.id, 'manual')
+      // 전역 context의 requestInference 사용 (FastAPI 상태 감지 및 토스트 알림 포함)
+      const job = await requestInference('MG', { ocs_id: selectedOcs.id, mode: 'manual' })
 
-      setJobId(response.job_id)
+      if (!job) {
+        // requestInference가 null을 반환하면 에러 발생 (FastAPI OFF 등)
+        // 알림은 전역 context에서 이미 처리됨
+        setInferenceStatus('failed')
+        setError('AI 서버 연결 실패. 서버 상태를 확인해주세요.')
+        return
+      }
 
-      if (response.cached && response.result) {
-        console.log('Using cached MG inference result:', response)
+      setJobId(job.job_id)
+
+      if (job.cached && job.result) {
+        console.log('Using cached MG inference result:', job)
         setIsCached(true)
         setInferenceStatus('completed')
-        setInferenceResult(response.result as MGResult)
+        setInferenceResult(job.result as MGResult)
       } else {
         setInferenceStatus('processing')
-        console.log('MG Inference request sent:', response)
+        console.log('MG Inference request sent:', job)
       }
     } catch (err: any) {
       setInferenceStatus('failed')
@@ -328,6 +341,10 @@ export default function MGInferencePage() {
           </p>
         </div>
         <div className="connection-status">
+          <span className={`status-dot ${isFastAPIAvailable ? 'connected' : 'disconnected'}`} />
+          <span className="status-text">
+            {isFastAPIAvailable ? 'AI 서버 연결됨' : 'AI 서버 OFF'}
+          </span>
           <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
           <span className="status-text">
             {isConnected ? 'WebSocket 연결됨' : 'WebSocket 연결 안됨'}

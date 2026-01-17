@@ -294,10 +294,32 @@ class SystemMonitorView(APIView):
                 server_status = "unhealthy"
                 database_status = "disconnected"
 
-            # 2. 시스템 리소스 (CPU, Memory)
-            cpu_percent = psutil.cpu_percent(interval=0.1)
-            memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            # 2. 시스템 리소스 (CPU, Memory, Disk)
+            import os
+            try:
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+            except Exception:
+                cpu_percent = 0.0
+
+            try:
+                memory = psutil.virtual_memory()
+                memory_percent = memory.percent
+                memory_used_gb = memory.used / (1024**3)
+                memory_total_gb = memory.total / (1024**3)
+            except Exception:
+                memory_percent = 0.0
+                memory_used_gb = 0.0
+                memory_total_gb = 0.0
+
+            try:
+                # Windows/Linux 호환 디스크 경로
+                if os.name == 'nt':  # Windows
+                    disk = psutil.disk_usage('C:\\')
+                else:  # Linux/Mac
+                    disk = psutil.disk_usage('/')
+                disk_percent = disk.percent
+            except Exception:
+                disk_percent = 0.0
 
             # 3. 활성 세션 수 (최근 30분 이내 last_seen이 있는 사용자)
             session_threshold = now - timedelta(minutes=30)
@@ -328,7 +350,7 @@ class SystemMonitorView(APIView):
             # 6. 서버 상태 판단 (warning/error 조건)
             if server_status == "unhealthy":
                 status_level = "error"
-            elif cpu_percent > 90 or memory.percent > 90 or error_count > 10:
+            elif cpu_percent > 90 or memory_percent > 90 or error_count > 10:
                 status_level = "warning"
             else:
                 status_level = "ok"
@@ -340,10 +362,10 @@ class SystemMonitorView(APIView):
                 },
                 'resources': {
                     'cpu_percent': round(cpu_percent, 1),
-                    'memory_percent': round(memory.percent, 1),
-                    'memory_used_gb': round(memory.used / (1024**3), 2),
-                    'memory_total_gb': round(memory.total / (1024**3), 2),
-                    'disk_percent': round(disk.percent, 1),
+                    'memory_percent': round(memory_percent, 1),
+                    'memory_used_gb': round(memory_used_gb, 2),
+                    'memory_total_gb': round(memory_total_gb, 2),
+                    'disk_percent': round(disk_percent, 1),
                 },
                 'sessions': {
                     'active_count': active_sessions,

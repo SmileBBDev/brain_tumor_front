@@ -19,6 +19,7 @@ import {
   type FinalReportType,
 } from '@/services/report.api';
 import { LoadingSpinner, useToast } from '@/components/common';
+import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
 import './ReportDetailPage.css';
 
 // 상태 라벨
@@ -42,6 +43,7 @@ export default function ReportDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
+  const { markAsCached } = useThumbnailCache();
 
   // 데이터 상태
   const [report, setReport] = useState<FinalReportDetail | null>(null);
@@ -66,6 +68,8 @@ export default function ReportDetailPage() {
     try {
       const data = await getFinalReportDetail(parseInt(id, 10));
       setReport(data);
+      // 보고서 방문 시 캐시에 등록 (목록 페이지에서 썸네일 표시용)
+      markAsCached(`final_${id}`);
       setEditData({
         report_type: data.report_type,
         primary_diagnosis: data.primary_diagnosis,
@@ -85,7 +89,7 @@ export default function ReportDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, markAsCached]);
 
   useEffect(() => {
     fetchReport();

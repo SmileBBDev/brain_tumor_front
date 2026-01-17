@@ -135,8 +135,8 @@ export const getAIRequests = async (params?: {
     model: 0,
     model_code: item.model_type,
     model_name: item.model_type === 'M1' ? 'M1 MRI 분석' : item.model_type === 'MG' ? 'MG Gene Analysis' : 'MM 멀티모달',
-    requested_by: 0,
-    requested_by_name: '',
+    requested_by: item.requested_by || 0,
+    requested_by_name: item.requested_by_name || '',
     ocs_references: [],
     input_data: {},
     status: item.status,
@@ -145,21 +145,21 @@ export const getAIRequests = async (params?: {
     priority_display: '보통',
     requested_at: item.created_at,
     started_at: null,
-    completed_at: item.completed_at,
-    processing_time: item.result_data?.processing_time_ms || null,
-    error_message: item.error_message,
+    completed_at: item.completed_at || null,
+    processing_time: item.processing_time ?? null,
+    error_message: item.error_message || null,
     has_result: item.status === 'COMPLETED',
-    result: item.result_data ? {
+    result: item.status === 'COMPLETED' ? {
       id: item.id,
-      result_data: item.result_data,
+      result_data: item.result_data || {},
       confidence_score: null,
       visualization_paths: [],
       reviewed_by: null,
-      reviewed_by_name: null,
-      review_status: 'pending' as const,
-      review_status_display: '대기',
-      review_comment: null,
-      reviewed_at: null,
+      reviewed_by_name: item.reviewed_by_name || null,
+      review_status: (item.review_status || 'pending') as 'pending' | 'approved' | 'rejected',
+      review_status_display: item.review_status === 'approved' ? '승인됨' : item.review_status === 'rejected' ? '반려됨' : '검토 대기',
+      review_comment: item.review_comment || null,
+      reviewed_at: item.reviewed_at || null,
       created_at: item.created_at,
       updated_at: item.created_at,
     } : undefined,
@@ -172,7 +172,7 @@ export const getAIRequests = async (params?: {
 export const getAIRequest = async (jobId: string): Promise<AIInferenceRequest> => {
   // 백엔드 /ai/inferences/<job_id>/ 엔드포인트 사용
   const response = await api.get(`/ai/inferences/${jobId}/`);
-  const item = response.data;
+  const item = response.data as AIInferenceBackendResponse;
 
   // 백엔드 응답을 AIInferenceRequest 형식으로 매핑
   return {
@@ -184,31 +184,31 @@ export const getAIRequest = async (jobId: string): Promise<AIInferenceRequest> =
     model: 0,
     model_code: item.model_type,
     model_name: item.model_type === 'M1' ? 'M1 MRI 분석' : item.model_type === 'MG' ? 'MG Gene Analysis' : 'MM 멀티모달',
-    requested_by: 0,
-    requested_by_name: '',
+    requested_by: item.requested_by || 0,
+    requested_by_name: item.requested_by_name || '',
     ocs_references: [],
-    input_data: {},
-    status: item.status,
+    input_data: item.result_data || {},
+    status: item.status as AIInferenceRequest['status'],
     status_display: item.status,
     priority: 'normal' as const,
     priority_display: '보통',
     requested_at: item.created_at,
     started_at: null,
-    completed_at: item.completed_at,
-    processing_time: item.result_data?.processing_time_ms || null,
-    error_message: item.error_message,
+    completed_at: item.completed_at || null,
+    processing_time: item.processing_time ?? null,
+    error_message: item.error_message || null,
     has_result: item.status === 'COMPLETED',
-    result: item.result_data ? {
+    result: item.status === 'COMPLETED' ? {
       id: item.id,
-      result_data: item.result_data,
+      result_data: item.result_data || {},
       confidence_score: null,
       visualization_paths: [],
       reviewed_by: null,
-      reviewed_by_name: null,
-      review_status: 'pending' as const,
-      review_status_display: '대기',
-      review_comment: null,
-      reviewed_at: null,
+      reviewed_by_name: item.reviewed_by_name || null,
+      review_status: (item.review_status || 'pending') as 'pending' | 'approved' | 'rejected',
+      review_status_display: item.review_status === 'approved' ? '승인됨' : item.review_status === 'rejected' ? '반려됨' : '검토 대기',
+      review_comment: item.review_comment || null,
+      reviewed_at: item.reviewed_at || null,
       created_at: item.created_at,
       updated_at: item.created_at,
     } : undefined,
@@ -257,12 +257,12 @@ export const validateAIData = async (data: {
   return response.data;
 };
 
-// 결과 검토
-export const reviewAIResult = async (resultId: number, data: {
+// 결과 검토 (job_id로 검토)
+export const reviewAIResult = async (jobId: string, data: {
   review_status: 'approved' | 'rejected';
   review_comment?: string;
 }): Promise<{ message: string; review_status: string; review_status_display: string }> => {
-  const response = await api.post(`/ai/results/${resultId}/review/`, data);
+  const response = await api.post(`/ai/inferences/${jobId}/review/`, data);
   return response.data;
 };
 
@@ -300,10 +300,17 @@ export interface AIInferenceBackendResponse {
   status: string;
   patient_name?: string;
   patient_number?: string;
+  requested_by?: number;
+  requested_by_name?: string;
   created_at: string;
   completed_at?: string;
+  processing_time?: number;
   result_data?: Record<string, unknown>;
   error_message?: string;
+  review_status?: 'pending' | 'approved' | 'rejected';
+  reviewed_by_name?: string;
+  review_comment?: string;
+  reviewed_at?: string;
 }
 
 export interface OCSForModelResponse {

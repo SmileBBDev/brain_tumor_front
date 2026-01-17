@@ -1991,3 +1991,58 @@ class AIInferenceSegmentationCompareView(APIView):
                 {'detail': f'데이터 로드에 실패했습니다: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class AIInferenceReviewView(APIView):
+    """
+    AI 추론 결과 검토 (승인/반려)
+
+    POST /api/ai/inferences/<job_id>/review/
+    - review_status: 'approved' | 'rejected'
+    - review_comment: 검토 의견 (선택)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, job_id):
+        try:
+            inference = AIInference.objects.get(job_id=job_id)
+        except AIInference.DoesNotExist:
+            return Response(
+                {'detail': '추론 결과를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 완료된 추론만 검토 가능
+        if inference.status != AIInference.Status.COMPLETED:
+            return Response(
+                {'detail': '완료된 추론만 검토할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        review_status = request.data.get('review_status')
+        review_comment = request.data.get('review_comment', '')
+
+        if review_status not in ['approved', 'rejected']:
+            return Response(
+                {'detail': '검토 상태는 approved 또는 rejected여야 합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # result_data에 검토 정보 저장
+        result_data = inference.result_data or {}
+        result_data['review_status'] = review_status
+        result_data['review_comment'] = review_comment
+        result_data['reviewed_by'] = request.user.id
+        result_data['reviewed_by_name'] = request.user.name or request.user.username
+        result_data['reviewed_at'] = timezone.now().isoformat()
+
+        inference.result_data = result_data
+        inference.save(update_fields=['result_data'])
+
+        logger.info(f'Inference reviewed: {job_id} - {review_status} by {request.user.username}')
+
+        return Response({
+            'message': f'추론 결과가 {"승인" if review_status == "approved" else "반려"}되었습니다.',
+            'review_status': review_status,
+            'review_status_display': '승인됨' if review_status == 'approved' else '반려됨'
+        })

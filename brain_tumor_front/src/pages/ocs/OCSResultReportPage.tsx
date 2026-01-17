@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getOCS } from '@/services/ocs.api';
 import type { OCSDetail } from '@/types/ocs';
+import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
 import './OCSResultReportPage.css';
 
 // 날짜 포맷
@@ -48,6 +49,7 @@ export default function OCSResultReportPage() {
   const navigate = useNavigate();
   const [ocs, setOcs] = useState<OCSDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const { markAsCached } = useThumbnailCache();
 
   const fetchOCSDetail = useCallback(async () => {
     if (!ocsId) return;
@@ -56,6 +58,8 @@ export default function OCSResultReportPage() {
     try {
       const data = await getOCS(parseInt(ocsId));
       setOcs(data);
+      // 보고서 방문 시 캐시에 등록 (목록 페이지에서 썸네일 표시용)
+      markAsCached(`ocs_${ocsId}`);
     } catch (error) {
       console.error('Failed to fetch OCS detail:', error);
       alert('결과 정보를 불러오는데 실패했습니다.');
@@ -63,7 +67,7 @@ export default function OCSResultReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [ocsId, navigate]);
+  }, [ocsId, navigate, markAsCached]);
 
   useEffect(() => {
     fetchOCSDetail();
@@ -113,6 +117,21 @@ export default function OCSResultReportPage() {
 
   // 확정 정보
   const verifiedBy = (workerResult as any)._verifiedBy || ocs.worker?.name;
+
+  // RIS DICOM 썸네일 정보 추출
+  const orthancInfo = (workerResult as any).orthanc || {};
+  const seriesList = orthancInfo.series || [];
+  const channelOrder = ['T1', 'T1C', 'T2', 'FLAIR'];
+  // Vite 프록시 우회: 직접 Django 서버로 요청
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+  const dicomThumbnails = seriesList
+    .filter((s: any) => channelOrder.includes(s.series_type) && s.orthanc_id)
+    .sort((a: any, b: any) => channelOrder.indexOf(a.series_type) - channelOrder.indexOf(b.series_type))
+    .map((s: any) => ({
+      channel: s.series_type,
+      url: `${apiBaseUrl}/orthanc/series/${s.orthanc_id}/thumbnail/`,
+      description: s.description || s.series_type,
+    }));
 
   return (
     <div className="ocs-result-report">
@@ -255,6 +274,30 @@ export default function OCSResultReportPage() {
           {/* RIS 결과 - 텍스트 형식 */}
           {ocs.job_role === 'RIS' && (
             <div className="imaging-results">
+              {/* MRI 썸네일 (4채널 그리드) */}
+              {dicomThumbnails.length > 0 && (
+                <div className="mri-thumbnails">
+                  <h3>MRI 영상</h3>
+                  <div className="thumbnail-grid">
+                    {dicomThumbnails.map((thumb: any) => (
+                      <div key={thumb.channel} className="thumbnail-item">
+                        <img
+                          src={thumb.url}
+                          alt={thumb.description}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).nextElementSibling?.classList.add('show');
+                          }}
+                        />
+                        <div className="thumbnail-fallback">
+                          <span>{thumb.channel}</span>
+                        </div>
+                        <span className="thumbnail-label">{thumb.channel}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {findings && (
                 <div className="result-block">
                   <h3>소견 (Findings)</h3>

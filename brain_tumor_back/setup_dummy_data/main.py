@@ -9,6 +9,7 @@ Brain Tumor CDSS - 더미 데이터 설정 스크립트 (통합 래퍼)
 4. sync_lis_ocs.py                - LIS 연동 (RNA/Protein 파일 복사, OCS LIS worker_result 업데이트)
 5. setup_dummy_data_3_extended.py - 확장 데이터 (대량 진료/OCS LIS, 오늘 진료, 일정)
 6. setup_dummy_data_4_encounter_schedule.py - 진료 예약 스케줄 (의사별 일정 기간 예약)
+7. setup_dummy_data_5_access_logs.py - 접근 감사 로그 (AccessLog 200건)
 
 사용법:
     python -m setup_dummy_data          # 기존 데이터 유지, 부족분만 추가
@@ -99,6 +100,7 @@ def print_final_summary():
     from apps.prescriptions.models import Prescription, PrescriptionItem
     from apps.accounts.models import User, Role
     from apps.schedules.models import DoctorSchedule, SharedSchedule, PersonalSchedule
+    from apps.audit.models import AuditLog, AccessLog
 
     print("\n" + "="*60)
     print("전체 더미 데이터 생성 완료!")
@@ -138,6 +140,8 @@ def print_final_summary():
     print(f"  - 의사 일정: {DoctorSchedule.objects.filter(is_deleted=False).count()}건")
     print(f"  - 공유 일정: {SharedSchedule.objects.filter(is_deleted=False).count()}건")
     print(f"  - 개인 일정: {PersonalSchedule.objects.filter(is_deleted=False).count()}건")
+    print(f"  - 인증 로그: {AuditLog.objects.count()}건")
+    print(f"  - 접근 로그: {AccessLog.objects.count()}건")
 
     print(f"\n[다음 단계]")
     print(f"  서버 실행:")
@@ -413,7 +417,7 @@ def main():
     if not run_script(
         'setup_dummy_data_1_base.py',
         script_args,
-        '기본 데이터 생성 (1/7) - 역할, 사용자, 메뉴/권한'
+        '기본 데이터 생성 (1/8) - 역할, 사용자, 메뉴/권한'
     ):
         print("\n[WARNING] 기본 데이터 생성에 문제가 있습니다.")
         success = False
@@ -422,14 +426,14 @@ def main():
     if not run_script(
         'setup_dummy_data_2_clinical.py',
         script_args,
-        '임상 데이터 생성 (2/7) - 환자, 진료, OCS 16건, AI, 치료, 경과, 처방'
+        '임상 데이터 생성 (2/8) - 환자, 진료, OCS 16건, AI, 치료, 경과, 처방'
     ):
         print("\n[WARNING] 임상 데이터 생성에 문제가 있습니다.")
         success = False
 
     # 3. Orthanc MRI 동기화 (DICOM 업로드, OCS RIS worker_result 업데이트)
     print(f"\n{'='*60}")
-    print(f"[실행] Orthanc MRI 동기화 (3/7)")
+    print(f"[실행] Orthanc MRI 동기화 (3/8)")
     print(f"{'='*60}")
     if not run_script(
         'sync_orthanc_ocs.py',
@@ -441,7 +445,7 @@ def main():
 
     # 4. LIS RNA/Protein 동기화 (파일 복사, OCS LIS worker_result 업데이트)
     print(f"\n{'='*60}")
-    print(f"[실행] LIS RNA/Protein 동기화 (4/7)")
+    print(f"[실행] LIS RNA/Protein 동기화 (4/8)")
     print(f"{'='*60}")
     if not run_script(
         'sync_lis_ocs.py',
@@ -455,14 +459,14 @@ def main():
     if not run_script(
         'setup_dummy_data_3_extended.py',
         script_args,
-        '확장 데이터 생성 (5/7) - 대량 진료/OCS LIS, 오늘 진료, 일정'
+        '확장 데이터 생성 (5/8) - 대량 진료/OCS LIS, 오늘 진료, 일정'
     ):
         print("\n[WARNING] 확장 데이터 생성에 문제가 있습니다.")
         success = False
 
     # 6. 추가 사용자 생성
     print(f"\n{'='*60}")
-    print(f"[실행] 추가 사용자 생성 (6/7)")
+    print(f"[실행] 추가 사용자 생성 (6/8)")
     print(f"{'='*60}")
     try:
         create_additional_users(reset=args.reset)
@@ -472,12 +476,24 @@ def main():
 
     # 7. 환자 계정-데이터 연결
     print(f"\n{'='*60}")
-    print(f"[실행] 환자 계정-데이터 연결 (7/7)")
+    print(f"[실행] 환자 계정-데이터 연결 (7/8)")
     print(f"{'='*60}")
     try:
         link_patient_accounts(reset=args.reset)
     except Exception as e:
         print(f"\n[WARNING] 환자 계정 연결에 문제가 있습니다: {e}")
+        success = False
+
+    # 8. 접근 감사 로그 생성
+    print(f"\n{'='*60}")
+    print(f"[실행] 접근 감사 로그 생성 (8/8)")
+    print(f"{'='*60}")
+    if not run_script(
+        'setup_dummy_data_5_access_logs.py',
+        script_args,
+        '접근 감사 로그 생성 - AccessLog 200건'
+    ):
+        print("\n[WARNING] 접근 감사 로그 생성에 문제가 있습니다.")
         success = False
 
     # 최종 요약

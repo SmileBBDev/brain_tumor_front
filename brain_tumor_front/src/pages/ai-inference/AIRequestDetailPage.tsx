@@ -338,14 +338,14 @@ export default function AIRequestDetailPage() {
                 className={`review-option ${reviewStatus === 'approved' ? 'selected' : ''}`}
                 onClick={() => setReviewStatus('approved')}
               >
-                <span className="icon">V</span>
+                <span className="icon icon-approve">&#10003;</span>
                 <span>승인</span>
               </button>
               <button
                 className={`review-option ${reviewStatus === 'rejected' ? 'selected' : ''}`}
                 onClick={() => setReviewStatus('rejected')}
               >
-                <span className="icon">X</span>
+                <span className="icon icon-reject">&#10007;</span>
                 <span>반려</span>
               </button>
             </div>

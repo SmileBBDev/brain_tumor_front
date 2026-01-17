@@ -16,6 +16,19 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        timeout: 60000,
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            console.error('[Vite Proxy Error]', err.message, req.url);
+          });
+          proxy.on('proxyReq', (proxyReq, req) => {
+            console.log('[Proxy Request]', req.method, req.url);
+          });
+        },
+      },
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
       },
     },
   },

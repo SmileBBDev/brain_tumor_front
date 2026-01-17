@@ -41,6 +41,20 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: '긴급',
 };
 
+// 검토 상태 라벨
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  pending: '검토 대기',
+  approved: '승인됨',
+  rejected: '반려됨',
+};
+
+// 검토 상태 색상
+const REVIEW_STATUS_COLORS: Record<string, string> = {
+  pending: 'review-pending',
+  approved: 'review-approved',
+  rejected: 'review-rejected',
+};
+
 export default function AIRequestListPage() {
   const navigate = useNavigate();
   const { user: _user } = useAuth();
@@ -52,6 +66,16 @@ export default function AIRequestListPage() {
   const [myOnly, setMyOnly] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // 검토 의견 모달 상태
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedReview, setSelectedReview] = useState<{
+    requestId: string;
+    reviewStatus: string;
+    reviewComment: string | null;
+    reviewedByName: string | null;
+    reviewedAt: string | null;
+  } | null>(null);
 
   // 데이터 조회
   const { requests, loading, error, refresh } = useAIRequestList({
@@ -101,6 +125,30 @@ export default function AIRequestListPage() {
     const secs = seconds % 60;
     return `${mins}분 ${secs}초`;
   };
+
+  // 검토 클릭 핸들러 (모달 열기)
+  const handleReviewClick = useCallback(
+    (e: React.MouseEvent, request: AIInferenceRequest) => {
+      e.stopPropagation(); // 행 클릭 이벤트 방지
+      if (request.result) {
+        setSelectedReview({
+          requestId: request.request_id,
+          reviewStatus: request.result.review_status,
+          reviewComment: request.result.review_comment,
+          reviewedByName: request.result.reviewed_by_name,
+          reviewedAt: request.result.reviewed_at,
+        });
+        setReviewModalOpen(true);
+      }
+    },
+    []
+  );
+
+  // 모달 닫기
+  const closeReviewModal = useCallback(() => {
+    setReviewModalOpen(false);
+    setSelectedReview(null);
+  }, []);
 
   return (
     <div className="page ai-request-list">
@@ -185,6 +233,7 @@ export default function AIRequestListPage() {
                 <th>요청일시</th>
                 <th>처리시간</th>
                 <th>결과</th>
+                <th>검토</th>
               </tr>
             </thead>
             <tbody>
@@ -224,6 +273,19 @@ export default function AIRequestListPage() {
                       <span className="result-pending">-</span>
                     )}
                   </td>
+                  <td>
+                    {request.has_result && request.result ? (
+                      <span
+                        className={`review-badge ${REVIEW_STATUS_COLORS[request.result.review_status]} clickable-review`}
+                        onClick={(e) => handleReviewClick(e, request)}
+                        title="클릭하여 검토 의견 보기"
+                      >
+                        {REVIEW_STATUS_LABELS[request.result.review_status] || request.result.review_status}
+                      </span>
+                    ) : (
+                      <span className="review-none">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -241,6 +303,53 @@ export default function AIRequestListPage() {
             pageSize={pageSize}
           />
         </section>
+      )}
+
+      {/* 검토 의견 모달 */}
+      {reviewModalOpen && selectedReview && (
+        <div className="modal-overlay" onClick={closeReviewModal}>
+          <div className="modal-content review-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>검토 의견</h3>
+              <button className="btn-close" onClick={closeReviewModal}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="review-info">
+                <div className="review-info-item">
+                  <label>요청 ID</label>
+                  <span>{selectedReview.requestId}</span>
+                </div>
+                <div className="review-info-item">
+                  <label>검토 상태</label>
+                  <span className={`review-badge ${REVIEW_STATUS_COLORS[selectedReview.reviewStatus]}`}>
+                    {REVIEW_STATUS_LABELS[selectedReview.reviewStatus] || selectedReview.reviewStatus}
+                  </span>
+                </div>
+                {selectedReview.reviewedByName && (
+                  <div className="review-info-item">
+                    <label>검토자</label>
+                    <span>{selectedReview.reviewedByName}</span>
+                  </div>
+                )}
+                {selectedReview.reviewedAt && (
+                  <div className="review-info-item">
+                    <label>검토일시</label>
+                    <span>{formatDateTime(selectedReview.reviewedAt)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="review-comment-section">
+                <label>검토 의견</label>
+                <div className="review-comment-content">
+                  {selectedReview.reviewComment || '검토 의견이 없습니다.'}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeReviewModal}>닫기</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast 컨테이너 */}

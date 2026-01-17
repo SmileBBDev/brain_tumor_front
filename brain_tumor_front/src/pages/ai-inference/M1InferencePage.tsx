@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OCSTable, type OCSItem } from '@/components/OCSTable'
-import { InferenceResult } from '@/components/InferenceResult'
 import SegMRIViewer, { type SegmentationData } from '@/components/SegMRIViewer'
 import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 import './M1InferencePage.css'
 
@@ -47,8 +47,13 @@ interface InferenceRecord {
   completed_at: string | null
 }
 
+type TabType = 'summary' | 'details' | 'segmentation'
+
 export default function M1InferencePage() {
   const navigate = useNavigate()
+
+  // AI Inference Context (전역 알림 및 FastAPI 상태 감지)
+  const { requestInference, isFastAPIAvailable } = useAIInference()
 
   // State
   const [ocsData, setOcsData] = useState<OCSItem[]>([])
@@ -59,6 +64,7 @@ export default function M1InferencePage() {
   const [error, setError] = useState<string>('')
   const [jobId, setJobId] = useState<string>('')
   const [isCached, setIsCached] = useState<boolean>(false)
+  const [activeTab, setActiveTab] = useState<TabType>('summary')
 
   // 추론 이력
   const [inferenceHistory, setInferenceHistory] = useState<InferenceRecord[]>([])
@@ -206,20 +212,31 @@ export default function M1InferencePage() {
       setInferenceResult(null)
       setIsCached(false)
 
-      const response = await aiApi.requestM1Inference(selectedOcs.id, 'manual')
+      // 전역 context의 requestInference 사용 (FastAPI 상태 감지 및 토스트 알림 포함)
+      const job = await requestInference('M1', { ocs_id: selectedOcs.id, mode: 'manual' })
 
-      setJobId(response.job_id)
+      if (!job) {
+        // requestInference가 null을 반환하면 에러 발생 (FastAPI OFF 등)
+        // 알림은 전역 context에서 이미 처리됨
+        setInferenceStatus('failed')
+        setError('AI 서버 연결 실패. 서버 상태를 확인해주세요.')
+        return
+      }
+
+      setJobId(job.job_id)
 
       // 캐시된 결과인 경우 바로 표시
-      if (response.cached && response.result) {
-        console.log('Using cached inference result:', response)
+      if (job.cached && job.result) {
+        console.log('Using cached inference result:', job)
         setIsCached(true)
         setInferenceStatus('completed')
-        setInferenceResult(response.result as M1Result)
+        setInferenceResult(job.result as M1Result)
+        // 세그멘테이션 데이터 로드
+        loadSegmentationData(job.job_id)
       } else {
         // 새 추론 요청 - WebSocket으로 결과 대기
         setInferenceStatus('processing')
-        console.log('Inference request sent:', response)
+        console.log('Inference request sent:', job)
       }
     } catch (err: any) {
       setInferenceStatus('failed')
@@ -278,181 +295,474 @@ export default function M1InferencePage() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { className: string; label: string }> = {
-      COMPLETED: { className: 'status-badge status-completed', label: '완료' },
-      PROCESSING: { className: 'status-badge status-processing', label: '처리중' },
-      PENDING: { className: 'status-badge status-pending', label: '대기' },
-      FAILED: { className: 'status-badge status-failed', label: '실패' },
+      COMPLETED: { className: 'm1-status-badge m1-status-completed', label: '완료' },
+      PROCESSING: { className: 'm1-status-badge m1-status-processing', label: '처리중' },
+      PENDING: { className: 'm1-status-badge m1-status-pending', label: '대기' },
+      FAILED: { className: 'm1-status-badge m1-status-failed', label: '실패' },
     }
-    const { className, label } = statusMap[status] || { className: 'status-badge status-pending', label: status }
+    const { className, label } = statusMap[status] || { className: 'm1-status-badge m1-status-pending', label: status }
     return <span className={className}>{label}</span>
+  }
+
+  // Risk 카테고리 색상 클래스
+  const getRiskColorClass = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'low': return 'm1-risk-low'
+      case 'medium': return 'm1-risk-medium'
+      case 'high': return 'm1-risk-high'
+      default: return ''
+    }
+  }
+
+  // 확률을 퍼센트로 변환
+  const toPercent = (value: number) => Math.round(value * 100)
+
+  // 결과 뷰어 컴포넌트
+  const renderResultViewer = () => {
+    // 로딩 상태
+    if (inferenceStatus === 'requesting' || inferenceStatus === 'processing') {
+      return (
+        <div className="m1-result-viewer">
+          <div className="m1-result-header">
+            <h3>M1 MRI 분석 결과</h3>
+            <span className="m1-model-badge">MRI Analysis</span>
+          </div>
+          <div className="m1-result-content">
+            <div className="m1-loading">
+              <div className="m1-spinner"></div>
+              <span>M1 추론 진행 중...</span>
+              {jobId && <span className="m1-job-info">Job: {jobId}</span>}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // 에러 상태
+    if (inferenceStatus === 'failed' && error) {
+      return (
+        <div className="m1-result-viewer">
+          <div className="m1-result-header">
+            <h3>M1 MRI 분석 결과</h3>
+            <span className="m1-model-badge">MRI Analysis</span>
+          </div>
+          <div className="m1-result-content">
+            <div className="m1-error">
+              <span className="m1-error-icon">!</span>
+              {error}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // 결과 없음
+    if (!inferenceResult) {
+      return (
+        <div className="m1-result-viewer">
+          <div className="m1-result-header">
+            <h3>M1 MRI 분석 결과</h3>
+            <span className="m1-model-badge">MRI Analysis</span>
+          </div>
+          <div className="m1-result-content">
+            <div className="m1-empty">
+              <span className="m1-empty-icon">🧠</span>
+              <span>OCS를 선택하고 M1 추론을 요청하면 결과가 표시됩니다.</span>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    const { grade, idh, mgmt, survival, os_days } = inferenceResult
+
+    return (
+      <div className="m1-result-viewer">
+        {/* 헤더 */}
+        <div className="m1-result-header">
+          <h3>M1 MRI 분석 결과</h3>
+          {jobId && (
+            <span className="m1-job-id">Job: {jobId}</span>
+          )}
+          {isCached && (
+            <span className="m1-cached-badge">캐시됨</span>
+          )}
+        </div>
+
+        {/* 탭 네비게이션 */}
+        <div className="m1-result-tabs">
+          <button
+            className={activeTab === 'summary' ? 'active' : ''}
+            onClick={() => setActiveTab('summary')}
+          >
+            요약
+          </button>
+          <button
+            className={activeTab === 'details' ? 'active' : ''}
+            onClick={() => setActiveTab('details')}
+          >
+            상세 분석
+          </button>
+          <button
+            className={activeTab === 'segmentation' ? 'active' : ''}
+            onClick={() => setActiveTab('segmentation')}
+          >
+            세그멘테이션
+          </button>
+        </div>
+
+        {/* 탭 콘텐츠 */}
+        <div className="m1-result-content">
+          {/* 요약 탭 */}
+          {activeTab === 'summary' && (
+            <div className="m1-tab-summary">
+              {/* 위험도 게이지 */}
+              {survival && (
+                <div className="m1-risk-gauge-section">
+                  <h4>생존 위험도</h4>
+                  <div className="m1-risk-gauge">
+                    <div
+                      className={`m1-risk-indicator ${getRiskColorClass(survival.risk_category)}`}
+                      style={{ left: `${Math.max(0, Math.min(survival.risk_score * 100, 100))}%` }}
+                    />
+                  </div>
+                  <div className="m1-risk-scale">
+                    <span>Low</span>
+                    <span>Medium</span>
+                    <span>High</span>
+                  </div>
+                  <div className="m1-risk-value">
+                    <span className={`m1-risk-category ${getRiskColorClass(survival.risk_category)}`}>
+                      {survival.risk_category}
+                    </span>
+                    <span className="m1-risk-score">Score: {survival.risk_score.toFixed(3)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 주요 결과 카드 */}
+              <div className="m1-summary-cards">
+                {grade && (
+                  <div className="m1-summary-card grade">
+                    <div className="m1-card-icon">🧬</div>
+                    <div className="m1-card-content">
+                      <span className="m1-card-label">종양 등급</span>
+                      <span className="m1-card-value">{grade.predicted_class}</span>
+                      <span className="m1-card-confidence">{toPercent(grade.probability)}% 신뢰도</span>
+                    </div>
+                  </div>
+                )}
+
+                {idh && (
+                  <div className="m1-summary-card idh">
+                    <div className="m1-card-icon">🔬</div>
+                    <div className="m1-card-content">
+                      <span className="m1-card-label">IDH 상태</span>
+                      <span className="m1-card-value">{idh.predicted_class}</span>
+                      {idh.mutant_probability !== undefined && (
+                        <span className="m1-card-confidence">{toPercent(idh.mutant_probability)}% 돌연변이 확률</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {mgmt && (
+                  <div className="m1-summary-card mgmt">
+                    <div className="m1-card-icon">💊</div>
+                    <div className="m1-card-content">
+                      <span className="m1-card-label">MGMT 상태</span>
+                      <span className="m1-card-value">{mgmt.predicted_class}</span>
+                      {mgmt.methylated_probability !== undefined && (
+                        <span className="m1-card-confidence">{toPercent(mgmt.methylated_probability)}% 메틸화 확률</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {os_days && (
+                  <div className="m1-summary-card survival">
+                    <div className="m1-card-icon">📅</div>
+                    <div className="m1-card-content">
+                      <span className="m1-card-label">예측 생존 기간</span>
+                      <span className="m1-card-value">{os_days.predicted_months.toFixed(1)}개월</span>
+                      <span className="m1-card-confidence">({os_days.predicted_days}일)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 메타 정보 */}
+              <div className="m1-meta-info">
+                <span>처리 시간: {inferenceResult.processing_time_ms?.toFixed(1) || 0}ms</span>
+              </div>
+            </div>
+          )}
+
+          {/* 상세 분석 탭 */}
+          {activeTab === 'details' && (
+            <div className="m1-tab-details">
+              {/* Grade */}
+              {grade && (
+                <div className="m1-detail-section">
+                  <h4>종양 등급 (Grade)</h4>
+                  <div className="m1-detail-result">
+                    <span className="m1-detail-label">예측 결과:</span>
+                    <span className={`m1-detail-value ${grade.predicted_class.toLowerCase().replace(' ', '-')}`}>
+                      {grade.predicted_class}
+                    </span>
+                  </div>
+                  {grade.probabilities && (
+                    <div className="m1-probability-bars">
+                      {Object.entries(grade.probabilities).map(([key, value]) => (
+                        <div key={key} className="m1-prob-bar">
+                          <span className="m1-prob-label">{key}</span>
+                          <div className="m1-prob-track">
+                            <div
+                              className="m1-prob-fill"
+                              style={{ width: `${toPercent(value)}%` }}
+                            />
+                          </div>
+                          <span className="m1-prob-value">{toPercent(value)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* IDH */}
+              {idh && (
+                <div className="m1-detail-section">
+                  <h4>IDH 돌연변이 상태</h4>
+                  <div className="m1-detail-result">
+                    <span className="m1-detail-label">예측 결과:</span>
+                    <span className={`m1-detail-value ${idh.predicted_class === 'Mutant' ? 'positive' : 'negative'}`}>
+                      {idh.predicted_class}
+                    </span>
+                  </div>
+                  {idh.mutant_probability !== undefined && (
+                    <div className="m1-single-prob-bar">
+                      <span>돌연변이 확률:</span>
+                      <div className="m1-prob-track">
+                        <div
+                          className="m1-prob-fill idh"
+                          style={{ width: `${toPercent(idh.mutant_probability)}%` }}
+                        />
+                      </div>
+                      <span>{toPercent(idh.mutant_probability)}%</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MGMT */}
+              {mgmt && (
+                <div className="m1-detail-section">
+                  <h4>MGMT 프로모터 메틸화</h4>
+                  <div className="m1-detail-result">
+                    <span className="m1-detail-label">예측 결과:</span>
+                    <span className={`m1-detail-value ${mgmt.predicted_class === 'Methylated' ? 'positive' : 'negative'}`}>
+                      {mgmt.predicted_class}
+                    </span>
+                  </div>
+                  {mgmt.methylated_probability !== undefined && (
+                    <div className="m1-single-prob-bar">
+                      <span>메틸화 확률:</span>
+                      <div className="m1-prob-track">
+                        <div
+                          className="m1-prob-fill mgmt"
+                          style={{ width: `${toPercent(mgmt.methylated_probability)}%` }}
+                        />
+                      </div>
+                      <span>{toPercent(mgmt.methylated_probability)}%</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Survival */}
+              {survival && os_days && (
+                <div className="m1-detail-section">
+                  <h4>생존 분석</h4>
+                  <div className="m1-survival-display">
+                    <div className="m1-survival-main">
+                      <div className="m1-survival-value">{os_days.predicted_months.toFixed(1)}</div>
+                      <div className="m1-survival-unit">개월</div>
+                    </div>
+                    <div className="m1-survival-detail">
+                      ({os_days.predicted_days}일)
+                    </div>
+                  </div>
+                  <div className="m1-survival-risk">
+                    <span>위험 카테고리:</span>
+                    <span className={`m1-risk-tag ${getRiskColorClass(survival.risk_category)}`}>
+                      {survival.risk_category}
+                    </span>
+                    <span>Risk Score: {survival.risk_score.toFixed(4)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 세그멘테이션 탭 */}
+          {activeTab === 'segmentation' && (
+            <div className="m1-tab-segmentation">
+              {loadingSegmentation ? (
+                <div className="m1-loading">
+                  <div className="m1-spinner"></div>
+                  <span>세그멘테이션 데이터 로딩 중...</span>
+                </div>
+              ) : segmentationError ? (
+                <div className="m1-error">
+                  <span className="m1-error-icon">!</span>
+                  {segmentationError}
+                </div>
+              ) : segmentationData ? (
+                <div className="m1-viewer-container">
+                  <SegMRIViewer
+                    data={segmentationData}
+                    title={`세그멘테이션 결과 (Job: ${jobId})`}
+                    initialViewMode="axial"
+                    initialDisplayMode="pred_only"
+                    maxCanvasSize={500}
+                  />
+                </div>
+              ) : (
+                <div className="m1-empty">
+                  <span className="m1-empty-icon">🖼️</span>
+                  <span>세그멘테이션 데이터가 없습니다.</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="m1-inference-page">
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h2 className="page-title">M1 MRI 분석</h2>
-          <p className="page-subtitle">
+      <div className="m1-page-header">
+        <div className="m1-header-content">
+          <h2 className="m1-page-title">M1 MRI 분석</h2>
+          <p className="m1-page-subtitle">
             MRI 영상을 분석하여 Grade, IDH, MGMT, 생존 예측을 수행합니다.
           </p>
         </div>
-        <div className="connection-status">
-          <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
-          <span className="status-text">
+        <div className="m1-connection-status">
+          <span className={`m1-status-dot ${isFastAPIAvailable ? 'connected' : 'disconnected'}`} />
+          <span className="m1-status-text">
+            {isFastAPIAvailable ? 'AI 서버 연결됨' : 'AI 서버 OFF'}
+          </span>
+          <span className={`m1-status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
+          <span className="m1-status-text">
             {isConnected ? 'WebSocket 연결됨' : 'WebSocket 연결 안됨'}
           </span>
         </div>
       </div>
 
-      {/* OCS Table */}
-      <div className="section">
-        <div className="section-header">
-          <h3 className="section-title">
-            RIS MRI 목록 ({ocsData.length}건)
-          </h3>
-          <button onClick={loadOcsData} className="btn-link">
-            새로고침
-          </button>
-        </div>
-
-        <OCSTable
-          data={ocsData}
-          selectedId={selectedOcs?.id || null}
-          onSelect={handleSelectOcs}
-          loading={loading}
-        />
-      </div>
-
-      {/* Selected OCS Info & Inference Button */}
-      {selectedOcs && (
-        <div className="ocs-action-grid">
-          <div className="ocs-info-card">
-            <h4 className="card-title">선택된 OCS</h4>
-            <dl className="info-list">
-              <div className="info-item">
-                <dt>OCS ID:</dt>
-                <dd className="font-medium">{selectedOcs.ocs_id}</dd>
-              </div>
-              <div className="info-item">
-                <dt>환자:</dt>
-                <dd>
-                  {selectedOcs.patient_name} ({selectedOcs.patient_number})
-                </dd>
-              </div>
-              <div className="info-item">
-                <dt>검사유형:</dt>
-                <dd>{selectedOcs.job_type}</dd>
-              </div>
-              <div className="info-item">
-                <dt>Study UID:</dt>
-                <dd className="truncate">
-                  {selectedOcs.worker_result?.dicom?.study_uid || '-'}
-                </dd>
-              </div>
-              <div className="info-item">
-                <dt>Series 수:</dt>
-                <dd>
-                  {selectedOcs.worker_result?.dicom?.series?.length || 0}개
-                </dd>
-              </div>
-            </dl>
-          </div>
-          <div className="action-button-container">
-            <button
-              onClick={handleRequestInference}
-              disabled={
-                inferenceStatus === 'requesting' ||
-                inferenceStatus === 'processing'
-              }
-              className={`btn-inference ${
-                inferenceStatus === 'requesting' ||
-                inferenceStatus === 'processing'
-                  ? 'disabled'
-                  : ''
-              }`}
-            >
-              {(inferenceStatus === 'requesting' || inferenceStatus === 'processing') && jobId
-                ? `'${jobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
-                : 'M1 추론 요청'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Inference Result */}
-      <div className="section">
-        <h3 className="section-title">추론 결과</h3>
-
-        <InferenceResult
-          result={inferenceResult}
-          status={inferenceStatus}
-          error={error}
-          jobId={jobId}
-        />
-
-        {/* Request ID */}
-        {jobId && (
-          <div className="job-id-display">
-            Job ID: {jobId}
-            {isCached && (
-              <span className="cached-badge">캐시됨</span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Segmentation Viewer */}
-      {(inferenceStatus === 'completed' || segmentationData || loadingSegmentation) && (
-        <div className="section">
-          <h3 className="section-title">세그멘테이션 뷰어</h3>
-
-          {loadingSegmentation ? (
-            <div className="loading-container">
-              <div className="spinner" />
-              <p className="loading-text">세그멘테이션 데이터 로딩 중...</p>
+      {/* Main Content Grid */}
+      <div className="m1-main-grid">
+        {/* Left: OCS Selection */}
+        <div className="m1-left-panel">
+          {/* OCS Table */}
+          <div className="m1-section m1-ocs-section">
+            <div className="m1-section-header">
+              <h3 className="m1-section-title">
+                RIS MRI 목록 ({ocsData.length}건)
+              </h3>
+              <button onClick={loadOcsData} className="m1-btn-refresh">
+                새로고침
+              </button>
             </div>
-          ) : segmentationError ? (
-            <div className="error-container">
-              <h4 className="error-title">세그멘테이션 로드 실패</h4>
-              <p className="error-message">{segmentationError}</p>
-            </div>
-          ) : segmentationData ? (
-            <div className="viewer-container">
-              <SegMRIViewer
-                data={segmentationData}
-                title={`세그멘테이션 결과 (Job: ${jobId})`}
-                initialViewMode="axial"
-                initialDisplayMode="pred_only"
-                maxCanvasSize={500}
-              />
-            </div>
-          ) : (
-            <div className="empty-state">
-              추론 이력에서 완료된 결과를 선택하면 세그멘테이션을 표시합니다.
+
+            <OCSTable
+              data={ocsData}
+              selectedId={selectedOcs?.id || null}
+              onSelect={handleSelectOcs}
+              loading={loading}
+            />
+          </div>
+
+          {/* Selected OCS Info & Inference Button */}
+          {selectedOcs && (
+            <div className="m1-section m1-selected-section">
+              <h3 className="m1-section-title">선택된 OCS</h3>
+              <div className="m1-selected-info">
+                <div className="m1-info-row">
+                  <span className="m1-info-label">OCS ID</span>
+                  <span className="m1-info-value">{selectedOcs.ocs_id}</span>
+                </div>
+                <div className="m1-info-row">
+                  <span className="m1-info-label">환자</span>
+                  <span className="m1-info-value">
+                    {selectedOcs.patient_name} ({selectedOcs.patient_number})
+                  </span>
+                </div>
+                <div className="m1-info-row">
+                  <span className="m1-info-label">검사유형</span>
+                  <span className="m1-info-value">{selectedOcs.job_type}</span>
+                </div>
+                <div className="m1-info-row">
+                  <span className="m1-info-label">Study UID</span>
+                  <span className="m1-info-value truncate">
+                    {selectedOcs.worker_result?.dicom?.study_uid || '-'}
+                  </span>
+                </div>
+                <div className="m1-info-row">
+                  <span className="m1-info-label">Series 수</span>
+                  <span className="m1-info-value">
+                    {selectedOcs.worker_result?.dicom?.series?.length || 0}개
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleRequestInference}
+                disabled={
+                  inferenceStatus === 'requesting' ||
+                  inferenceStatus === 'processing'
+                }
+                className={`m1-btn-inference ${
+                  inferenceStatus === 'requesting' ||
+                  inferenceStatus === 'processing'
+                    ? 'disabled'
+                    : ''
+                }`}
+              >
+                {(inferenceStatus === 'requesting' || inferenceStatus === 'processing') && jobId
+                  ? 'M1 추론 진행 중...'
+                  : 'M1 추론 요청'}
+              </button>
             </div>
           )}
         </div>
-      )}
+
+        {/* Right: Result Viewer */}
+        <div className="m1-right-panel">
+          {renderResultViewer()}
+        </div>
+      </div>
 
       {/* Inference History */}
-      <div className="section">
-        <div className="section-header">
-          <h3 className="section-title">
+      <div className="m1-section m1-history-section">
+        <div className="m1-section-header">
+          <h3 className="m1-section-title">
             추론 이력 ({inferenceHistory.length}건)
           </h3>
-          <button onClick={loadInferenceHistory} className="btn-link">
+          <button onClick={loadInferenceHistory} className="m1-btn-refresh">
             새로고침
           </button>
         </div>
 
-        <div className="history-table-container">
+        <div className="m1-history-table-container">
           {loadingHistory ? (
-            <div className="loading-container">
-              <div className="spinner" />
+            <div className="m1-loading">
+              <div className="m1-spinner"></div>
             </div>
           ) : inferenceHistory.length > 0 ? (
-            <table className="history-table">
+            <table className="m1-history-table">
               <thead>
                 <tr>
                   <th>Job ID</th>
@@ -477,11 +787,11 @@ export default function M1InferencePage() {
                     <td>{getStatusBadge(record.status)}</td>
                     <td>
                       {record.status === 'COMPLETED' && record.result_data?.grade ? (
-                        <span>
+                        <span className="m1-result-preview">
                           Grade: {record.result_data.grade.predicted_class}
                         </span>
                       ) : record.status === 'FAILED' ? (
-                        <span className="text-error truncate">
+                        <span className="m1-result-error">
                           {record.error_message || 'Error'}
                         </span>
                       ) : (
@@ -490,7 +800,7 @@ export default function M1InferencePage() {
                     </td>
                     <td>
                       {record.status === 'COMPLETED' && record.result_data?.processing_time_ms ? (
-                        <span className="processing-time">
+                        <span className="m1-processing-time">
                           {(record.result_data.processing_time_ms / 1000).toFixed(2)}초
                         </span>
                       ) : (
@@ -501,18 +811,18 @@ export default function M1InferencePage() {
                       {new Date(record.created_at).toLocaleString('ko-KR')}
                     </td>
                     <td>
-                      <div className="action-buttons">
+                      <div className="m1-action-buttons">
                         {record.status === 'COMPLETED' && (
                           <>
                             <button
                               onClick={() => handleSelectHistory(record)}
-                              className="btn-action btn-view"
+                              className="m1-btn-action m1-btn-view"
                             >
-                              결과 보기
+                              보기
                             </button>
                             <button
                               onClick={() => handleViewDetail(record)}
-                              className="btn-action btn-detail"
+                              className="m1-btn-action m1-btn-detail"
                             >
                               상세
                             </button>
@@ -520,7 +830,7 @@ export default function M1InferencePage() {
                         )}
                         <button
                           onClick={() => handleDeleteInference(record)}
-                          className="btn-action btn-delete"
+                          className="m1-btn-action m1-btn-delete"
                         >
                           삭제
                         </button>
@@ -531,8 +841,8 @@ export default function M1InferencePage() {
               </tbody>
             </table>
           ) : (
-            <div className="empty-state">
-              추론 이력이 없습니다.
+            <div className="m1-empty">
+              <span>추론 이력이 없습니다.</span>
             </div>
           )}
         </div>

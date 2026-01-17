@@ -1,3 +1,4 @@
+import './OCSTable.css'
 
 export interface OCSItem {
   id: number
@@ -43,11 +44,11 @@ interface OCSTableProps {
 export function OCSTable({ data, selectedId, onSelect, loading }: OCSTableProps) {
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="animate-pulse space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-10 bg-gray-200 rounded" />
-          ))}
+      <div className="ocs-table-container">
+        <div className="ocs-loading">
+          <div className="ocs-loading-skeleton"></div>
+          <div className="ocs-loading-skeleton"></div>
+          <div className="ocs-loading-skeleton"></div>
         </div>
       </div>
     )
@@ -55,69 +56,54 @@ export function OCSTable({ data, selectedId, onSelect, loading }: OCSTableProps)
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-        OCS 데이터가 없습니다.
+      <div className="ocs-table-container">
+        <div className="ocs-empty">
+          <span className="ocs-empty-icon">📋</span>
+          <span>OCS 데이터가 없습니다.</span>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className="ocs-table-container">
+      <table className="ocs-table">
+        <thead>
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              선택
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              OCS ID
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              환자명
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              환자번호
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              작업유형
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              검사유형
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              Result
-            </th>
+            <th className="ocs-th-select"></th>
+            <th>OCS ID</th>
+            <th>환자명</th>
+            <th>환자번호</th>
+            <th>작업</th>
+            <th>검사</th>
+            <th>Result</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody>
           {data.map((ocs) => (
-              <tr
-                key={ocs.id}
-                className={`cursor-pointer hover:bg-gray-50 ${
-                  selectedId === ocs.id ? 'bg-blue-50' : ''
-                }`}
-                onClick={() => onSelect(ocs)}
-              >
-                <td className="px-4 py-3">
-                  <input
-                    type="radio"
-                    name="ocs-select"
-                    checked={selectedId === ocs.id}
-                    onChange={() => onSelect(ocs)}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                </td>
-                <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                  {ocs.ocs_id}
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-500">{ocs.patient_name}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{ocs.patient_number}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{ocs.job_role}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{ocs.job_type}</td>
-                <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate" title={ocs.worker_result?.impression || ''}>
-                  {ocs.worker_result?.impression || '-'}
-                </td>
-              </tr>
+            <tr
+              key={ocs.id}
+              className={selectedId === ocs.id ? 'selected' : ''}
+              onClick={() => onSelect(ocs)}
+            >
+              <td className="ocs-td-select">
+                <div className={`ocs-radio ${selectedId === ocs.id ? 'checked' : ''}`}>
+                  {selectedId === ocs.id && <div className="ocs-radio-dot"></div>}
+                </div>
+              </td>
+              <td className="ocs-td-id">{ocs.ocs_id}</td>
+              <td className="ocs-td-name">{ocs.patient_name}</td>
+              <td className="ocs-td-number">{ocs.patient_number}</td>
+              <td>
+                <span className="ocs-badge ocs-badge-role">{ocs.job_role}</span>
+              </td>
+              <td>
+                <span className="ocs-badge ocs-badge-type">{ocs.job_type}</span>
+              </td>
+              <td className="ocs-td-result" title={ocs.worker_result?.impression || ''}>
+                {ocs.worker_result?.impression || '-'}
+              </td>
+            </tr>
           ))}
         </tbody>
       </table>

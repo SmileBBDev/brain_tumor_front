@@ -438,23 +438,41 @@
   padding: 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
-  background: #fff;
+  background-color: #ffffff !important;
+  color: #374151;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .review-option:hover {
   border-color: #9ca3af;
+  background-color: #f9fafb !important;
 }
 
 .review-option.selected {
   border-color: #2563eb;
-  background: #eff6ff;
+  background-color: #eff6ff !important;
 }
 
 .review-option .icon {
   font-size: 1.5rem;
   font-weight: bold;
+}
+
+.review-option .icon-approve {
+  color: #059669;
+}
+
+.review-option .icon-reject {
+  color: #dc2626;
+}
+
+.review-option.selected .icon-approve {
+  color: #059669;
+}
+
+.review-option.selected .icon-reject {
+  color: #dc2626;
 }
 
 .review-comment-input {

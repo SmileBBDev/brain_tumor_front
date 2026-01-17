@@ -1,6 +1,7 @@
 :root {
   /* Color */
   --primary: #5b6fd6; /* 메인 블루 */
+  --primary-color: #5b6fd6; /* 메인 블루 (alias) */
   --primary-dark: #6a7bdc; /* 보조 블루 */
   --accent-ai: #7c8ce3; /* 강조 */
 

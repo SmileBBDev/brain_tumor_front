@@ -13,6 +13,7 @@ from .views import (
     AIInferenceFilesListView,
     AIInferenceSegmentationView,
     AIInferenceSegmentationCompareView,
+    AIInferenceReviewView,
     MGGeneExpressionView,
     AIModelsListView,
     AIModelDetailView,
@@ -44,6 +45,7 @@ urlpatterns = [
     path('inferences/by-ocs/<int:ocs_id>/', AIInferenceDeleteByOCSView.as_view(), name='inference-delete-by-ocs'),
     path('inferences/<str:job_id>/', AIInferenceDetailView.as_view(), name='inference-detail'),
     path('inferences/<str:job_id>/cancel/', AIInferenceCancelView.as_view(), name='inference-cancel'),
+    path('inferences/<str:job_id>/review/', AIInferenceReviewView.as_view(), name='inference-review'),
 
     # Files
     path('inferences/<str:job_id>/files/', AIInferenceFilesListView.as_view(), name='inference-files'),
