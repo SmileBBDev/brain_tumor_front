@@ -125,6 +125,7 @@ pip freeze > requirements.txt
 
 * 실행성공 :  http://localhost:8000
 
+deactivate
 
 
 
