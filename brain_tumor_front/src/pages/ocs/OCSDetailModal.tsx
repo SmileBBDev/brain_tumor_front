@@ -9,6 +9,25 @@ import {
   cancelOCS,
 } from '@/services/ocs.api';
 import type { OCSDetail, OCSHistory, LISWorkerResult, RISWorkerResult } from '@/types/ocs';
+import { isRISWorkerResult, isLISWorkerResult } from '@/types/ocs';
+
+// worker_result에 저장되는 확장 필드 (LIS 상세 페이지에서 저장)
+interface LISExtendedResult extends LISWorkerResult {
+  labResults?: {
+    testName: string;
+    value: string;
+    unit: string;
+    refRange: string;
+    flag: 'normal' | 'abnormal' | 'critical';
+  }[];
+  notes?: string;
+  _verifiedBy?: string;
+}
+
+// worker_result에 저장되는 확장 필드 (RIS)
+interface RISExtendedResult extends RISWorkerResult {
+  _verifiedBy?: string;
+}
 import '@/pages/patient/PatientCreateModal.css';
 import './OCSDetailModalReport.css';
 
@@ -520,28 +539,28 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                     <div className="request-summary-box">
                       <h4>의사 요청 사항</h4>
                       <div className="request-details">
-                        {(ocs.doctor_request as any).chief_complaint && (
+                        {ocs.doctor_request.chief_complaint && (
                           <div className="request-row">
                             <label>주소(Chief Complaint)</label>
-                            <span>{(ocs.doctor_request as any).chief_complaint}</span>
+                            <span>{ocs.doctor_request.chief_complaint}</span>
                           </div>
                         )}
-                        {(ocs.doctor_request as any).clinical_info && (
+                        {ocs.doctor_request.clinical_info && (
                           <div className="request-row">
                             <label>임상 정보</label>
-                            <span>{(ocs.doctor_request as any).clinical_info}</span>
+                            <span>{ocs.doctor_request.clinical_info}</span>
                           </div>
                         )}
-                        {(ocs.doctor_request as any).request_detail && (
+                        {ocs.doctor_request.request_detail && (
                           <div className="request-row">
                             <label>요청 내용</label>
-                            <span>{(ocs.doctor_request as any).request_detail}</span>
+                            <span>{ocs.doctor_request.request_detail}</span>
                           </div>
                         )}
-                        {(ocs.doctor_request as any).special_instruction && (
+                        {ocs.doctor_request.special_instruction && (
                           <div className="request-row">
                             <label>특별 지시</label>
-                            <span>{(ocs.doctor_request as any).special_instruction}</span>
+                            <span>{ocs.doctor_request.special_instruction}</span>
                           </div>
                         )}
                       </div>
@@ -840,16 +859,16 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                     {ocs.doctor_request && Object.keys(ocs.doctor_request).length > 0 && (
                       <div className="request-info-box">
                         <h5>의사 요청 사항</h5>
-                        {(ocs.doctor_request as any).clinical_info && (
+                        {ocs.doctor_request.clinical_info && (
                           <div className="request-item">
                             <label>임상 정보:</label>
-                            <p>{(ocs.doctor_request as any).clinical_info}</p>
+                            <p>{ocs.doctor_request.clinical_info}</p>
                           </div>
                         )}
-                        {(ocs.doctor_request as any).special_instruction && (
+                        {ocs.doctor_request.special_instruction && (
                           <div className="request-item">
                             <label>특별 지시:</label>
-                            <p>{(ocs.doctor_request as any).special_instruction}</p>
+                            <p>{ocs.doctor_request.special_instruction}</p>
                           </div>
                         )}
                       </div>
@@ -861,7 +880,7 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                     <h4>검사 결과</h4>
 
                     {/* LIS 결과 - 테이블 형식 */}
-                    {ocs.job_role === 'LIS' && (ocs.worker_result as any)?.labResults?.length > 0 && (
+                    {ocs.job_role === 'LIS' && isLISWorkerResult(ocs.worker_result) && (ocs.worker_result as LISExtendedResult).labResults && (ocs.worker_result as LISExtendedResult).labResults!.length > 0 && (
                       <div className="lab-results-table">
                         <table className="report-result-table">
                           <thead>
@@ -874,7 +893,7 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                             </tr>
                           </thead>
                           <tbody>
-                            {((ocs.worker_result as any).labResults || []).map((item: any, index: number) => (
+                            {((ocs.worker_result as LISExtendedResult).labResults || []).map((item, index) => (
                               <tr
                                 key={index}
                                 className={
@@ -901,51 +920,53 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                     )}
 
                     {/* RIS 결과 - 텍스트 형식 */}
-                    {ocs.job_role === 'RIS' && (
+                    {ocs.job_role === 'RIS' && isRISWorkerResult(ocs.worker_result) && (
                       <div className="imaging-results">
-                        {(ocs.worker_result as any)?.findings && (
+                        {ocs.worker_result.findings && (
                           <div className="result-block">
                             <h5>소견 (Findings)</h5>
-                            <p className="result-text">{(ocs.worker_result as any).findings}</p>
+                            <p className="result-text">{ocs.worker_result.findings}</p>
                           </div>
                         )}
-                        {(ocs.worker_result as any)?.impression && (
+                        {ocs.worker_result.impression && (
                           <div className="result-block">
                             <h5>인상 (Impression)</h5>
-                            <p className="result-text">{(ocs.worker_result as any).impression}</p>
+                            <p className="result-text">{ocs.worker_result.impression}</p>
                           </div>
                         )}
-                        {(ocs.worker_result as any)?.recommendation && (
+                        {ocs.worker_result.recommendation && (
                           <div className="result-block">
                             <h5>권고 사항 (Recommendation)</h5>
-                            <p className="result-text">{(ocs.worker_result as any).recommendation}</p>
+                            <p className="result-text">{ocs.worker_result.recommendation}</p>
                           </div>
                         )}
                       </div>
                     )}
 
                     {/* 해석/종합 소견 */}
-                    {(ocs.worker_result as any)?.interpretation && (
+                    {isLISWorkerResult(ocs.worker_result) && ocs.worker_result.interpretation && (
                       <div className="result-block interpretation">
                         <h5>의학적 해석</h5>
-                        <p className="result-text">{(ocs.worker_result as any).interpretation}</p>
+                        <p className="result-text">{ocs.worker_result.interpretation}</p>
                       </div>
                     )}
 
                     {/* 비고 */}
-                    {(ocs.worker_result as any)?.notes && (
+                    {isLISWorkerResult(ocs.worker_result) && (ocs.worker_result as LISExtendedResult).notes && (
                       <div className="result-block notes-block">
                         <h5>비고</h5>
-                        <p className="result-text">{(ocs.worker_result as any).notes}</p>
+                        <p className="result-text">{(ocs.worker_result as LISExtendedResult).notes}</p>
                       </div>
                     )}
 
                     {/* 결과가 없는 경우 JSON 표시 */}
-                    {ocs.worker_result &&
-                     !(ocs.worker_result as any)?.labResults?.length &&
-                     !(ocs.worker_result as any)?.findings &&
-                     !(ocs.worker_result as any)?.impression &&
-                     !(ocs.worker_result as any)?.interpretation && (
+                    {ocs.worker_result && (() => {
+                      const hasLabResults = isLISWorkerResult(ocs.worker_result) && (ocs.worker_result as LISExtendedResult).labResults?.length;
+                      const hasFindings = isRISWorkerResult(ocs.worker_result) && ocs.worker_result.findings;
+                      const hasImpression = isRISWorkerResult(ocs.worker_result) && ocs.worker_result.impression;
+                      const hasInterpretation = isLISWorkerResult(ocs.worker_result) && ocs.worker_result.interpretation;
+                      return !hasLabResults && !hasFindings && !hasImpression && !hasInterpretation;
+                    })() && (
                       <div className="raw-result">
                         <h5>검사 결과 데이터</h5>
                         <pre className="json-viewer">
@@ -1001,7 +1022,15 @@ export default function OCSDetailModal({ isOpen, ocsId, onClose, onSuccess }: Pr
                         </div>
                         <div className="confirmation-item">
                           <label>확정자</label>
-                          <span>{(ocs.worker_result as any)?._verifiedBy || ocs.worker?.name || '-'}</span>
+                          <span>{(() => {
+                            if (isRISWorkerResult(ocs.worker_result)) {
+                              return (ocs.worker_result as RISExtendedResult)._verifiedBy || ocs.worker?.name || '-';
+                            }
+                            if (isLISWorkerResult(ocs.worker_result)) {
+                              return (ocs.worker_result as LISExtendedResult)._verifiedBy || ocs.worker?.name || '-';
+                            }
+                            return ocs.worker?.name || '-';
+                          })()}</span>
                         </div>
                         <div className="confirmation-item">
                           <label>결과 상태</label>

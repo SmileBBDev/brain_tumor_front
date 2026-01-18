@@ -7,7 +7,41 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getOCS } from '@/services/ocs.api';
-import type { OCSDetail } from '@/types/ocs';
+import type { OCSDetail, RISWorkerResult, LISWorkerResult } from '@/types/ocs';
+import { isRISWorkerResult, isLISWorkerResult } from '@/types/ocs';
+
+// LIS 확장 결과 타입 (labResults 등 상세 페이지에서 저장하는 필드)
+interface LabResultItem {
+  testName: string;
+  value: string;
+  unit: string;
+  refRange: string;
+  flag: 'normal' | 'abnormal' | 'critical';
+}
+
+interface LISExtendedResult extends LISWorkerResult {
+  labResults?: LabResultItem[];
+  notes?: string;
+  _verifiedBy?: string;
+}
+
+interface RISExtendedResult extends RISWorkerResult {
+  _verifiedBy?: string;
+}
+
+// 시리즈 정보 타입
+interface SeriesInfo {
+  series_type: string;
+  orthanc_id: string;
+  description?: string;
+}
+
+// 썸네일 정보 타입
+interface ThumbnailInfo {
+  channel: string;
+  url: string;
+  description: string;
+}
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
 import PdfPreviewModal from '@/components/PdfPreviewModal';
 import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
@@ -87,11 +121,15 @@ export default function OCSResultReportPage() {
     if (!ocs) return;
 
     try {
-      const workerResult = ocs.worker_result || {};
-      const labResults = (workerResult as any).labResults || [];
-      const findings = (workerResult as any).findings || '';
-      const impression = (workerResult as any).impression || '';
-      const recommendation = (workerResult as any).recommendation || '';
+      // RIS 결과 추출
+      const risResult = isRISWorkerResult(ocs.worker_result) ? ocs.worker_result : null;
+      const findings = risResult?.findings || '';
+      const impression = risResult?.impression || '';
+      const recommendation = risResult?.recommendation || '';
+
+      // LIS 결과 추출
+      const lisResult = isLISWorkerResult(ocs.worker_result) ? ocs.worker_result as LISExtendedResult : null;
+      const labResults: LabResultItem[] = lisResult?.labResults || [];
 
       if (ocs.job_role === 'RIS') {
         // RIS PDF 생성
@@ -118,14 +156,14 @@ export default function OCSResultReportPage() {
           patientName: ocs.patient.name,
           patientNumber: ocs.patient.patient_number,
           jobType: ocs.job_type,
-          results: labResults.map((item: any) => ({
+          results: labResults.map((item) => ({
             itemName: item.testName || '',
             value: item.value || '',
             unit: item.unit || '',
             refRange: item.refRange || '',
             flag: item.flag || 'normal',
           })),
-          interpretation: (workerResult as any).interpretation || '',
+          interpretation: lisResult?.interpretation || '',
           doctorName: ocs.doctor.name,
           workerName: ocs.worker?.name || '-',
           createdAt: formatDate(ocs.created_at),
@@ -163,31 +201,32 @@ export default function OCSResultReportPage() {
   }
 
   // worker_result 파싱
-  const workerResult = ocs.worker_result || {};
+  const risResult = isRISWorkerResult(ocs.worker_result) ? ocs.worker_result as RISExtendedResult : null;
+  const lisResult = isLISWorkerResult(ocs.worker_result) ? ocs.worker_result as LISExtendedResult : null;
 
   // LIS 결과인 경우 labResults 추출
-  const labResults = (workerResult as any).labResults || [];
-  const interpretation = (workerResult as any).interpretation || '';
-  const notes = (workerResult as any).notes || '';
+  const labResults: LabResultItem[] = lisResult?.labResults || [];
+  const interpretation = lisResult?.interpretation || '';
+  const notes = lisResult?.notes || '';
 
   // RIS 결과인 경우
-  const findings = (workerResult as any).findings || '';
-  const impression = (workerResult as any).impression || '';
-  const recommendation = (workerResult as any).recommendation || '';
+  const findings = risResult?.findings || '';
+  const impression = risResult?.impression || '';
+  const recommendation = risResult?.recommendation || '';
 
   // 확정 정보
-  const verifiedBy = (workerResult as any)._verifiedBy || ocs.worker?.name;
+  const verifiedBy = risResult?._verifiedBy || lisResult?._verifiedBy || ocs.worker?.name;
 
   // RIS DICOM 썸네일 정보 추출
-  const orthancInfo = (workerResult as any).orthanc || {};
-  const seriesList = orthancInfo.series || [];
+  const orthancInfo = risResult?.orthanc;
+  const seriesList: SeriesInfo[] = orthancInfo?.series || [];
   const channelOrder = ['T1', 'T1C', 'T2', 'FLAIR'];
   // Vite 프록시 우회: 직접 Django 서버로 요청
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-  const dicomThumbnails = seriesList
-    .filter((s: any) => channelOrder.includes(s.series_type) && s.orthanc_id)
-    .sort((a: any, b: any) => channelOrder.indexOf(a.series_type) - channelOrder.indexOf(b.series_type))
-    .map((s: any) => ({
+  const dicomThumbnails: ThumbnailInfo[] = seriesList
+    .filter((s) => channelOrder.includes(s.series_type) && s.orthanc_id)
+    .sort((a, b) => channelOrder.indexOf(a.series_type) - channelOrder.indexOf(b.series_type))
+    .map((s) => ({
       channel: s.series_type,
       url: `${apiBaseUrl}/orthanc/series/${s.orthanc_id}/thumbnail/`,
       description: s.description || s.series_type,
@@ -200,8 +239,8 @@ export default function OCSResultReportPage() {
         <button className="btn btn-secondary" onClick={handleBack}>
           돌아가기
         </button>
-        <button className="btn btn-primary" onClick={handlePrint}>
-          인쇄
+        <button className="btn btn-primary" onClick={handleOpenPdfPreview}>
+          PDF 출력
         </button>
       </div>
 
@@ -271,16 +310,16 @@ export default function OCSResultReportPage() {
           {ocs.doctor_request && Object.keys(ocs.doctor_request).length > 0 && (
             <div className="request-info">
               <h3>의사 요청 사항</h3>
-              {(ocs.doctor_request as any).clinical_info && (
+              {ocs.doctor_request.clinical_info && (
                 <div className="request-item">
                   <label>임상 정보:</label>
-                  <p>{(ocs.doctor_request as any).clinical_info}</p>
+                  <p>{ocs.doctor_request.clinical_info}</p>
                 </div>
               )}
-              {(ocs.doctor_request as any).special_instruction && (
+              {ocs.doctor_request.special_instruction && (
                 <div className="request-item">
                   <label>특별 지시:</label>
-                  <p>{(ocs.doctor_request as any).special_instruction}</p>
+                  <p>{ocs.doctor_request.special_instruction}</p>
                 </div>
               )}
             </div>
@@ -305,7 +344,7 @@ export default function OCSResultReportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {labResults.map((item: any, index: number) => (
+                  {labResults.map((item, index) => (
                     <tr
                       key={index}
                       className={
@@ -339,7 +378,7 @@ export default function OCSResultReportPage() {
                 <div className="mri-thumbnails">
                   <h3>MRI 영상</h3>
                   <div className="thumbnail-grid">
-                    {dicomThumbnails.map((thumb: any) => (
+                    {dicomThumbnails.map((thumb) => (
                       <div key={thumb.channel} className="thumbnail-item">
                         <img
                           src={thumb.url}
@@ -400,7 +439,7 @@ export default function OCSResultReportPage() {
             <div className="raw-result">
               <h3>검사 결과 데이터</h3>
               <pre className="json-viewer">
-                {JSON.stringify(workerResult, null, 2)}
+                {JSON.stringify(ocs.worker_result, null, 2)}
               </pre>
             </div>
           )}
@@ -490,6 +529,79 @@ export default function OCSResultReportPage() {
           <p className="print-date">출력일시: {new Date().toLocaleString('ko-KR')}</p>
         </footer>
       </div>
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title={`${ocs.job_role === 'RIS' ? '영상검사' : '임상검사'} 결과 PDF 미리보기`}
+      >
+        {ocs && (() => {
+          const previewRisResult = isRISWorkerResult(ocs.worker_result) ? ocs.worker_result : null;
+          const previewLisResult = isLISWorkerResult(ocs.worker_result) ? ocs.worker_result as LISExtendedResult : null;
+          const previewLabResults: LabResultItem[] = previewLisResult?.labResults || [];
+          const previewFindings = previewRisResult?.findings || '';
+          const previewImpression = previewRisResult?.impression || '';
+          const previewRecommendation = previewRisResult?.recommendation || '';
+          const previewInterpretation = previewLisResult?.interpretation || '';
+
+          return (
+            <DocumentPreview
+              title={ocs.job_role === 'RIS' ? '영상 판독 보고서' : '임상검사 결과 보고서'}
+              subtitle={`OCS ID: ${ocs.ocs_id}`}
+              infoGrid={[
+                { label: '환자번호', value: ocs.patient.patient_number },
+                { label: '환자명', value: ocs.patient.name },
+                { label: '검사 유형', value: ocs.job_type },
+                { label: '처방 의사', value: ocs.doctor.name },
+                { label: '검사 담당자', value: ocs.worker?.name || '-' },
+                { label: '확정일시', value: formatDate(ocs.confirmed_at) },
+              ]}
+              sections={[
+                // RIS 결과
+                ...(ocs.job_role === 'RIS' ? [
+                  ...(previewFindings ? [{
+                    type: 'text' as const,
+                    title: '소견 (Findings)',
+                    content: previewFindings,
+                  }] : []),
+                  ...(previewImpression ? [{
+                    type: 'text' as const,
+                    title: '인상 (Impression)',
+                    content: previewImpression,
+                  }] : []),
+                  ...(previewRecommendation ? [{
+                    type: 'text' as const,
+                    title: '권고 사항',
+                    content: previewRecommendation,
+                  }] : []),
+                ] : []),
+                // LIS 결과
+                ...(ocs.job_role === 'LIS' && previewLabResults.length > 0 ? [{
+                  type: 'table' as const,
+                  title: '검사 결과',
+                  columns: ['검사 항목', '결과', '단위', '참고치', '판정'],
+                  rows: previewLabResults.map((item) => ({
+                    '검사 항목': item.testName || '-',
+                    '결과': item.value || '-',
+                    '단위': item.unit || '-',
+                    '참고치': item.refRange || '-',
+                    '판정': item.flag === 'normal' ? '정상' : item.flag === 'abnormal' ? '비정상' : item.flag === 'critical' ? '위험' : '-',
+                  })),
+                }] : []),
+                // 해석
+                ...(previewInterpretation ? [{
+                  type: 'text' as const,
+                  title: '의학적 해석',
+                  content: previewInterpretation,
+                }] : []),
+              ]}
+              signature={{ label: '확정자', name: ocs.worker?.name || '-' }}
+            />
+          );
+        })()}
+      </PdfPreviewModal>
     </div>
   );
 }

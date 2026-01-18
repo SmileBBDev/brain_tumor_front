@@ -106,7 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const token = localStorage.getItem("accessToken");
     if (!token) return;
-    const ws = new WebSocket(`ws://localhost:8000/ws/presence/?token=${token}`);
+    const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+    const ws = new WebSocket(`${wsBaseUrl}/presence/?token=${token}`);
 
     let interval: number | null = null;
 

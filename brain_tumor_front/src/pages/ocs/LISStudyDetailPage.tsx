@@ -12,6 +12,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { getOCS, startOCS, saveOCSResult, confirmOCS, uploadLISFile } from '@/services/ocs.api';
 import type { OCSDetail, GeneMutation, ProteinMarker } from '@/types/ocs';
 import { getLISCategory, LIS_CATEGORY_LABELS } from '@/utils/ocs.utils';
+import { getErrorMessage } from '@/types/error';
 import { aiApi } from '@/services/ai.api';
 import {
   type StoredFileInfo,
@@ -25,7 +26,6 @@ import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
 import {
   DocumentPreview,
   formatDate as formatDatePreview,
-  getGenderDisplay,
 } from '@/components/pdf-preview';
 import './LISStudyDetailPage.css';
 
@@ -292,12 +292,22 @@ export default function LISStudyDetailPage() {
   };
 
   // 파일 업로드 핸들러 (서버 CDSS_STORAGE/LIS에 저장)
+  // LIS 파일 용량 제한: 10MB
+  const MAX_FILE_SIZE_MB = 10;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !ocs) return;
 
     // 파일별로 서버에 업로드
     for (const file of Array.from(files)) {
+      // 용량 검증
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        alert(`파일 용량 초과: ${file.name}\n최대 ${MAX_FILE_SIZE_MB}MB까지 업로드 가능합니다.\n(현재: ${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
+        continue;
+      }
+
       try {
         // 백엔드 API 호출하여 CDSS_STORAGE/LIS에 저장
         const response = await uploadLISFile(ocs.id, file);
@@ -320,7 +330,7 @@ export default function LISStudyDetailPage() {
         }
       } catch (error) {
         console.error('파일 업로드 실패:', file.name, error);
-        alert(`파일 업로드 실패: ${file.name}\n${(error as Error).message}`);
+        alert(`파일 업로드 실패: ${file.name}\n${getErrorMessage(error)}`);
       }
     }
 
@@ -619,9 +629,9 @@ export default function LISStudyDetailPage() {
 
       // OCS 상세 새로고침
       await fetchOCSDetail();
-    } catch (error: any) {
+    } catch (error) {
       console.error('AI 추론 요청 실패:', error);
-      const errorMessage = error.response?.data?.error || error.message || '알 수 없는 오류';
+      const errorMessage = getErrorMessage(error);
       alert(`AI 분석 요청 실패: ${errorMessage}`);
     } finally {
       setAiRequesting(false);

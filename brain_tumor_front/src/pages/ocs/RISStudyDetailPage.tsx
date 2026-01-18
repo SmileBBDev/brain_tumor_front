@@ -10,7 +10,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { getOCS, startOCS, saveOCSResult, confirmOCS, uploadRISFile } from '@/services/ocs.api';
 import type { OCSDetail, RISWorkerResult } from '@/types/ocs';
-import { OCS_STATUS_LABELS } from '@/types/ocs';
+import { OCS_STATUS_LABELS, isRISWorkerResult } from '@/types/ocs';
+import { getErrorMessage } from '@/types/error';
 import { aiApi } from '@/services/ai.api';
 import AIAnalysisPanel from './components/AIAnalysisPanel';
 import AIViewerPanel from './components/AIViewerPanel';
@@ -27,7 +28,6 @@ import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
 import {
   DocumentPreview,
   formatDate as formatDatePreview,
-  getGenderDisplay,
 } from '@/components/pdf-preview';
 import './RISStudyDetailPage.css';
 
@@ -120,20 +120,20 @@ export default function RISStudyDetailPage() {
         setOcsDetail(data);
 
         // 기존 결과가 있으면 폼에 로드
-        if (data.worker_result && data.worker_result._template === 'RIS') {
-          const result = data.worker_result as RISWorkerResult;
+        if (isRISWorkerResult(data.worker_result)) {
+          const result = data.worker_result;
           setFindings(result.findings || '');
           setImpression(result.impression || '');
           setRecommendation(result.recommendation || '');
           // 뇌종양 유무 로드
           setTumorDetected(result.tumorDetected ?? null);
           // 검사 결과 항목 로드
-          if ((result as any).imageResults) {
-            setImageResults((result as any).imageResults as ImageResultItem[]);
+          if (result.imageResults) {
+            setImageResults(result.imageResults);
           }
           // 파일 로드 (LocalStorage에서 dataUrl 복원)
-          if ((result as any).files && (result as any).files.length > 0) {
-            const storedFiles = (result as any).files as StoredFileInfo[];
+          if (result.files && result.files.length > 0) {
+            const storedFiles = result.files;
             // 기존 형식(dataUrl 직접 저장)에서 새 형식으로 마이그레이션
             const migratedFiles = migrateFilesToStorage(storedFiles, data.id);
             // LocalStorage에서 dataUrl 로드하여 UI용 데이터 생성
@@ -173,12 +173,22 @@ export default function RISStudyDetailPage() {
   };
 
   // 파일 업로드 핸들러 (서버에 저장)
+  // RIS 파일 용량 제한: 100MB
+  const MAX_FILE_SIZE_MB = 100;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !ocsDetail) return;
 
     // 파일별로 서버에 업로드
     for (const file of Array.from(files)) {
+      // 용량 검증
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        alert(`파일 용량 초과: ${file.name}\n최대 ${MAX_FILE_SIZE_MB}MB까지 업로드 가능합니다.\n(현재: ${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
+        continue;
+      }
+
       try {
         const response = await uploadRISFile(ocsDetail.id, file);
 
@@ -195,7 +205,7 @@ export default function RISStudyDetailPage() {
         }
       } catch (error) {
         console.error('파일 업로드 실패:', file.name, error);
-        alert(`파일 업로드 실패: ${file.name}\n${(error as Error).message}`);
+        alert(`파일 업로드 실패: ${file.name}\n${getErrorMessage(error)}`);
       }
     }
 
@@ -244,16 +254,30 @@ export default function RISStudyDetailPage() {
     }));
   };
 
+  // orthanc 정보 추출 헬퍼 함수
+  const getOrthancInfo = () => {
+    if (isRISWorkerResult(ocsDetail?.worker_result)) {
+      return ocsDetail.worker_result.orthanc || null;
+    }
+    return null;
+  };
+
+  // orthanc 시리즈에서 총 인스턴스 수 계산
+  const calculateTotalInstances = (orthancInfo: RISWorkerResult['orthanc']) => {
+    if (!orthancInfo?.series) return 0;
+    return orthancInfo.series.reduce((sum, s) => sum + (s.instances_count || 0), 0);
+  };
+
   // 임시 저장
   const handleSaveDraft = async () => {
     if (!ocsDetail) return;
     setSaving(true);
     try {
       // orthanc 정보를 기준으로 dicom 정보 생성 (중복 제거)
-      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc || null;
+      const orthancInfo = getOrthancInfo();
 
       const workerResult = {
-        _template: 'RIS',
+        _template: 'RIS' as const,
         _version: '1.2',  // 버전 업데이트 (LocalStorage 파일 저장 방식)
         _confirmed: false,
         findings,
@@ -269,7 +293,7 @@ export default function RISStudyDetailPage() {
         dicom: orthancInfo ? {
           study_uid: orthancInfo.study_uid || '',
           series_count: orthancInfo.series?.length || 0,
-          instance_count: orthancInfo.series?.reduce((sum: number, s: any) => sum + (s.instances_count || 0), 0) || 0,
+          instance_count: calculateTotalInstances(orthancInfo),
         } : { study_uid: '', series_count: 0, instance_count: 0 },
         _custom: {},
         _savedAt: new Date().toISOString(),
@@ -312,10 +336,10 @@ export default function RISStudyDetailPage() {
     setSaving(true);
     try {
       // orthanc 정보를 기준으로 dicom 정보 생성 (중복 제거)
-      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc || null;
+      const orthancInfo = getOrthancInfo();
 
       const workerResult = {
-        _template: 'RIS',
+        _template: 'RIS' as const,
         _version: '1.2',  // 버전 업데이트 (LocalStorage 파일 저장 방식)
         _confirmed: true,
         findings,
@@ -331,7 +355,7 @@ export default function RISStudyDetailPage() {
         dicom: orthancInfo ? {
           study_uid: orthancInfo.study_uid || '',
           series_count: orthancInfo.series?.length || 0,
-          instance_count: orthancInfo.series?.reduce((sum: number, s: any) => sum + (s.instances_count || 0), 0) || 0,
+          instance_count: calculateTotalInstances(orthancInfo),
         } : { study_uid: '', series_count: 0, instance_count: 0 },
         _custom: {},
         _verifiedAt: new Date().toISOString(),
@@ -364,7 +388,7 @@ export default function RISStudyDetailPage() {
 
     // 미리보기용 썸네일 로드
     if (ocsDetail) {
-      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc;
+      const orthancInfo = getOrthancInfo();
       if (orthancInfo?.series && orthancInfo.series.length > 0) {
         try {
           const { getSeriesPreviewBase64 } = await import('@/api/orthancApi');
@@ -404,13 +428,13 @@ export default function RISStudyDetailPage() {
 
       // Orthanc 시리즈에서 썸네일 가져오기
       let thumbnails: Array<{ channel: string; dataUrl: string; description?: string }> = [];
-      let thumbnailLoadErrors: string[] = [];
-      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc;
+      const thumbnailLoadErrors: string[] = [];
+      const orthancInfo = getOrthancInfo();
 
       if (orthancInfo?.series && orthancInfo.series.length > 0) {
         console.log('[RIS PDF] Orthanc 시리즈 썸네일 로딩 시작, 개수:', orthancInfo.series.length);
 
-        const thumbnailPromises = orthancInfo.series.map(async (series: any) => {
+        const thumbnailPromises = orthancInfo.series.map(async (series) => {
           const seriesId = series.orthanc_id;
           const seriesLabel = series.series_type || series.description || 'DICOM';
 
@@ -428,8 +452,8 @@ export default function RISStudyDetailPage() {
               console.warn(`[RIS PDF] 썸네일 데이터 없음: ${seriesLabel}`);
               thumbnailLoadErrors.push(seriesLabel);
             }
-          } catch (e: any) {
-            console.error(`[RIS PDF] 썸네일 로딩 실패: ${seriesLabel}`, e?.message || e);
+          } catch (e) {
+            console.error(`[RIS PDF] 썸네일 로딩 실패: ${seriesLabel}`, getErrorMessage(e));
             thumbnailLoadErrors.push(seriesLabel);
           }
           return null;
@@ -457,7 +481,7 @@ export default function RISStudyDetailPage() {
         findings: findings || (ocsDetail.worker_result as RISWorkerResult)?.findings || '',
         impression: impression || (ocsDetail.worker_result as RISWorkerResult)?.impression || '',
         recommendation: recommendation || (ocsDetail.worker_result as RISWorkerResult)?.recommendation || '',
-        tumorDetected: tumorDetected ?? (ocsDetail.worker_result as any)?.tumorDetected ?? null,
+        tumorDetected: tumorDetected ?? (isRISWorkerResult(ocsDetail.worker_result) ? ocsDetail.worker_result.tumorDetected : null) ?? null,
         doctorName: ocsDetail.doctor.name,
         workerName: ocsDetail.worker?.name || '-',
         createdAt: formatDate(ocsDetail.created_at),
@@ -471,8 +495,8 @@ export default function RISStudyDetailPage() {
       if (thumbnailLoadErrors.length > 0) {
         alert(`PDF가 생성되었습니다.\n(일부 영상 이미지 로딩 실패: ${thumbnailLoadErrors.join(', ')})`);
       }
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error);
+    } catch (error) {
+      const errorMsg = getErrorMessage(error);
       console.error('[RIS PDF] PDF 출력 실패:', errorMsg, error);
       alert(`PDF 출력에 실패했습니다.\n\n오류: ${errorMsg}\n\njspdf 패키지가 설치되어 있는지 확인하세요.`);
     }
@@ -488,8 +512,9 @@ export default function RISStudyDetailPage() {
     if (!ocsDetail) return;
 
     // DICOM 정보 확인
-    const workerResult = ocsDetail.worker_result as any;
-    const studyUid = workerResult?.orthanc?.study_uid || workerResult?.dicom?.study_uid;
+    const orthancInfo = getOrthancInfo();
+    const dicomInfo = isRISWorkerResult(ocsDetail.worker_result) ? ocsDetail.worker_result.dicom : null;
+    const studyUid = orthancInfo?.study_uid || dicomInfo?.study_uid;
 
     if (!studyUid) {
       alert('DICOM 영상 정보가 없습니다.\nDICOM Viewer에서 영상을 먼저 업로드해주세요.');
@@ -519,9 +544,9 @@ export default function RISStudyDetailPage() {
       // OCS 상세 새로고침
       const updated = await getOCS(ocsDetail.id);
       setOcsDetail(updated);
-    } catch (error: any) {
+    } catch (error) {
       console.error('AI 추론 요청 실패:', error);
-      const errorMessage = error.response?.data?.error || error.message || '알 수 없는 오류';
+      const errorMessage = getErrorMessage(error);
       alert(`AI 분석 요청 실패: ${errorMessage}`);
       setAiInferenceStatus('failed');
     } finally {
@@ -531,16 +556,18 @@ export default function RISStudyDetailPage() {
 
   // 기존 업로드된 Study 정보 추출 (worker_result.orthanc에서)
   const getExistingStudyInfo = (): ExistingStudyInfo | undefined => {
-    const result = ocsDetail?.worker_result as any;
-    if (!result?.orthanc?.orthanc_study_id) return undefined;
+    const orthancInfo = getOrthancInfo();
+    if (!orthancInfo?.orthanc_study_id) return undefined;
+
+    const dicomInfo = isRISWorkerResult(ocsDetail?.worker_result) ? ocsDetail.worker_result.dicom : null;
 
     return {
-      orthanc_study_id: result.orthanc.orthanc_study_id,
-      study_uid: result.orthanc.study_uid || '',
-      patient_id: result.orthanc.patient_id || '',
-      series_count: result.dicom?.series_count || result.orthanc.series?.length || 0,
-      instance_count: result.dicom?.instance_count || 0,
-      uploaded_at: result.orthanc.uploaded_at || '',
+      orthanc_study_id: orthancInfo.orthanc_study_id,
+      study_uid: orthancInfo.study_uid || '',
+      patient_id: orthancInfo.patient_id || '',
+      series_count: dicomInfo?.series_count || orthancInfo.series?.length || 0,
+      instance_count: dicomInfo?.instance_count || 0,
+      uploaded_at: orthancInfo.uploaded_at || '',
     };
   };
 
@@ -588,7 +615,15 @@ export default function RISStudyDetailPage() {
       const currentResult = (ocsDetail.worker_result as RISWorkerResult) || {};
 
       // Orthanc에서 시리즈 정보 가져오기 (series_id, series_type 포함)
-      let seriesInfoList: any[] = [];
+      interface LocalSeriesInfo {
+        series_id: string;
+        series_uid: string;
+        series_type: string;
+        modality: string;
+        description: string;
+        instance_count: number;
+      }
+      let seriesInfoList: LocalSeriesInfo[] = [];
       let totalInstanceCount = 0;
 
       // orthancStudyId가 있으면 해당 Study의 시리즈 정보 조회
@@ -598,8 +633,16 @@ export default function RISStudyDetailPage() {
       if (orthancStudyId) {
         try {
           // getSeries는 Orthanc Internal Study ID를 파라미터로 받음
-          const seriesData = await getSeries(orthancStudyId);
-          seriesInfoList = seriesData.map((s: any) => ({
+          interface SeriesInfo {
+            orthancId: string;
+            seriesInstanceUID?: string;
+            seriesType?: string;
+            modality?: string;
+            description?: string;
+            instancesCount?: number;
+          }
+          const seriesData: SeriesInfo[] = await getSeries(orthancStudyId);
+          seriesInfoList = seriesData.map((s) => ({
             series_id: s.orthancId,           // Orthanc Series ID
             series_uid: s.seriesInstanceUID || '',
             series_type: s.seriesType || 'OTHER',  // T1, T2, T1C, FLAIR, OTHER
@@ -631,17 +674,17 @@ export default function RISStudyDetailPage() {
 
       // 현재 폼 상태와 기존 저장된 데이터를 병합
       const updatedResult = {
-        _template: 'RIS',
+        _template: 'RIS' as const,
         _version: '1.2',  // 버전 업데이트 (중복 필드 제거, LocalStorage 파일 저장)
         _confirmed: currentResult._confirmed || false,
         // 현재 폼 상태 우선 사용 (사용자가 입력 중일 수 있음)
         findings: findings || currentResult.findings || '',
         impression: impression || currentResult.impression || '',
         recommendation: recommendation || currentResult.recommendation || '',
-        tumorDetected: tumorDetected ?? (currentResult as any).tumorDetected ?? null,
-        imageResults: imageResults.length > 0 ? imageResults : (currentResult as any).imageResults || [],
+        tumorDetected: tumorDetected ?? currentResult.tumorDetected ?? null,
+        imageResults: imageResults.length > 0 ? imageResults : currentResult.imageResults || [],
         // 파일: dataUrl 제외, storageKey만 저장
-        files: uploadedFiles.length > 0 ? getFilesForStorage() : (currentResult as any).files || [],
+        files: uploadedFiles.length > 0 ? getFilesForStorage() : currentResult.files || [],
         // orthanc 정보를 주 저장소로 사용
         orthanc: orthancInfo,
         // dicom 필드는 호환성을 위해 최소 정보만 유지 (orthanc에서 파생)
@@ -848,31 +891,31 @@ export default function RISStudyDetailPage() {
             </div>
 
             {/* Orthanc 업로드 정보 (DicomViewerPopup에서 업로드한 정보) */}
-            {(workerResult as any)?.orthanc && (
+            {workerResult?.orthanc && (
               <div className="panel-section orthanc-info">
                 <h3>Orthanc 영상 정보</h3>
                 <div className="info-grid">
                   <div className="info-row">
                     <label>Patient ID</label>
-                    <span className="mono">{(workerResult as any).orthanc.patient_id || '-'}</span>
+                    <span className="mono">{workerResult.orthanc.patient_id || '-'}</span>
                   </div>
                   <div className="info-row">
                     <label>Study UID</label>
-                    <span className="mono">{(workerResult as any).orthanc.study_uid || '-'}</span>
+                    <span className="mono">{workerResult.orthanc.study_uid || '-'}</span>
                   </div>
                   <div className="info-row">
                     <label>Study ID (Orthanc)</label>
-                    <span className="mono">{(workerResult as any).orthanc.study_id || '-'}</span>
+                    <span className="mono">{workerResult.orthanc.study_id || '-'}</span>
                   </div>
                   <div className="info-row">
                     <label>업로드 일시</label>
-                    <span>{formatDate((workerResult as any).orthanc.uploaded_at)}</span>
+                    <span>{formatDate(workerResult.orthanc.uploaded_at)}</span>
                   </div>
-                  {(workerResult as any).orthanc.series?.length > 0 && (
+                  {workerResult.orthanc.series && workerResult.orthanc.series.length > 0 && (
                     <div className="info-row series-row">
-                      <label>Series ({(workerResult as any).orthanc.series.length}개)</label>
+                      <label>Series ({workerResult.orthanc.series.length}개)</label>
                       <div className="series-list">
-                        {(workerResult as any).orthanc.series.map((s: any, idx: number) => (
+                        {workerResult.orthanc.series.map((s, idx) => (
                           <div key={idx} className="series-item">
                             <span className="mono">{s.orthanc_id}</span>
                             {s.description && <span className="desc">{s.description}</span>}

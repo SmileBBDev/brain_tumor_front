@@ -412,3 +412,116 @@ export interface LocalStorageMeta {
   is_dirty: boolean;
   conflict: string | null;
 }
+
+// =============================================================================
+// Type Guards
+// =============================================================================
+
+/**
+ * WorkerResult가 RISWorkerResult인지 확인하는 타입 가드
+ */
+export function isRISWorkerResult(result: unknown): result is RISWorkerResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    '_template' in result &&
+    (result as RISWorkerResult)._template === 'RIS'
+  );
+}
+
+/**
+ * WorkerResult가 LISWorkerResult인지 확인하는 타입 가드
+ */
+export function isLISWorkerResult(result: unknown): result is LISWorkerResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    '_template' in result &&
+    (result as LISWorkerResult)._template === 'LIS'
+  );
+}
+
+/**
+ * WorkerResult가 TreatmentWorkerResult인지 확인하는 타입 가드
+ */
+export function isTreatmentWorkerResult(result: unknown): result is TreatmentWorkerResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    '_template' in result &&
+    (result as TreatmentWorkerResult)._template === 'TREATMENT'
+  );
+}
+
+/**
+ * 객체가 WorkerResult 타입인지 확인하는 타입 가드
+ */
+export function isWorkerResult(result: unknown): result is WorkerResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    '_template' in result &&
+    '_version' in result &&
+    '_confirmed' in result
+  );
+}
+
+/**
+ * RISWorkerResult에서 orthanc 정보 안전하게 접근
+ */
+export function getRISOrthancInfo(result: WorkerResult | null | undefined): RISWorkerResult['orthanc'] | null {
+  if (isRISWorkerResult(result) && result.orthanc) {
+    return result.orthanc;
+  }
+  return null;
+}
+
+/**
+ * RISWorkerResult에서 imageResults 안전하게 접근
+ */
+export function getRISImageResults(result: WorkerResult | null | undefined): RISWorkerResult['imageResults'] | undefined {
+  if (isRISWorkerResult(result)) {
+    return result.imageResults;
+  }
+  return undefined;
+}
+
+/**
+ * RISWorkerResult에서 files 안전하게 접근
+ */
+export function getRISFiles(result: WorkerResult | null | undefined): RISWorkerResult['files'] | undefined {
+  if (isRISWorkerResult(result)) {
+    return result.files;
+  }
+  return undefined;
+}
+
+/**
+ * LISWorkerResult에서 test_results 안전하게 접근
+ */
+export function getLISTestResults(result: WorkerResult | null | undefined): LISWorkerResult['test_results'] | undefined {
+  if (isLISWorkerResult(result)) {
+    return result.test_results;
+  }
+  return undefined;
+}
+
+/**
+ * LISWorkerResult에서 gene_mutations 안전하게 접근
+ */
+export function getLISGeneMutations(result: WorkerResult | null | undefined): LISWorkerResult['gene_mutations'] | undefined {
+  if (isLISWorkerResult(result)) {
+    return result.gene_mutations;
+  }
+  return undefined;
+}
+
+/**
+ * LISWorkerResult에서 protein_markers 안전하게 접근
+ */
+export function getLISProteinMarkers(result: WorkerResult | null | undefined): LISWorkerResult['protein_markers'] | undefined {
+  if (isLISWorkerResult(result)) {
+    return result.protein_markers;
+  }
+  return undefined;
+}

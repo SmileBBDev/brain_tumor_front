@@ -1,0 +1,160 @@
+# =============================================================
+# docker-compose.production.yml - Production Stack
+# =============================================================
+# Full production deployment with Nginx reverse proxy
+#
+# Usage:
+#   docker compose -f docker-compose.production.yml up -d
+#
+# Prerequisites:
+#   1. Build frontend: cd ../brain_tumor_front && npm run build
+#   2. Copy build to nginx: cp -r dist/* docker/nginx/html/
+#   3. Configure .env with production values
+#   4. (Optional) Add SSL certificates to docker/nginx/ssl/
+# =============================================================
+
+services:
+  # --- Nginx Reverse Proxy ---
+  nginx:
+    image: nginx:alpine
+    container_name: nn-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - django_static:/app/static:ro
+      - django_media:/app/media:ro
+    depends_on:
+      - django
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - medical-net
+
+  # --- Orthanc (DICOM/PACS Server) ---
+  orthanc:
+    image: orthancteam/orthanc:latest
+    container_name: nn-orthanc
+    restart: always
+    ports:
+      - "8042:8042"
+      - "4242:4242"
+    volumes:
+      - ./orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
+      - orthanc_data:/var/lib/orthanc/db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8042/system"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - medical-net
+
+  # --- Redis (Cache/Message Broker) ---
+  redis:
+    image: redis:7-alpine
+    container_name: nn-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medical-net
+
+  # --- Django Application ---
+  django:
+    build:
+      context: ../brain_tumor_back
+      dockerfile: Dockerfile
+    image: nn-django:latest
+    container_name: nn-django
+    restart: always
+    depends_on:
+      django-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DEBUG=False
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - MYSQL_HOST=django-db
+      - MYSQL_PORT=3306
+      - MYSQL_DB=${DJANGO_DB_NAME}
+      - MYSQL_USER=${DJANGO_DB_USER}
+      - MYSQL_PASSWORD=${DJANGO_DB_PASS}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379/0
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - FASTAPI_URL=${FASTAPI_URL}
+      - ORTHANC_URL=http://orthanc:8042
+    volumes:
+      - django_static:/app/static
+      - django_media:/app/media
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - medical-net
+
+  # --- Django Database (MySQL) ---
+  django-db:
+    image: mysql:8.0
+    container_name: nn-django-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DJANGO_DB_ROOT_PASS}
+      - MYSQL_DATABASE=${DJANGO_DB_NAME}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=200
+      - --innodb_buffer_pool_size=256M
+    volumes:
+      - django_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DJANGO_DB_ROOT_PASS}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - medical-net
+
+networks:
+  medical-net:
+    name: medical-net
+    driver: bridge
+
+volumes:
+  orthanc_data:
+  redis_data:
+  django_db_data:
+  django_static:
+  django_media:

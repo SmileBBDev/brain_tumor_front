@@ -191,8 +191,8 @@ export function AIInferenceProvider({ children }: Props) {
     const token = localStorage.getItem('accessToken');
     if (!token) return;
 
-    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
-    const wsUrl = `${wsBaseUrl}/ws/ai-inference/?token=${token}`;
+    const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+    const wsUrl = `${wsBaseUrl}/ai-inference/?token=${token}`;
 
     console.log('[AI Context] WebSocket 연결 시도...');
     const ws = new WebSocket(wsUrl);

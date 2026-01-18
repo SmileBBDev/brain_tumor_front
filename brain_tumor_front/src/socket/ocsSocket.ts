@@ -116,7 +116,8 @@ function initGlobalSocket(): void {
     return;
   }
 
-  const wsUrl = `ws://localhost:8000/ws/ocs/?token=${token}`;
+  const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+  const wsUrl = `${wsBaseUrl}/ocs/?token=${token}`;
   globalSocket = new WebSocket(wsUrl);
 
   globalSocket.onopen = () => {

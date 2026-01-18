@@ -605,8 +605,10 @@ class OCSViewSet(viewsets.ModelViewSet):
         ocs_folder = Path(lis_storage_path) / ocs_folder_name
         ocs_folder.mkdir(parents=True, exist_ok=True)
 
-        # 원본 파일명 사용
-        file_path = ocs_folder / uploaded_file.name
+        # 파일명 충돌 방지: 타임스탬프 추가
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        safe_filename = f"{timestamp}_{uploaded_file.name}"
+        file_path = ocs_folder / safe_filename
 
         # 파일 저장
         with open(file_path, 'wb+') as destination:
@@ -614,7 +616,7 @@ class OCSViewSet(viewsets.ModelViewSet):
                 destination.write(chunk)
 
         # 상대 경로 저장 (CDSS_STORAGE 기준)
-        relative_path = f"LIS/{ocs_folder_name}/{uploaded_file.name}"
+        relative_path = f"LIS/{ocs_folder_name}/{safe_filename}"
 
         file_info = {
             "name": uploaded_file.name,
@@ -942,8 +944,10 @@ class OCSViewSet(viewsets.ModelViewSet):
         ocs_folder = Path(ris_storage_path) / ocs_folder_name
         ocs_folder.mkdir(parents=True, exist_ok=True)
 
-        # 원본 파일명 사용
-        file_path = ocs_folder / uploaded_file.name
+        # 파일명 충돌 방지: 타임스탬프 추가
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        safe_filename = f"{timestamp}_{uploaded_file.name}"
+        file_path = ocs_folder / safe_filename
 
         # 파일 저장
         with open(file_path, 'wb+') as destination:
@@ -951,7 +955,7 @@ class OCSViewSet(viewsets.ModelViewSet):
                 destination.write(chunk)
 
         # 상대 경로 저장 (CDSS_STORAGE 기준)
-        relative_path = f"RIS/{ocs_folder_name}/{uploaded_file.name}"
+        relative_path = f"RIS/{ocs_folder_name}/{safe_filename}"
 
         file_info = {
             "name": uploaded_file.name,
