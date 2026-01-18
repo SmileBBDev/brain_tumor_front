@@ -65,6 +65,21 @@
   background: #fef2f2;
 }
 
+.btn-pdf {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #3b82f6;
+  background: none;
+  border: 1px solid #3b82f6;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-pdf:hover {
+  background: #eff6ff;
+}
+
 .btn-back {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;

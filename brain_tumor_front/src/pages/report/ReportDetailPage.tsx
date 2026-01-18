@@ -18,7 +18,7 @@ import {
   type ReportStatus,
   type FinalReportType,
 } from '@/services/report.api';
-import { LoadingSpinner, useToast } from '@/components/common';
+import { LoadingSpinner } from '@/components/common';
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
 import './ReportDetailPage.css';
 
@@ -42,7 +42,6 @@ const REPORT_TYPE_OPTIONS: { value: FinalReportType; label: string }[] = [
 export default function ReportDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const toast = useToast();
   const { markAsCached } = useThumbnailCache();
 
   // 데이터 상태
@@ -154,13 +153,12 @@ export default function ReportDetailPage() {
       const updated = await updateFinalReport(report.id, editData);
       setReport(updated);
       setIsEditing(false);
-      toast.success('보고서가 저장되었습니다.');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '저장에 실패했습니다.');
+      alert(err.response?.data?.detail || '저장에 실패했습니다.');
     } finally {
       setProcessing(false);
     }
-  }, [report, editData, toast]);
+  }, [report, editData]);
 
   // 삭제
   const handleDelete = useCallback(async () => {
@@ -170,14 +168,13 @@ export default function ReportDetailPage() {
     setProcessing(true);
     try {
       await deleteFinalReport(report.id);
-      toast.success('보고서가 삭제되었습니다.');
       navigate('/reports/list');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '삭제에 실패했습니다.');
+      alert(err.response?.data?.detail || '삭제에 실패했습니다.');
     } finally {
       setProcessing(false);
     }
-  }, [report, navigate, toast]);
+  }, [report, navigate]);
 
   // 검토 제출
   const handleSubmit = useCallback(async () => {
@@ -188,13 +185,12 @@ export default function ReportDetailPage() {
     try {
       const updated = await submitFinalReport(report.id);
       setReport(updated);
-      toast.success('보고서가 검토 제출되었습니다.');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '제출에 실패했습니다.');
+      alert(err.response?.data?.detail || '제출에 실패했습니다.');
     } finally {
       setProcessing(false);
     }
-  }, [report, toast]);
+  }, [report]);
 
   // 승인
   const handleApprove = useCallback(async () => {
@@ -205,13 +201,12 @@ export default function ReportDetailPage() {
     try {
       const updated = await approveFinalReport(report.id);
       setReport(updated);
-      toast.success('보고서가 승인되었습니다.');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '승인에 실패했습니다.');
+      alert(err.response?.data?.detail || '승인에 실패했습니다.');
     } finally {
       setProcessing(false);
     }
-  }, [report, toast]);
+  }, [report]);
 
   // 최종 확정
   const handleFinalize = useCallback(async () => {
@@ -222,13 +217,12 @@ export default function ReportDetailPage() {
     try {
       const updated = await finalizeFinalReport(report.id);
       setReport(updated);
-      toast.success('보고서가 최종 확정되었습니다.');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '확정에 실패했습니다.');
+      alert(err.response?.data?.detail || '확정에 실패했습니다.');
     } finally {
       setProcessing(false);
     }
-  }, [report, toast]);
+  }, [report]);
 
   // 뒤로 가기
   const handleBack = useCallback(() => {
@@ -253,6 +247,42 @@ export default function ReportDetailPage() {
       });
     }
     setIsEditing(false);
+  }, [report]);
+
+  // PDF 출력
+  const handleExportPDF = useCallback(async () => {
+    if (!report) return;
+
+    try {
+      const { generateFinalReportPDF } = await import('@/utils/exportUtils');
+      await generateFinalReportPDF({
+        reportId: report.report_id,
+        patientName: report.patient_name,
+        patientNumber: report.patient_number,
+        reportType: report.report_type_display,
+        status: report.status,
+        diagnosisDate: report.diagnosis_date ? formatDate(report.diagnosis_date) : undefined,
+        primaryDiagnosis: report.primary_diagnosis || undefined,
+        secondaryDiagnoses: report.secondary_diagnoses,
+        clinicalFindings: report.clinical_findings || undefined,
+        treatmentSummary: report.treatment_summary || undefined,
+        treatmentPlan: report.treatment_plan || undefined,
+        aiAnalysisSummary: report.ai_analysis_summary || undefined,
+        doctorOpinion: report.doctor_opinion || undefined,
+        recommendations: report.recommendations || undefined,
+        prognosis: report.prognosis || undefined,
+        createdByName: report.created_by_name || undefined,
+        createdAt: formatDateTime(report.created_at),
+        reviewedByName: report.reviewed_by_name || undefined,
+        reviewedAt: report.reviewed_at ? formatDateTime(report.reviewed_at) : undefined,
+        approvedByName: report.approved_by_name || undefined,
+        approvedAt: report.approved_at ? formatDateTime(report.approved_at) : undefined,
+        finalizedAt: report.finalized_at ? formatDateTime(report.finalized_at) : undefined,
+      });
+    } catch (err) {
+      console.error('PDF 출력 실패:', err);
+      alert('PDF 출력에 실패했습니다.');
+    }
   }, [report]);
 
   if (loading) {
@@ -305,6 +335,9 @@ export default function ReportDetailPage() {
             </>
           ) : (
             <>
+              <button className="btn btn-secondary" onClick={handleExportPDF}>
+                PDF 출력
+              </button>
               {canDelete && (
                 <button className="btn btn-danger" onClick={handleDelete} disabled={processing}>
                   삭제
@@ -627,8 +660,6 @@ export default function ReportDetailPage() {
           </section>
         )}
       </div>
-
-      <toast.ToastContainer position="top-right" />
     </div>
   );
 }

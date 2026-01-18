@@ -190,7 +190,6 @@ export default function ReportCreatePage() {
       // 폼 데이터 업데이트
       if (Object.keys(autoFillData).length > 0) {
         setFormData(prev => ({ ...prev, ...autoFillData }));
-        toast.success('환자 정보를 자동으로 불러왔습니다.');
       }
     } catch (error) {
       console.error('Failed to load patient data:', error);
@@ -395,7 +394,6 @@ export default function ReportCreatePage() {
             ) : (
               <div className="patient-search-dropdown">
                 <div className="search-input-wrapper">
-                  <span className="search-icon">🔍</span>
                   <input
                     ref={inputRef}
                     type="text"

@@ -171,6 +171,7 @@ export const generateRISReportPDF = async (data: {
           </div>
           <div style="text-align: right;">
             <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS</p>
+            <p style="margin: 4px 0;">발급일시: ${new Date().toLocaleString('ko-KR')}</p>
           </div>
         </div>
       </div>
@@ -306,15 +307,22 @@ export const generateLISReportPDF = async (data: {
     });
 
     // 해석
+    let currentY = (doc as any).lastAutoTable.finalY + 10;
     if (data.interpretation) {
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
       doc.setFontSize(12);
-      doc.text('결과 해석', 20, finalY);
+      doc.text('결과 해석', 20, currentY);
 
       doc.setFontSize(10);
       const interpLines = doc.splitTextToSize(data.interpretation, pageWidth - 50);
-      doc.text(interpLines, 25, finalY + 8);
+      doc.text(interpLines, 25, currentY + 8);
+      currentY = currentY + 8 + (interpLines.length * 5) + 10;
     }
+
+    // Footer - 발급일시
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`발급일시: ${new Date().toLocaleString('ko-KR')}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
 
     // PDF 다운로드
     doc.save(`LIS_Report_${data.ocsId}_${data.patientNumber}.pdf`);
@@ -322,6 +330,786 @@ export const generateLISReportPDF = async (data: {
   } catch (error) {
     console.error('PDF 생성 실패:', error);
     alert('PDF 생성에 실패했습니다. jspdf, jspdf-autotable 패키지가 설치되어 있는지 확인하세요.\nnpm install jspdf jspdf-autotable');
+    throw error;
+  }
+};
+
+/**
+ * AI M1 (MRI 분석) 보고서 PDF 생성
+ */
+export const generateM1ReportPDF = async (data: {
+  jobId: string;
+  patientName: string;
+  patientNumber: string;
+  createdAt: string;
+  completedAt?: string;
+  grade?: {
+    predicted_class: string;
+    probability: number;
+    probabilities?: Record<string, number>;
+  };
+  idh?: {
+    predicted_class: string;
+    mutant_probability?: number;
+  };
+  mgmt?: {
+    predicted_class: string;
+    methylated_probability?: number;
+  };
+  survival?: {
+    risk_score: number;
+    risk_category: string;
+  };
+  os_days?: {
+    predicted_days: number;
+    predicted_months: number;
+  };
+  processing_time_ms?: number;
+}): Promise<void> => {
+  try {
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
+
+    // Grade 색상 결정
+    const gradeColor = data.grade?.predicted_class === 'HGG' ? '#ef4444' : '#10b981';
+    const gradeLabel = data.grade?.predicted_class === 'HGG' ? '고등급 (HGG)' : '저등급 (LGG)';
+
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #ef4444; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold; color: #ef4444;">AI MRI 분석 보고서 (M1)</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">Job ID: ${data.jobId}</p>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">환자 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div style="min-width: 200px;"><span style="color: #666;">환자명:</span> <strong>${data.patientName || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">환자번호:</span> <strong>${data.patientNumber || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">분석 요청일:</span> <strong>${data.createdAt}</strong></div>
+          ${data.completedAt ? `<div style="min-width: 200px;"><span style="color: #666;">분석 완료일:</span> <strong>${data.completedAt}</strong></div>` : ''}
+        </div>
+      </div>
+
+      ${data.grade ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">뇌종양 등급 예측</h2>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="padding: 16px 24px; background: ${data.grade.predicted_class === 'HGG' ? '#fef2f2' : '#f0fdf4'}; border: 2px solid ${gradeColor}; border-radius: 8px;">
+            <span style="font-size: 20px; font-weight: bold; color: ${gradeColor};">${gradeLabel}</span>
+          </div>
+          <div>
+            <p style="margin: 0; font-size: 14px; color: #666;">확률: <strong>${(data.grade.probability * 100).toFixed(1)}%</strong></p>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.idh || data.mgmt ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">분자 표지자 예측</h2>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          ${data.idh ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">IDH 돌연변이</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: ${data.idh.predicted_class === 'Mutant' ? '#f59e0b' : '#6b7280'};">
+              ${data.idh.predicted_class === 'Mutant' ? '변이형 (Mutant)' : '야생형 (Wild-type)'}
+            </p>
+            ${data.idh.mutant_probability !== undefined ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">확률: ${(data.idh.mutant_probability * 100).toFixed(1)}%</p>` : ''}
+          </div>
+          ` : ''}
+          ${data.mgmt ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">MGMT 메틸화</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: ${data.mgmt.predicted_class === 'Methylated' ? '#10b981' : '#6b7280'};">
+              ${data.mgmt.predicted_class === 'Methylated' ? '메틸화 (Methylated)' : '비메틸화 (Unmethylated)'}
+            </p>
+            ${data.mgmt.methylated_probability !== undefined ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">확률: ${(data.mgmt.methylated_probability * 100).toFixed(1)}%</p>` : ''}
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.survival || data.os_days ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">생존 예측</h2>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          ${data.survival ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">위험도</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: ${data.survival.risk_category === 'High' ? '#ef4444' : data.survival.risk_category === 'Medium' ? '#f59e0b' : '#10b981'};">
+              ${data.survival.risk_category === 'High' ? '고위험' : data.survival.risk_category === 'Medium' ? '중위험' : '저위험'}
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">위험 점수: ${data.survival.risk_score.toFixed(2)}</p>
+          </div>
+          ` : ''}
+          ${data.os_days ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">예상 생존 기간</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: #3b82f6;">
+              ${data.os_days.predicted_months.toFixed(1)}개월
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">(약 ${data.os_days.predicted_days}일)</p>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <div style="display: flex; justify-content: space-between;">
+          <div>
+            ${data.processing_time_ms ? `<p style="margin: 4px 0;">처리 시간: ${(data.processing_time_ms / 1000).toFixed(2)}초</p>` : ''}
+            <p style="margin: 4px 0;">모델: M1-v2.1.0</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS - AI Analysis</p>
+            <p style="margin: 4px 0;">발급일시: ${new Date().toLocaleString('ko-KR')}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 10;
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
+    }
+
+    pdf.save(`M1_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
+
+  } catch (error) {
+    console.error('PDF 생성 실패:', error);
+    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.');
+    throw error;
+  }
+};
+
+/**
+ * AI MG (유전자 분석) 보고서 PDF 생성
+ */
+export const generateMGReportPDF = async (data: {
+  jobId: string;
+  patientName: string;
+  patientNumber: string;
+  createdAt: string;
+  completedAt?: string;
+  grade?: {
+    predicted_class: string;
+    probability: number;
+  };
+  survival_risk?: {
+    risk_score: number;
+    risk_category?: string;
+  };
+  survival_time?: {
+    predicted_days: number;
+    predicted_months: number;
+  };
+  recurrence?: {
+    predicted_class: string;
+    probability: number;
+  };
+  tmz_response?: {
+    predicted_class: string;
+    probability: number;
+  };
+  top_genes?: Array<{
+    rank: number;
+    gene: string;
+    attention_score: number;
+    expression_zscore: number;
+  }>;
+  processing_time_ms?: number;
+  input_genes_count?: number;
+}): Promise<void> => {
+  try {
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
+
+    // Top genes 테이블 생성
+    const topGenesHtml = data.top_genes?.slice(0, 10).map(g => `
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${g.rank}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 500;">${g.gene}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${g.attention_score.toFixed(4)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; color: ${g.expression_zscore > 0 ? '#10b981' : '#ef4444'};">${g.expression_zscore > 0 ? '+' : ''}${g.expression_zscore.toFixed(2)}</td>
+      </tr>
+    `).join('') || '';
+
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #10b981; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold; color: #10b981;">AI 유전자 분석 보고서 (MG)</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">Job ID: ${data.jobId}</p>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">환자 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div style="min-width: 200px;"><span style="color: #666;">환자명:</span> <strong>${data.patientName || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">환자번호:</span> <strong>${data.patientNumber || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">분석 요청일:</span> <strong>${data.createdAt}</strong></div>
+          ${data.input_genes_count ? `<div style="min-width: 200px;"><span style="color: #666;">입력 유전자 수:</span> <strong>${data.input_genes_count.toLocaleString()}개</strong></div>` : ''}
+        </div>
+      </div>
+
+      ${data.grade ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">종양 등급 예측</h2>
+        <div style="padding: 16px 24px; background: ${data.grade.predicted_class === 'HGG' ? '#fef2f2' : '#f0fdf4'}; border: 2px solid ${data.grade.predicted_class === 'HGG' ? '#ef4444' : '#10b981'}; border-radius: 8px; display: inline-block;">
+          <span style="font-size: 20px; font-weight: bold; color: ${data.grade.predicted_class === 'HGG' ? '#ef4444' : '#10b981'};">
+            ${data.grade.predicted_class === 'HGG' ? '고등급 (HGG)' : '저등급 (LGG)'}
+          </span>
+          <span style="margin-left: 16px; color: #666;">확률: ${(data.grade.probability * 100).toFixed(1)}%</span>
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.survival_risk || data.survival_time ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">생존 예측</h2>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          ${data.survival_risk ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">위험도</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold;">위험 점수: ${data.survival_risk.risk_score.toFixed(2)}</p>
+            ${data.survival_risk.risk_category ? `<p style="margin: 4px 0 0 0; color: ${data.survival_risk.risk_category === 'High' ? '#ef4444' : '#10b981'};">${data.survival_risk.risk_category === 'High' ? '고위험' : '저위험'}</p>` : ''}
+          </div>
+          ` : ''}
+          ${data.survival_time ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">예상 생존 기간</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: #3b82f6;">${data.survival_time.predicted_months.toFixed(1)}개월</p>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.recurrence || data.tmz_response ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">치료 반응 예측</h2>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          ${data.recurrence ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">재발 예측</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: ${data.recurrence.predicted_class === 'Recurrence' ? '#ef4444' : '#10b981'};">
+              ${data.recurrence.predicted_class === 'Recurrence' ? '재발 예측' : '비재발 예측'}
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">확률: ${(data.recurrence.probability * 100).toFixed(1)}%</p>
+          </div>
+          ` : ''}
+          ${data.tmz_response ? `
+          <div style="flex: 1; min-width: 200px; padding: 16px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">TMZ 반응 예측</h4>
+            <p style="margin: 0; font-size: 18px; font-weight: bold; color: ${data.tmz_response.predicted_class === 'Responder' ? '#10b981' : '#f59e0b'};">
+              ${data.tmz_response.predicted_class === 'Responder' ? '반응자' : '비반응자'}
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">확률: ${(data.tmz_response.probability * 100).toFixed(1)}%</p>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.top_genes && data.top_genes.length > 0 ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">주요 유전자 (Top 10)</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background: #f3f4f6;">
+              <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">순위</th>
+              <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">유전자</th>
+              <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Attention</th>
+              <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Z-Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${topGenesHtml}
+          </tbody>
+        </table>
+      </div>
+      ` : ''}
+
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <div style="display: flex; justify-content: space-between;">
+          <div>
+            ${data.processing_time_ms ? `<p style="margin: 4px 0;">처리 시간: ${(data.processing_time_ms / 1000).toFixed(2)}초</p>` : ''}
+            <p style="margin: 4px 0;">모델: MG-v1.0.0</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS - AI Analysis</p>
+            <p style="margin: 4px 0;">발급일시: ${new Date().toLocaleString('ko-KR')}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 10;
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
+    }
+
+    pdf.save(`MG_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
+
+  } catch (error) {
+    console.error('PDF 생성 실패:', error);
+    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.');
+    throw error;
+  }
+};
+
+/**
+ * AI MM (멀티모달 분석) 보고서 PDF 생성
+ */
+export const generateMMReportPDF = async (data: {
+  jobId: string;
+  patientName: string;
+  patientNumber: string;
+  createdAt: string;
+  completedAt?: string;
+  modalities: {
+    mri: boolean;
+    gene: boolean;
+    protein: boolean;
+  };
+  integrated_prediction?: {
+    grade: {
+      predicted_class: string;
+      probability: number;
+    };
+    survival_risk?: {
+      risk_score: number;
+      risk_category?: string;
+    };
+    survival_time?: {
+      predicted_days: number;
+      predicted_months: number;
+    };
+  };
+  modality_contributions?: {
+    mri?: { weight: number; confidence: number };
+    gene?: { weight: number; confidence: number };
+    protein?: { weight: number; confidence: number };
+  };
+  processing_time_ms?: number;
+}): Promise<void> => {
+  try {
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
+
+    const modalityList = [
+      data.modalities.mri && 'MRI',
+      data.modalities.gene && 'Gene',
+      data.modalities.protein && 'Protein'
+    ].filter(Boolean).join(', ');
+
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #6366f1; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold; color: #6366f1;">AI 멀티모달 분석 보고서 (MM)</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">Job ID: ${data.jobId}</p>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">환자 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div style="min-width: 200px;"><span style="color: #666;">환자명:</span> <strong>${data.patientName || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">환자번호:</span> <strong>${data.patientNumber || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">분석 요청일:</span> <strong>${data.createdAt}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">사용 모달리티:</span> <strong>${modalityList}</strong></div>
+        </div>
+      </div>
+
+      ${data.integrated_prediction ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">통합 예측 결과</h2>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 200px; padding: 20px; background: ${data.integrated_prediction.grade.predicted_class === 'HGG' ? '#fef2f2' : '#f0fdf4'}; border: 2px solid ${data.integrated_prediction.grade.predicted_class === 'HGG' ? '#ef4444' : '#10b981'}; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">종양 등급</h4>
+            <p style="margin: 0; font-size: 24px; font-weight: bold; color: ${data.integrated_prediction.grade.predicted_class === 'HGG' ? '#ef4444' : '#10b981'};">
+              ${data.integrated_prediction.grade.predicted_class === 'HGG' ? '고등급 (HGG)' : '저등급 (LGG)'}
+            </p>
+            <p style="margin: 4px 0 0 0; font-size: 14px; color: #666;">확률: ${(data.integrated_prediction.grade.probability * 100).toFixed(1)}%</p>
+          </div>
+          ${data.integrated_prediction.survival_risk ? `
+          <div style="flex: 1; min-width: 200px; padding: 20px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">생존 위험도</h4>
+            <p style="margin: 0; font-size: 24px; font-weight: bold;">점수: ${data.integrated_prediction.survival_risk.risk_score.toFixed(2)}</p>
+            ${data.integrated_prediction.survival_risk.risk_category ? `<p style="margin: 4px 0 0 0; font-size: 14px; color: ${data.integrated_prediction.survival_risk.risk_category === 'High' ? '#ef4444' : '#10b981'};">${data.integrated_prediction.survival_risk.risk_category === 'High' ? '고위험' : '저위험'}</p>` : ''}
+          </div>
+          ` : ''}
+          ${data.integrated_prediction.survival_time ? `
+          <div style="flex: 1; min-width: 200px; padding: 20px; background: #fafafa; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #666;">예상 생존 기간</h4>
+            <p style="margin: 0; font-size: 24px; font-weight: bold; color: #3b82f6;">${data.integrated_prediction.survival_time.predicted_months.toFixed(1)}개월</p>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.modality_contributions ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">모달리티 기여도</h2>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          ${data.modality_contributions.mri ? `
+          <div style="flex: 1; min-width: 150px; padding: 16px; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #3b82f6;">MRI</h4>
+            <p style="margin: 0;">가중치: <strong>${(data.modality_contributions.mri.weight * 100).toFixed(1)}%</strong></p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">신뢰도: ${(data.modality_contributions.mri.confidence * 100).toFixed(1)}%</p>
+          </div>
+          ` : ''}
+          ${data.modality_contributions.gene ? `
+          <div style="flex: 1; min-width: 150px; padding: 16px; background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 4px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #10b981;">Gene</h4>
+            <p style="margin: 0;">가중치: <strong>${(data.modality_contributions.gene.weight * 100).toFixed(1)}%</strong></p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">신뢰도: ${(data.modality_contributions.gene.confidence * 100).toFixed(1)}%</p>
+          </div>
+          ` : ''}
+          ${data.modality_contributions.protein ? `
+          <div style="flex: 1; min-width: 150px; padding: 16px; background: #faf5ff; border-left: 4px solid #8b5cf6; border-radius: 4px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #8b5cf6;">Protein</h4>
+            <p style="margin: 0;">가중치: <strong>${(data.modality_contributions.protein.weight * 100).toFixed(1)}%</strong></p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">신뢰도: ${(data.modality_contributions.protein.confidence * 100).toFixed(1)}%</p>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <div style="display: flex; justify-content: space-between;">
+          <div>
+            ${data.processing_time_ms ? `<p style="margin: 4px 0;">처리 시간: ${(data.processing_time_ms / 1000).toFixed(2)}초</p>` : ''}
+            <p style="margin: 4px 0;">모델: MM-v1.0.0</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS - AI Analysis</p>
+            <p style="margin: 4px 0;">발급일시: ${new Date().toLocaleString('ko-KR')}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 10;
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
+    }
+
+    pdf.save(`MM_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
+
+  } catch (error) {
+    console.error('PDF 생성 실패:', error);
+    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.');
+    throw error;
+  }
+};
+
+/**
+ * Final Report PDF 생성
+ */
+export const generateFinalReportPDF = async (data: {
+  reportId: string;
+  patientName: string;
+  patientNumber: string;
+  reportType: string;
+  status: string;
+  diagnosisDate?: string;
+  primaryDiagnosis?: string;
+  secondaryDiagnoses?: string[];
+  clinicalFindings?: string;
+  treatmentSummary?: string;
+  treatmentPlan?: string;
+  aiAnalysisSummary?: string;
+  doctorOpinion?: string;
+  recommendations?: string;
+  prognosis?: string;
+  createdByName?: string;
+  createdAt: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  finalizedAt?: string;
+}): Promise<void> => {
+  try {
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
+
+    const statusColor = data.status === 'FINALIZED' ? '#10b981' : data.status === 'APPROVED' ? '#3b82f6' : '#f59e0b';
+    const statusLabel = data.status === 'FINALIZED' ? '최종 확정' : data.status === 'APPROVED' ? '승인됨' : data.status === 'PENDING_REVIEW' ? '검토 대기' : '작성 중';
+
+    const secondaryDiagList = data.secondaryDiagnoses?.map(d => `<li style="margin: 4px 0;">${d}</li>`).join('') || '';
+
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #8b5cf6; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold; color: #8b5cf6;">최종 보고서</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">보고서 ID: ${data.reportId}</p>
+        <div style="margin-top: 12px; display: inline-block; padding: 6px 16px; background: ${statusColor}20; border: 1px solid ${statusColor}; border-radius: 20px;">
+          <span style="color: ${statusColor}; font-weight: 500;">${statusLabel}</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">기본 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div style="min-width: 200px;"><span style="color: #666;">환자명:</span> <strong>${data.patientName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">환자번호:</span> <strong>${data.patientNumber}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">보고서 유형:</span> <strong>${data.reportType}</strong></div>
+          ${data.diagnosisDate ? `<div style="min-width: 200px;"><span style="color: #666;">진단일:</span> <strong>${data.diagnosisDate}</strong></div>` : ''}
+          <div style="min-width: 200px;"><span style="color: #666;">작성자:</span> <strong>${data.createdByName || '-'}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">작성일:</span> <strong>${data.createdAt}</strong></div>
+        </div>
+      </div>
+
+      ${data.primaryDiagnosis || data.secondaryDiagnoses?.length ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">진단 정보</h2>
+        ${data.primaryDiagnosis ? `
+        <div style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">주 진단명</h4>
+          <p style="margin: 0; padding: 12px; background: #fafafa; border-left: 3px solid #8b5cf6; border-radius: 4px;">${data.primaryDiagnosis}</p>
+        </div>
+        ` : ''}
+        ${data.secondaryDiagnoses?.length ? `
+        <div style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">부 진단명</h4>
+          <ul style="margin: 0; padding-left: 20px;">${secondaryDiagList}</ul>
+        </div>
+        ` : ''}
+        ${data.clinicalFindings ? `
+        <div>
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">임상 소견</h4>
+          <p style="margin: 0; padding: 12px; background: #fafafa; border-radius: 4px; white-space: pre-wrap;">${data.clinicalFindings}</p>
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      ${data.treatmentSummary || data.treatmentPlan ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">치료 정보</h2>
+        ${data.treatmentSummary ? `
+        <div style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">치료 요약</h4>
+          <p style="margin: 0; padding: 12px; background: #fafafa; border-radius: 4px; white-space: pre-wrap;">${data.treatmentSummary}</p>
+        </div>
+        ` : ''}
+        ${data.treatmentPlan ? `
+        <div>
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">향후 치료 계획</h4>
+          <p style="margin: 0; padding: 12px; background: #fafafa; border-radius: 4px; white-space: pre-wrap;">${data.treatmentPlan}</p>
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      ${data.aiAnalysisSummary || data.doctorOpinion ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">AI 분석 및 의사 소견</h2>
+        ${data.aiAnalysisSummary ? `
+        <div style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">AI 분석 요약</h4>
+          <p style="margin: 0; padding: 12px; background: #eff6ff; border-left: 3px solid #3b82f6; border-radius: 4px; white-space: pre-wrap;">${data.aiAnalysisSummary}</p>
+        </div>
+        ` : ''}
+        ${data.doctorOpinion ? `
+        <div>
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">의사 소견</h4>
+          <p style="margin: 0; padding: 12px; background: #fafafa; border-radius: 4px; white-space: pre-wrap;">${data.doctorOpinion}</p>
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      ${data.recommendations || data.prognosis ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">권고 사항 및 예후</h2>
+        ${data.recommendations ? `
+        <div style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">권고 사항</h4>
+          <p style="margin: 0; padding: 12px; background: #fff8e1; border-left: 3px solid #f59e0b; border-radius: 4px; white-space: pre-wrap;">${data.recommendations}</p>
+        </div>
+        ` : ''}
+        ${data.prognosis ? `
+        <div>
+          <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #666;">예후</h4>
+          <p style="margin: 0; padding: 12px; background: #fafafa; border-radius: 4px; white-space: pre-wrap;">${data.prognosis}</p>
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      ${data.reviewedByName || data.approvedByName ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">승인 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          ${data.reviewedByName ? `
+          <div style="min-width: 200px;"><span style="color: #666;">검토자:</span> <strong>${data.reviewedByName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">검토일:</span> <strong>${data.reviewedAt || '-'}</strong></div>
+          ` : ''}
+          ${data.approvedByName ? `
+          <div style="min-width: 200px;"><span style="color: #666;">승인자:</span> <strong>${data.approvedByName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">승인일:</span> <strong>${data.approvedAt || '-'}</strong></div>
+          ` : ''}
+          ${data.finalizedAt ? `
+          <div style="min-width: 200px;"><span style="color: #666;">확정일:</span> <strong>${data.finalizedAt}</strong></div>
+          ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: right;">
+        <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS</p>
+        <p style="margin: 4px 0;">발급일시: ${new Date().toLocaleString('ko-KR')}</p>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 10;
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
+    }
+
+    pdf.save(`Final_Report_${data.reportId}_${data.patientNumber}.pdf`);
+
+  } catch (error) {
+    console.error('PDF 생성 실패:', error);
+    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.');
     throw error;
   }
 };

@@ -561,3 +561,330 @@
   background: #bbdefb;
   border-color: #1565c0;
 }
+
+/* Header Right Section */
+.seg-mri-viewer__header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Layout Tabs */
+.seg-mri-viewer__layout-tabs {
+  display: flex;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.seg-mri-viewer__layout-tab {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.seg-mri-viewer__layout-tab:hover:not(:disabled) {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.seg-mri-viewer__layout-tab--active {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.seg-mri-viewer__layout-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Orthogonal View */
+.seg-mri-viewer__ortho-channel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  border-radius: 6px;
+}
+
+.seg-mri-viewer__ortho-channel label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.seg-mri-viewer__ortho-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 700px) {
+  .seg-mri-viewer__ortho-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.seg-mri-viewer__ortho-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.seg-mri-viewer__ortho-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1976d2;
+  background: #e3f2fd;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.seg-mri-viewer__canvas-container--ortho {
+  min-height: 200px;
+  padding: 8px;
+}
+
+.seg-mri-viewer__slider--ortho {
+  width: 180px;
+}
+
+.seg-mri-viewer__ortho-slice-num {
+  font-size: 12px;
+  color: #666;
+  font-family: monospace;
+}
+
+/* 3D Placeholder */
+.seg-mri-viewer__3d-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: 8px;
+  color: white;
+  gap: 12px;
+}
+
+.seg-mri-viewer__3d-icon {
+  font-size: 4rem;
+  opacity: 0.5;
+}
+
+.seg-mri-viewer__3d-placeholder p {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.seg-mri-viewer__3d-placeholder span {
+  font-size: 0.9rem;
+  opacity: 0.6;
+}
+
+/* ========== Volume 3D Viewer ========== */
+
+.volume-3d-viewer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.volume-3d-viewer__canvas {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.volume-3d-viewer__canvas canvas {
+  display: block;
+}
+
+.volume-3d-viewer__controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.volume-3d-viewer__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+.volume-3d-viewer__checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #1976d2;
+  cursor: pointer;
+}
+
+.volume-3d-viewer__speed,
+.volume-3d-viewer__zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #555;
+}
+
+.volume-3d-viewer__speed input,
+.volume-3d-viewer__zoom input {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #ddd;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.volume-3d-viewer__speed input::-webkit-slider-thumb,
+.volume-3d-viewer__zoom input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #1976d2;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.volume-3d-viewer__reset-btn {
+  padding: 6px 14px;
+  border: 1px solid #1976d2;
+  background: white;
+  color: #1976d2;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.volume-3d-viewer__reset-btn:hover {
+  background: #1976d2;
+  color: white;
+}
+
+.volume-3d-viewer__legend {
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+}
+
+.volume-3d-viewer__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #333;
+}
+
+.volume-3d-viewer__legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.volume-3d-viewer__hint {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+}
+
+/* 3D 뷰어 로딩 상태 */
+.volume-3d-viewer__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 12px;
+  color: #666;
+}
+
+.volume-3d-viewer__loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #1976d2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* 3D 뷰어 wrapper in SegMRIViewer */
+.seg-mri-viewer__3d-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.seg-mri-viewer__3d-channel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  border-radius: 6px;
+}
+
+.seg-mri-viewer__3d-channel label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.seg-mri-viewer__3d-labels {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.seg-mri-viewer__3d-label-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+}
+
+.seg-mri-viewer__3d-label-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: #1976d2;
+}
+
+.seg-mri-viewer__3d-label-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}

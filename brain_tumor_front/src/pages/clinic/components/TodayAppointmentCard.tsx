@@ -19,9 +19,10 @@ interface Doctor {
 
 interface TodayAppointmentCardProps {
   compact?: boolean; // 사이드바용 컴팩트 모드
+  onPatientSelect?: (patientId: number) => void; // 환자 선택 핸들러 (진료 중 확인용)
 }
 
-export default function TodayAppointmentCard({ compact: _compact = false }: TodayAppointmentCardProps) {
+export default function TodayAppointmentCard({ compact: _compact = false, onPatientSelect }: TodayAppointmentCardProps) {
   const navigate = useNavigate();
   const { user, role } = useAuth();
 
@@ -125,7 +126,13 @@ export default function TodayAppointmentCard({ compact: _compact = false }: Toda
 
   // 환자 진료 페이지로 이동
   const handleSelectPatient = (encounter: Encounter) => {
-    navigate(`/patientsCare?patientId=${encounter.patient}`);
+    if (onPatientSelect) {
+      // 진료 중 확인 로직 사용 (부모에서 처리)
+      onPatientSelect(encounter.patient);
+    } else {
+      // 기본 동작: 바로 이동
+      navigate(`/patientsCare?patientId=${encounter.patient}`);
+    }
   };
 
   // 의사 선택 핸들러

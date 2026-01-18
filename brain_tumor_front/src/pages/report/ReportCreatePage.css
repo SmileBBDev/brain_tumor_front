@@ -135,16 +135,9 @@
   align-items: center;
 }
 
-.report-create-page .search-input-wrapper .search-icon {
-  position: absolute;
-  left: 12px;
-  font-size: 14px;
-  pointer-events: none;
-}
-
 .report-create-page .search-input-wrapper input {
   width: 100%;
-  padding: 12px 40px 12px 36px;
+  padding: 12px 40px 12px 12px;
   border: 2px solid var(--border, #e5e7eb);
   border-radius: 8px;
   font-size: 14px;

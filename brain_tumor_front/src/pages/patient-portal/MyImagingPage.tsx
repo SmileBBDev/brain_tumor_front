@@ -137,7 +137,7 @@ export default function MyImagingPage() {
                   className="btn btn-primary"
                   onClick={() => handleViewDicom(study.id)}
                 >
-                  영상 보기
+                  검사 상세
                 </button>
               </div>
             </div>

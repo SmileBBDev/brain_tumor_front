@@ -613,3 +613,80 @@ class MonitorAlertAcknowledgeView(APIView):
                 {'detail': '확인 기록이 없습니다.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+# PDF 워터마크 기본 설정
+DEFAULT_PDF_WATERMARK_CONFIG = {
+    "enabled": False,
+    "text": "CONFIDENTIAL",
+    "position": "diagonal",
+    "opacity": 0.15,
+    "fontSize": 48,
+    "color": "#cccccc",
+    "rotation": -45,
+    "repeatPattern": False
+}
+
+
+class PdfWatermarkConfigView(APIView):
+    """
+    PDF 워터마크 설정 API
+    - GET: 현재 설정 조회
+    - PUT: 설정 수정
+    """
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        """PDF 워터마크 설정 조회"""
+        from .models import SystemConfig
+
+        config = SystemConfig.get_value('pdf_watermark', DEFAULT_PDF_WATERMARK_CONFIG)
+        return Response(config)
+
+    def put(self, request):
+        """PDF 워터마크 설정 수정"""
+        from .models import SystemConfig
+
+        try:
+            data = request.data
+
+            # 유효성 검사: 필수 필드
+            required_fields = ['enabled', 'text', 'position', 'opacity', 'fontSize', 'color', 'rotation', 'repeatPattern']
+            for field in required_fields:
+                if field not in data:
+                    return Response(
+                        {'detail': f'{field} 필드가 필요합니다.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # opacity 범위 검사 (0.0 ~ 1.0)
+            if not (0 <= float(data['opacity']) <= 1):
+                return Response(
+                    {'detail': 'opacity는 0에서 1 사이여야 합니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # position 유효성 검사
+            valid_positions = ['center', 'diagonal', 'top-right', 'bottom-right']
+            if data['position'] not in valid_positions:
+                return Response(
+                    {'detail': f'position은 {valid_positions} 중 하나여야 합니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 설정 저장
+            SystemConfig.set_value(
+                key='pdf_watermark',
+                value=data,
+                description='PDF 워터마크 설정',
+                user=request.user
+            )
+
+            return Response({'detail': '설정이 저장되었습니다.', 'data': data})
+
+        except Exception as e:
+            logger.error(f"PDF watermark config save error: {str(e)}")
+            return Response(
+                {'detail': '설정 저장 중 오류가 발생했습니다.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

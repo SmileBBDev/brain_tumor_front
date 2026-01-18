@@ -61,6 +61,10 @@ export default function ClinicPage() {
   // 진료 종료 시 과거 기록 새로고침용 키
   const [recordRefreshKey, setRecordRefreshKey] = useState(0);
 
+  // 진료 중 환자 변경 확인 모달
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [pendingPatientId, setPendingPatientId] = useState<number | null>(null);
+
   // 환자 데이터 로드
   const loadPatientData = useCallback(async (patientId: number) => {
     setLoading(true);
@@ -173,6 +177,48 @@ export default function ClinicPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEncounter, patient]);
+
+  // 다른 환자 선택 시 진료 중 확인
+  const handlePatientChange = useCallback((newPatientId: number) => {
+    // 같은 환자면 무시
+    if (patient?.id === newPatientId) return;
+
+    // 진료 중이면 확인 모달 표시
+    if (activeEncounter && activeEncounter.status === 'in_progress') {
+      setPendingPatientId(newPatientId);
+      setShowLeaveConfirm(true);
+    } else {
+      // 진료 중 아니면 바로 이동
+      navigate(`/patientsCare?patientId=${newPatientId}`);
+    }
+  }, [patient?.id, activeEncounter, navigate]);
+
+  // 진료 종료 후 환자 변경
+  const handleEndAndChangePatient = useCallback(async () => {
+    if (!activeEncounter || !patient) return;
+
+    try {
+      await completeEncounter(activeEncounter.id);
+      toast.success('진료가 완료되었습니다.');
+      setShowLeaveConfirm(false);
+      if (pendingPatientId) {
+        navigate(`/patientsCare?patientId=${pendingPatientId}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to end encounter:', err);
+      const errorMsg = err.response?.data?.detail || '진료 종료에 실패했습니다.';
+      toast.error(errorMsg);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEncounter, patient, pendingPatientId]);
+
+  // 진료 종료 없이 환자 변경 (진료 상태 유지)
+  const handleChangeWithoutEnd = useCallback(() => {
+    setShowLeaveConfirm(false);
+    if (pendingPatientId) {
+      navigate(`/patientsCare?patientId=${pendingPatientId}`);
+    }
+  }, [pendingPatientId, navigate]);
 
   // 나이 계산
   const calculateAge = (birthDate: string) => {
@@ -313,8 +359,42 @@ export default function ClinicPage() {
           encounters={encounters}
           onUpdate={() => patient && loadPatientData(patient.id)}
           recordRefreshKey={recordRefreshKey}
+          onPatientChange={handlePatientChange}
         />
       </div>
+
+      {/* 진료 중 환자 변경 확인 모달 */}
+      {showLeaveConfirm && (
+        <div className="modal-backdrop" onClick={() => setShowLeaveConfirm(false)}>
+          <div className="modal-content confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>진료 중인 환자가 있습니다</h3>
+            <p>
+              현재 <strong>{patient?.name}</strong> 환자의 진료가 진행 중입니다.<br />
+              다른 환자로 이동하시겠습니까?
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowLeaveConfirm(false)}
+              >
+                취소
+              </button>
+              <button
+                className="btn btn-outline"
+                onClick={handleChangeWithoutEnd}
+              >
+                진료 유지하고 이동
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={handleEndAndChangePatient}
+              >
+                진료 종료 후 이동
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

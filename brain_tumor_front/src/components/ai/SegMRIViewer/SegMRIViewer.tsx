@@ -10,8 +10,11 @@
  * 의존성: React만 필요 (MUI, 기타 라이브러리 불필요)
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import './SegMRIViewer.css'
+
+// 3D 뷰어 동적 로딩 (Three.js 번들 분리)
+const Volume3DViewer = lazy(() => import('./Volume3DViewer'))
 
 // ============== Types (Inline) ==============
 
@@ -49,6 +52,9 @@ export interface DiceScores {
 
 /** 뷰 모드 */
 export type ViewMode = 'axial' | 'sagittal' | 'coronal'
+
+/** 뷰어 레이아웃 모드 */
+export type ViewerLayout = 'single' | 'orthogonal' | '3d'
 
 /** 디스플레이 모드 */
 export type DisplayMode = 'difference' | 'gt_only' | 'pred_only' | 'overlay'
@@ -98,6 +104,8 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
 }) => {
   // Canvas refs (최대 4개 뷰어)
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([null, null, null, null])
+  // Orthogonal view용 캔버스 refs (Axial, Sagittal, Coronal)
+  const orthoCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([null, null, null])
 
   // 최대 뷰어 수
   const MAX_VIEWERS = 4
@@ -112,6 +120,12 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
 
   // Play 상태
   const [isPlaying, setIsPlaying] = useState(false)
+
+  // 뷰어 레이아웃 모드
+  const [viewerLayout, setViewerLayout] = useState<ViewerLayout>('single')
+
+  // Orthogonal view용 각 축별 슬라이스 인덱스
+  const [orthoSlices, setOrthoSlices] = useState({ axial: 0, sagittal: 0, coronal: 0 })
 
   // 멀티 뷰어 상태: 각 뷰어별 MRI 채널
   const [viewers, setViewers] = useState<MRIChannel[]>(['t1ce'])
@@ -237,8 +251,14 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
   /** 초기화: 중간 슬라이스로 설정 */
   useEffect(() => {
     if (data.shape && !initialized) {
-      const maxSlices = data.shape[2]
-      setCurrentSlice(Math.floor(maxSlices / 2))
+      const [X, Y, Z] = data.shape
+      setCurrentSlice(Math.floor(Z / 2))
+      // Orthogonal view용 초기화
+      setOrthoSlices({
+        axial: Math.floor(Z / 2),
+        sagittal: Math.floor(X / 2),
+        coronal: Math.floor(Y / 2),
+      })
       setInitialized(true)
     }
   }, [data.shape, initialized])
@@ -270,8 +290,13 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     return data.mri
   }, [data.mri, data.mri_channels])
 
-  /** 캔버스 렌더링 함수 (특정 캔버스, 특정 채널) */
-  const renderCanvas = useCallback((canvas: HTMLCanvasElement | null, channel: MRIChannel) => {
+  /** 캔버스 렌더링 함수 (특정 캔버스, 특정 채널, 뷰 모드, 슬라이스 인덱스) */
+  const renderCanvasWithParams = useCallback((
+    canvas: HTMLCanvasElement | null,
+    channel: MRIChannel,
+    mode: ViewMode,
+    sliceIdx: number
+  ) => {
     if (!canvas) return
 
     const mriVolume = getMriVolumeByChannel(channel)
@@ -280,7 +305,7 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const mriSlice = getSlice(mriVolume, currentSlice, viewMode)
+    const mriSlice = getSlice(mriVolume, sliceIdx, mode)
     if (!mriSlice) return
 
     const height = mriSlice.length
@@ -336,8 +361,8 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     ctx.putImageData(imageData, 0, 0)
 
     // 세그멘테이션 오버레이
-    const gtSlice = data.groundTruth ? getSlice(data.groundTruth, currentSlice, viewMode) : null
-    const predSlice = data.prediction ? getSlice(data.prediction, currentSlice, viewMode) : null
+    const gtSlice = data.groundTruth ? getSlice(data.groundTruth, sliceIdx, mode) : null
+    const predSlice = data.prediction ? getSlice(data.prediction, sliceIdx, mode) : null
 
     ctx.globalAlpha = segOpacity
 
@@ -424,14 +449,32 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     }
 
     ctx.globalAlpha = 1
-  }, [data, currentSlice, viewMode, displayMode, showGroundTruth, showPrediction, showMRI, segOpacity, getSlice, showNCR, showED, showET, getMriVolumeByChannel])
+  }, [data, displayMode, showGroundTruth, showPrediction, showMRI, segOpacity, getSlice, showNCR, showED, showET, getMriVolumeByChannel])
 
-  /** 모든 뷰어 캔버스 렌더링 */
+  /** 싱글 뷰어용 래퍼 함수 */
+  const renderCanvas = useCallback((canvas: HTMLCanvasElement | null, channel: MRIChannel) => {
+    renderCanvasWithParams(canvas, channel, viewMode, currentSlice)
+  }, [renderCanvasWithParams, viewMode, currentSlice])
+
+  /** 모든 뷰어 캔버스 렌더링 (Single 모드) */
   useEffect(() => {
+    if (viewerLayout !== 'single') return
     viewers.forEach((channel, index) => {
       renderCanvas(canvasRefs.current[index], channel)
     })
-  }, [viewers, renderCanvas])
+  }, [viewers, renderCanvas, viewerLayout])
+
+  /** Orthogonal 뷰 렌더링 */
+  useEffect(() => {
+    if (viewerLayout !== 'orthogonal') return
+    const channel = viewers[0] || 't1ce'
+    // Axial
+    renderCanvasWithParams(orthoCanvasRefs.current[0], channel, 'axial', orthoSlices.axial)
+    // Sagittal
+    renderCanvasWithParams(orthoCanvasRefs.current[1], channel, 'sagittal', orthoSlices.sagittal)
+    // Coronal
+    renderCanvasWithParams(orthoCanvasRefs.current[2], channel, 'coronal', orthoSlices.coronal)
+  }, [viewerLayout, viewers, orthoSlices, renderCanvasWithParams])
 
   // ============== Handlers ==============
 
@@ -483,130 +526,309 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
           <span className="seg-mri-viewer__title-icon">MRI</span>
           {title}
         </h3>
-        {diceScores && (
-          <div className="seg-mri-viewer__dice-scores">
-            {diceScores.wt !== undefined && (
-              <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--wt">
-                WT: {(diceScores.wt * 100).toFixed(1)}%
-              </span>
-            )}
-            {diceScores.tc !== undefined && (
-              <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--tc">
-                TC: {(diceScores.tc * 100).toFixed(1)}%
-              </span>
-            )}
-            {diceScores.et !== undefined && (
-              <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--et">
-                ET: {(diceScores.et * 100).toFixed(1)}%
-              </span>
-            )}
+        <div className="seg-mri-viewer__header-right">
+          {/* 뷰어 레이아웃 탭 */}
+          <div className="seg-mri-viewer__layout-tabs">
+            <button
+              className={`seg-mri-viewer__layout-tab ${viewerLayout === 'single' ? 'seg-mri-viewer__layout-tab--active' : ''}`}
+              onClick={() => setViewerLayout('single')}
+              title="2D 슬라이스 뷰"
+            >
+              2D
+            </button>
+            <button
+              className={`seg-mri-viewer__layout-tab ${viewerLayout === 'orthogonal' ? 'seg-mri-viewer__layout-tab--active' : ''}`}
+              onClick={() => setViewerLayout('orthogonal')}
+              title="3축 동시 보기"
+            >
+              3-Axis
+            </button>
+            <button
+              className={`seg-mri-viewer__layout-tab ${viewerLayout === '3d' ? 'seg-mri-viewer__layout-tab--active' : ''}`}
+              onClick={() => setViewerLayout('3d')}
+              title="3D 볼륨 렌더링"
+            >
+              3D
+            </button>
           </div>
-        )}
+          {diceScores && (
+            <div className="seg-mri-viewer__dice-scores">
+              {diceScores.wt !== undefined && (
+                <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--wt">
+                  WT: {(diceScores.wt * 100).toFixed(1)}%
+                </span>
+              )}
+              {diceScores.tc !== undefined && (
+                <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--tc">
+                  TC: {(diceScores.tc * 100).toFixed(1)}%
+                </span>
+              )}
+              {diceScores.et !== undefined && (
+                <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--et">
+                  ET: {(diceScores.et * 100).toFixed(1)}%
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Body */}
       <div className="seg-mri-viewer__body">
         {/* Canvas Section */}
         <div className="seg-mri-viewer__canvas-section">
-          {/* Multi Viewer Grid */}
-          <div className={`seg-mri-viewer__multi-grid seg-mri-viewer__multi-grid--${viewers.length}`}>
-            {viewers.map((channel, index) => (
-              <div key={index} className="seg-mri-viewer__viewer-item">
-                <div className="seg-mri-viewer__viewer-header">
-                  <select
-                    className="seg-mri-viewer__channel-select"
-                    value={channel}
-                    onChange={(e) => handleViewerChannelChange(index, e.target.value as MRIChannel)}
+          {/* ===== Single (2D) 모드 ===== */}
+          {viewerLayout === 'single' && (
+            <>
+              {/* Multi Viewer Grid */}
+              <div className={`seg-mri-viewer__multi-grid seg-mri-viewer__multi-grid--${viewers.length}`}>
+                {viewers.map((channel, index) => (
+                  <div key={index} className="seg-mri-viewer__viewer-item">
+                    <div className="seg-mri-viewer__viewer-header">
+                      <select
+                        className="seg-mri-viewer__channel-select"
+                        value={channel}
+                        onChange={(e) => handleViewerChannelChange(index, e.target.value as MRIChannel)}
+                      >
+                        {(['t1', 't1ce', 't2', 'flair'] as MRIChannel[]).map((ch) => {
+                          const isAvailable = getAvailableChannels().includes(ch) || !data.mri_channels
+                          return (
+                            <option key={ch} value={ch} disabled={!isAvailable}>
+                              {ch.toUpperCase()}
+                            </option>
+                          )
+                        })}
+                      </select>
+                      {viewers.length > 1 && (
+                        <button
+                          className="seg-mri-viewer__remove-btn"
+                          onClick={() => handleRemoveViewer(index)}
+                          title="뷰어 제거"
+                        >
+                          −
+                        </button>
+                      )}
+                    </div>
+                    <div className="seg-mri-viewer__canvas-container">
+                      <canvas
+                        ref={(el) => { canvasRefs.current[index] = el }}
+                        className="seg-mri-viewer__canvas"
+                        style={{
+                          width: `${viewers.length > 2 ? displaySize.width * 0.7 : displaySize.width}px`,
+                          height: `${viewers.length > 2 ? displaySize.height * 0.7 : displaySize.height}px`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 뷰어 추가 버튼 */}
+              {getAvailableChannels().length > 0 && viewers.length < MAX_VIEWERS && (
+                <button
+                  className="seg-mri-viewer__add-viewer-btn"
+                  onClick={handleAddViewer}
+                  title="뷰어 추가 (최대 4개)"
+                >
+                  + 채널 뷰어 추가
+                </button>
+              )}
+
+              {/* Slice Control */}
+              <div className="seg-mri-viewer__slice-control">
+                <div className="seg-mri-viewer__slice-header">
+                  <div className="seg-mri-viewer__slice-label">
+                    Slice: {currentSlice + 1} / {getMaxSlices()}
+                    {data.sliceMapping && (
+                      <span>(Original: {getOriginalSliceNum()})</span>
+                    )}
+                  </div>
+                  <button
+                    className={`seg-mri-viewer__play-btn ${isPlaying ? 'seg-mri-viewer__play-btn--playing' : ''}`}
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    title={isPlaying ? '정지' : '자동 재생 (200ms)'}
                   >
-                    {(['t1', 't1ce', 't2', 'flair'] as MRIChannel[]).map((ch) => {
-                      const isAvailable = getAvailableChannels().includes(ch) || !data.mri_channels
-                      return (
-                        <option key={ch} value={ch} disabled={!isAvailable}>
-                          {ch.toUpperCase()}
-                        </option>
-                      )
-                    })}
-                  </select>
-                  {viewers.length > 1 && (
-                    <button
-                      className="seg-mri-viewer__remove-btn"
-                      onClick={() => handleRemoveViewer(index)}
-                      title="뷰어 제거"
-                    >
-                      −
-                    </button>
-                  )}
+                    {isPlaying ? '⏸' : '▶'}
+                  </button>
                 </div>
-                <div className="seg-mri-viewer__canvas-container">
-                  <canvas
-                    ref={(el) => { canvasRefs.current[index] = el }}
-                    className="seg-mri-viewer__canvas"
-                    style={{
-                      width: `${viewers.length > 2 ? displaySize.width * 0.7 : displaySize.width}px`,
-                      height: `${viewers.length > 2 ? displaySize.height * 0.7 : displaySize.height}px`,
-                    }}
+                <input
+                  type="range"
+                  className="seg-mri-viewer__slider"
+                  value={currentSlice}
+                  onChange={(e) => {
+                    setIsPlaying(false)
+                    setCurrentSlice(Number(e.target.value))
+                  }}
+                  min={0}
+                  max={getMaxSlices() - 1}
+                />
+              </div>
+
+              {/* View Mode Buttons */}
+              <div className="seg-mri-viewer__view-buttons">
+                {(['axial', 'sagittal', 'coronal'] as ViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`seg-mri-viewer__view-btn ${viewMode === mode ? 'seg-mri-viewer__view-btn--active' : ''}`}
+                    onClick={() => handleViewModeChange(mode)}
+                  >
+                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ===== Orthogonal (3축 동시) 모드 ===== */}
+          {viewerLayout === 'orthogonal' && (
+            <>
+              {/* 채널 선택 */}
+              <div className="seg-mri-viewer__ortho-channel">
+                <label>MRI Channel:</label>
+                <select
+                  className="seg-mri-viewer__channel-select"
+                  value={viewers[0] || 't1ce'}
+                  onChange={(e) => handleViewerChannelChange(0, e.target.value as MRIChannel)}
+                >
+                  {(['t1', 't1ce', 't2', 'flair'] as MRIChannel[]).map((ch) => {
+                    const isAvailable = getAvailableChannels().includes(ch) || !data.mri_channels
+                    return (
+                      <option key={ch} value={ch} disabled={!isAvailable}>
+                        {ch.toUpperCase()}
+                      </option>
+                    )
+                  })}
+                </select>
+              </div>
+
+              {/* 3축 뷰어 그리드 */}
+              <div className="seg-mri-viewer__ortho-grid">
+                {/* Axial */}
+                <div className="seg-mri-viewer__ortho-item">
+                  <div className="seg-mri-viewer__ortho-label">Axial (Z)</div>
+                  <div className="seg-mri-viewer__canvas-container seg-mri-viewer__canvas-container--ortho">
+                    <canvas
+                      ref={(el) => { orthoCanvasRefs.current[0] = el }}
+                      className="seg-mri-viewer__canvas"
+                      style={{ width: '200px', height: '200px' }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    className="seg-mri-viewer__slider seg-mri-viewer__slider--ortho"
+                    value={orthoSlices.axial}
+                    onChange={(e) => setOrthoSlices(prev => ({ ...prev, axial: Number(e.target.value) }))}
+                    min={0}
+                    max={data.shape ? data.shape[2] - 1 : 127}
                   />
+                  <span className="seg-mri-viewer__ortho-slice-num">{orthoSlices.axial + 1}/{data.shape?.[2] || 128}</span>
+                </div>
+
+                {/* Sagittal */}
+                <div className="seg-mri-viewer__ortho-item">
+                  <div className="seg-mri-viewer__ortho-label">Sagittal (X)</div>
+                  <div className="seg-mri-viewer__canvas-container seg-mri-viewer__canvas-container--ortho">
+                    <canvas
+                      ref={(el) => { orthoCanvasRefs.current[1] = el }}
+                      className="seg-mri-viewer__canvas"
+                      style={{ width: '200px', height: '200px' }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    className="seg-mri-viewer__slider seg-mri-viewer__slider--ortho"
+                    value={orthoSlices.sagittal}
+                    onChange={(e) => setOrthoSlices(prev => ({ ...prev, sagittal: Number(e.target.value) }))}
+                    min={0}
+                    max={data.shape ? data.shape[0] - 1 : 127}
+                  />
+                  <span className="seg-mri-viewer__ortho-slice-num">{orthoSlices.sagittal + 1}/{data.shape?.[0] || 128}</span>
+                </div>
+
+                {/* Coronal */}
+                <div className="seg-mri-viewer__ortho-item">
+                  <div className="seg-mri-viewer__ortho-label">Coronal (Y)</div>
+                  <div className="seg-mri-viewer__canvas-container seg-mri-viewer__canvas-container--ortho">
+                    <canvas
+                      ref={(el) => { orthoCanvasRefs.current[2] = el }}
+                      className="seg-mri-viewer__canvas"
+                      style={{ width: '200px', height: '200px' }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    className="seg-mri-viewer__slider seg-mri-viewer__slider--ortho"
+                    value={orthoSlices.coronal}
+                    onChange={(e) => setOrthoSlices(prev => ({ ...prev, coronal: Number(e.target.value) }))}
+                    min={0}
+                    max={data.shape ? data.shape[1] - 1 : 127}
+                  />
+                  <span className="seg-mri-viewer__ortho-slice-num">{orthoSlices.coronal + 1}/{data.shape?.[1] || 128}</span>
                 </div>
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
-          {/* 뷰어 추가 버튼 */}
-          {getAvailableChannels().length > 0 && viewers.length < MAX_VIEWERS && (
-            <button
-              className="seg-mri-viewer__add-viewer-btn"
-              onClick={handleAddViewer}
-              title="뷰어 추가 (최대 4개)"
-            >
-              + 채널 뷰어 추가
-            </button>
+          {/* ===== 3D 볼륨 렌더링 모드 ===== */}
+          {viewerLayout === '3d' && (
+            <div className="seg-mri-viewer__3d-wrapper">
+              {/* 레이블 토글 */}
+              <div className="seg-mri-viewer__3d-labels">
+                <label className="seg-mri-viewer__3d-label-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showNCR}
+                    onChange={(e) => setShowNCR(e.target.checked)}
+                  />
+                  <span className="seg-mri-viewer__3d-label-color" style={{ background: '#ff0000' }} />
+                  NCR/NET
+                </label>
+                <label className="seg-mri-viewer__3d-label-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showED}
+                    onChange={(e) => setShowED(e.target.checked)}
+                  />
+                  <span className="seg-mri-viewer__3d-label-color" style={{ background: '#00ff00' }} />
+                  Edema
+                </label>
+                <label className="seg-mri-viewer__3d-label-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showET}
+                    onChange={(e) => setShowET(e.target.checked)}
+                  />
+                  <span className="seg-mri-viewer__3d-label-color" style={{ background: '#0000ff' }} />
+                  Enhancing
+                </label>
+              </div>
+
+              {/* 3D 뷰어 */}
+              <Suspense fallback={
+                <div className="volume-3d-viewer__loading">
+                  <div className="spinner"></div>
+                  <span>3D 뷰어 로딩 중...</span>
+                </div>
+              }>
+                <Volume3DViewer
+                  segmentationVolume={data.prediction}
+                  mriVolume={getMriVolumeByChannel(viewers[0] || 't1ce') || undefined}
+                  shape={data.shape}
+                  width={Math.min(500, maxCanvasSize + 50)}
+                  height={Math.min(450, maxCanvasSize)}
+                  showLabels={{
+                    ncr: showNCR,
+                    ed: showED,
+                    et: showET,
+                  }}
+                  opacity={segOpacity}
+                />
+              </Suspense>
+            </div>
           )}
 
           <div className="seg-mri-viewer__canvas-info">
             * Preprocessed model input region (Foreground Crop applied)
-          </div>
-
-          {/* Slice Control */}
-          <div className="seg-mri-viewer__slice-control">
-            <div className="seg-mri-viewer__slice-header">
-              <div className="seg-mri-viewer__slice-label">
-                Slice: {currentSlice + 1} / {getMaxSlices()}
-                {data.sliceMapping && (
-                  <span>(Original: {getOriginalSliceNum()})</span>
-                )}
-              </div>
-              <button
-                className={`seg-mri-viewer__play-btn ${isPlaying ? 'seg-mri-viewer__play-btn--playing' : ''}`}
-                onClick={() => setIsPlaying(!isPlaying)}
-                title={isPlaying ? '정지' : '자동 재생 (200ms)'}
-              >
-                {isPlaying ? '⏸' : '▶'}
-              </button>
-            </div>
-            <input
-              type="range"
-              className="seg-mri-viewer__slider"
-              value={currentSlice}
-              onChange={(e) => {
-                setIsPlaying(false) // 수동 조작 시 자동 재생 중지
-                setCurrentSlice(Number(e.target.value))
-              }}
-              min={0}
-              max={getMaxSlices() - 1}
-            />
-          </div>
-
-          {/* View Mode Buttons */}
-          <div className="seg-mri-viewer__view-buttons">
-            {(['axial', 'sagittal', 'coronal'] as ViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                className={`seg-mri-viewer__view-btn ${viewMode === mode ? 'seg-mri-viewer__view-btn--active' : ''}`}
-                onClick={() => handleViewModeChange(mode)}
-              >
-                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-              </button>
-            ))}
           </div>
         </div>
 

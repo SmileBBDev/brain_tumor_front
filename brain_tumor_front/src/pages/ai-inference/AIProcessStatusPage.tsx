@@ -3,7 +3,7 @@
  * - AI 추론 요청 상태별 통계 대시보드
  * - 실시간 처리 현황 모니터링
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAIRequestList, useAIModels } from '@/hooks';
 import { LoadingSpinner } from '@/components/common';
@@ -29,19 +29,57 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: '#6b7280',
 };
 
+// 시간 필터 라벨
+const TIME_RANGE_LABELS: Record<string, string> = {
+  today: '오늘',
+  week: '이번 주',
+  month: '이번 달',
+};
+
 export default function AIProcessStatusPage() {
   const navigate = useNavigate();
-  // TODO: 시간 범위 필터 기능 추가 예정
-  const [_timeRange, _setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const prevFailedCount = useRef(0);
 
-  // 데이터 조회 (폴링으로 실시간 업데이트)
+  // 데이터 조회 (자동 새로고침 여부에 따라 폴링)
   const { requests, loading, error, refresh } = useAIRequestList({
-    pollingInterval: 5000,
+    pollingInterval: autoRefresh ? 5000 : undefined,
   });
 
   const { models } = useAIModels();
 
-  // 상태별 통계 계산
+  // 시간 범위로 필터링된 요청 목록
+  const getFilteredByTimeRange = useCallback(() => {
+    const now = new Date();
+    const startDate = new Date();
+
+    switch (timeRange) {
+      case 'today':
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'week':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+    }
+
+    return requests.filter(req =>
+      new Date(req.requested_at) >= startDate
+    );
+  }, [requests, timeRange]);
+
+  const filteredRequests = getFilteredByTimeRange();
+
+  // 실패 건수 변화 추적 (알림용)
+  useEffect(() => {
+    const currentFailed = filteredRequests.filter(r => r.status === 'FAILED').length;
+    prevFailedCount.current = currentFailed;
+  }, [filteredRequests]);
+
+  // 상태별 통계 계산 (필터링된 요청 기준)
   const getStatusStats = useCallback(() => {
     const stats: Record<string, number> = {
       PENDING: 0,
@@ -52,20 +90,20 @@ export default function AIProcessStatusPage() {
       CANCELLED: 0,
     };
 
-    requests.forEach((req) => {
+    filteredRequests.forEach((req) => {
       if (stats[req.status] !== undefined) {
         stats[req.status]++;
       }
     });
 
     return stats;
-  }, [requests]);
+  }, [filteredRequests]);
 
-  // 모델별 통계 계산
+  // 모델별 통계 계산 (필터링된 요청 기준)
   const getModelStats = useCallback(() => {
     const stats: Record<string, { total: number; completed: number; failed: number }> = {};
 
-    requests.forEach((req) => {
+    filteredRequests.forEach((req) => {
       const modelCode = req.model_code;
       if (!stats[modelCode]) {
         stats[modelCode] = { total: 0, completed: 0, failed: 0 };
@@ -76,32 +114,35 @@ export default function AIProcessStatusPage() {
     });
 
     return stats;
-  }, [requests]);
+  }, [filteredRequests]);
 
-  // 진행 중인 요청 목록
+  // 진행 중인 요청 목록 (필터링된 요청 기준)
   const getActiveRequests = useCallback(() => {
-    return requests.filter(
+    return filteredRequests.filter(
       (req) => req.status === 'PENDING' || req.status === 'VALIDATING' || req.status === 'PROCESSING'
     );
-  }, [requests]);
+  }, [filteredRequests]);
 
-  // 최근 완료/실패 요청
+  // 최근 완료/실패 요청 (필터링된 요청 기준)
   const getRecentResults = useCallback(() => {
-    return requests
+    return filteredRequests
       .filter((req) => req.status === 'COMPLETED' || req.status === 'FAILED')
       .slice(0, 10);
-  }, [requests]);
+  }, [filteredRequests]);
 
   const statusStats = getStatusStats();
   const modelStats = getModelStats();
   const activeRequests = getActiveRequests();
   const recentResults = getRecentResults();
 
-  const totalRequests = requests.length;
+  const totalRequests = filteredRequests.length;
   const successRate =
     totalRequests > 0
       ? Math.round((statusStats.COMPLETED / totalRequests) * 100)
       : 0;
+
+  // 새 실패 건수 확인 (알림 배지용)
+  const hasNewFailures = statusStats.FAILED > 0;
 
   if (loading && requests.length === 0) {
     return (
@@ -131,6 +172,15 @@ export default function AIProcessStatusPage() {
           <p className="subtitle">AI 추론 요청의 실시간 처리 상태를 모니터링합니다</p>
         </div>
         <div className="header-actions">
+          <label className="auto-refresh-toggle">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+            />
+            <span className="toggle-switch"></span>
+            <span className="toggle-label">자동 새로고침</span>
+          </label>
           <button className="btn btn-secondary" onClick={refresh}>
             새로고침
           </button>
@@ -140,6 +190,22 @@ export default function AIProcessStatusPage() {
         </div>
       </header>
 
+      {/* 시간 필터 */}
+      <section className="time-filter-section">
+        <span className="filter-label">기간:</span>
+        <div className="time-filter-buttons">
+          {Object.entries(TIME_RANGE_LABELS).map(([key, label]) => (
+            <button
+              key={key}
+              className={`filter-btn ${timeRange === key ? 'active' : ''}`}
+              onClick={() => setTimeRange(key as 'today' | 'week' | 'month')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* 상태별 통계 카드 */}
       <section className="stats-section">
         <h3>상태별 현황</h3>
@@ -147,11 +213,14 @@ export default function AIProcessStatusPage() {
           {Object.entries(STATUS_LABELS).map(([status, label]) => (
             <div
               key={status}
-              className={`stat-card ${status.toLowerCase()}`}
+              className={`stat-card ${status.toLowerCase()} ${status === 'FAILED' && hasNewFailures ? 'has-alert' : ''}`}
               onClick={() => navigate(`/ai/requests?status=${status}`)}
             >
               <div className="stat-value">{statusStats[status]}</div>
               <div className="stat-label">{label}</div>
+              {status === 'FAILED' && hasNewFailures && (
+                <span className="alert-badge">!</span>
+              )}
               <div
                 className="stat-indicator"
                 style={{ backgroundColor: STATUS_COLORS[status] }}

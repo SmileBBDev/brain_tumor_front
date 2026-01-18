@@ -42,6 +42,7 @@ interface ExaminationTabProps {
   encounters: Encounter[];
   onUpdate: () => void;
   recordRefreshKey?: number;  // 진료 종료 시 과거 기록 새로고침용
+  onPatientChange?: (patientId: number) => void;  // 다른 환자 선택 시 (진료 중 확인용)
 }
 
 // 심각도 색상
@@ -99,6 +100,7 @@ export default function ExaminationTab({
   encounters,
   onUpdate: _onUpdate,
   recordRefreshKey = 0,
+  onPatientChange,
 }: ExaminationTabProps) {
   const navigate = useNavigate();
 
@@ -686,7 +688,7 @@ export default function ExaminationTab({
         <div className="content-column order-column">
           {/* 금일 예약 환자 목록 */}
           <section className="exam-section appointment-card">
-            <TodayAppointmentCard />
+            <TodayAppointmentCard onPatientSelect={onPatientChange} />
           </section>
         
         </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { InferenceResult } from '@/components/InferenceResult'
-import SegMRIViewer, { type SegmentationData } from '@/components/SegMRIViewer'
+import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer'
 import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
 import './M1DetailPage.css'
@@ -152,6 +152,34 @@ export default function M1DetailPage() {
     }
   }
 
+  // PDF 출력
+  const handleExportPDF = async () => {
+    if (!inferenceDetail || !inferenceDetail.result_data) {
+      alert('출력할 데이터가 없습니다.')
+      return
+    }
+
+    try {
+      const { generateM1ReportPDF } = await import('@/utils/exportUtils')
+      await generateM1ReportPDF({
+        jobId: inferenceDetail.job_id,
+        patientName: inferenceDetail.patient_name,
+        patientNumber: inferenceDetail.patient_number,
+        createdAt: new Date(inferenceDetail.created_at).toLocaleString('ko-KR'),
+        completedAt: inferenceDetail.completed_at ? new Date(inferenceDetail.completed_at).toLocaleString('ko-KR') : undefined,
+        grade: inferenceDetail.result_data.grade,
+        idh: inferenceDetail.result_data.idh,
+        mgmt: inferenceDetail.result_data.mgmt,
+        survival: inferenceDetail.result_data.survival,
+        os_days: inferenceDetail.result_data.os_days,
+        processing_time_ms: inferenceDetail.result_data.processing_time_ms,
+      })
+    } catch (err) {
+      console.error('PDF 출력 실패:', err)
+      alert('PDF 출력에 실패했습니다.')
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { className: string; label: string }> = {
       COMPLETED: { className: 'status-badge status-completed', label: '완료' },
@@ -206,15 +234,17 @@ export default function M1DetailPage() {
       {/* Header */}
       <div className="page-header">
         <div className="header-left">
-          <button onClick={handleBack} className="btn-back-icon">
-            ← 뒤로
-          </button>
           <div>
             <h2 className="page-title">M1 분석 결과 상세</h2>
             <p className="page-subtitle">Job ID: {jobId}</p>
           </div>
         </div>
         <div className="header-actions">
+          {inferenceDetail.status === 'COMPLETED' && (
+            <button onClick={handleExportPDF} className="btn-pdf">
+              PDF 출력
+            </button>
+          )}
           <button onClick={handleDelete} className="btn-delete">
             삭제
           </button>

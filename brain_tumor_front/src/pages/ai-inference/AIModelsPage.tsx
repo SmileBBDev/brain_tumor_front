@@ -17,6 +17,13 @@ const MODEL_DETAILS: Record<string, {
   outputDescription: string;
   processingTime: string;
   accuracy: string;
+  // NEW: 상태, 버전, 통계 정보
+  status: 'available' | 'maintenance';
+  maintenanceMessage?: string;
+  version: string;
+  lastUpdated: string;
+  weeklyUsage: number;
+  successRate: number;
 }> = {
   M1: {
     icon: '🧠',
@@ -25,6 +32,11 @@ const MODEL_DETAILS: Record<string, {
     outputDescription: '종양 위치, 크기, 등급 예측, 세그멘테이션 마스크',
     processingTime: '약 2-5분',
     accuracy: '92.5%',
+    status: 'available',
+    version: 'v2.1.0',
+    lastUpdated: '2025-01-10',
+    weeklyUsage: 45,
+    successRate: 89,
   },
   MG: {
     icon: '🧬',
@@ -33,6 +45,11 @@ const MODEL_DETAILS: Record<string, {
     outputDescription: '유전자 마커 분석, 분자 서브타입 분류, 예후 예측',
     processingTime: '약 3-7분',
     accuracy: '88.2%',
+    status: 'available',
+    version: 'v1.8.2',
+    lastUpdated: '2025-01-05',
+    weeklyUsage: 32,
+    successRate: 91,
   },
   MM: {
     icon: '🔬',
@@ -41,6 +58,11 @@ const MODEL_DETAILS: Record<string, {
     outputDescription: '종합 진단 결과, 치료 권고, 생존율 예측',
     processingTime: '약 5-10분',
     accuracy: '95.1%',
+    status: 'available',
+    version: 'v3.0.1',
+    lastUpdated: '2025-01-12',
+    weeklyUsage: 18,
+    successRate: 94,
   },
   MP: {
     icon: '🔮',
@@ -49,6 +71,12 @@ const MODEL_DETAILS: Record<string, {
     outputDescription: '단백질 발현 패턴, 바이오마커 분석',
     processingTime: '약 2-4분',
     accuracy: '86.7%',
+    status: 'maintenance',
+    maintenanceMessage: '모델 업데이트 중',
+    version: 'v1.5.0',
+    lastUpdated: '2024-12-20',
+    weeklyUsage: 8,
+    successRate: 85,
   },
 };
 
@@ -99,12 +127,19 @@ export default function AIModelsPage() {
               outputDescription: '분석 결과',
               processingTime: '약 3-5분',
               accuracy: '-',
+              status: 'available' as const,
+              version: '-',
+              lastUpdated: '-',
+              weeklyUsage: 0,
+              successRate: 0,
             };
+
+            const isAvailable = details.status === 'available';
 
             return (
               <div
                 key={model.code}
-                className={`model-card ${selectedModel === model.code ? 'selected' : ''}`}
+                className={`model-card ${selectedModel === model.code ? 'selected' : ''} ${!isAvailable ? 'maintenance' : ''}`}
                 onClick={() => setSelectedModel(selectedModel === model.code ? null : model.code)}
               >
                 <div className="model-header">
@@ -113,10 +148,20 @@ export default function AIModelsPage() {
                     <h3>{model.name}</h3>
                     <span className="model-code">{model.code}</span>
                   </div>
-                  <span className="model-category">{details.category}</span>
+                  {/* NEW: 상태 배지 */}
+                  <span className={`model-status-badge status-${details.status}`}>
+                    {isAvailable ? '가용' : '점검 중'}
+                  </span>
                 </div>
 
                 <p className="model-description">{model.description}</p>
+
+                {/* 점검 중일 경우 메시지 표시 */}
+                {!isAvailable && details.maintenanceMessage && (
+                  <div className="maintenance-notice">
+                    {details.maintenanceMessage}
+                  </div>
+                )}
 
                 <div className="model-meta">
                   <div className="meta-item">
@@ -127,6 +172,20 @@ export default function AIModelsPage() {
                     <span className="meta-label">정확도</span>
                     <span className="meta-value accuracy">{details.accuracy}</span>
                   </div>
+                  {/* NEW: 사용 통계 */}
+                  <div className="meta-item">
+                    <span className="meta-label">금주 사용</span>
+                    <span className="meta-value">{details.weeklyUsage}건</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">성공률</span>
+                    <span className="meta-value success-rate">{details.successRate}%</span>
+                  </div>
+                </div>
+
+                {/* NEW: 버전 정보 */}
+                <div className="model-version-info">
+                  버전: {details.version} ({details.lastUpdated} 업데이트)
                 </div>
 
                 {/* 확장된 상세 정보 */}
@@ -187,10 +246,15 @@ export default function AIModelsPage() {
                   category: 'AI 분석',
                   processingTime: '약 3-5분',
                   accuracy: '-',
+                  status: 'available' as const,
+                  version: '-',
+                  successRate: 0,
                 };
 
+                const isAvailable = details.status === 'available';
+
                 return (
-                  <tr key={model.code}>
+                  <tr key={model.code} className={!isAvailable ? 'maintenance-row' : ''}>
                     <td>
                       <div className="model-cell">
                         <span className="model-icon-small">{details.icon}</span>
@@ -198,6 +262,10 @@ export default function AIModelsPage() {
                           <div className="model-name">{model.name}</div>
                           <div className="model-code">{model.code}</div>
                         </div>
+                        {/* 테이블에도 상태 표시 */}
+                        <span className={`table-status-badge status-${details.status}`}>
+                          {isAvailable ? '가용' : '점검 중'}
+                        </span>
                       </div>
                     </td>
                     <td>{details.category}</td>

@@ -122,6 +122,36 @@ export default function MGDetailPage() {
     }
   }
 
+  // PDF 출력
+  const handleExportPDF = async () => {
+    if (!inferenceDetail || !inferenceDetail.result_data) {
+      alert('출력할 데이터가 없습니다.')
+      return
+    }
+
+    try {
+      const { generateMGReportPDF } = await import('@/utils/exportUtils')
+      await generateMGReportPDF({
+        jobId: inferenceDetail.job_id,
+        patientName: inferenceDetail.patient_name,
+        patientNumber: inferenceDetail.patient_number,
+        createdAt: new Date(inferenceDetail.created_at).toLocaleString('ko-KR'),
+        completedAt: inferenceDetail.completed_at ? new Date(inferenceDetail.completed_at).toLocaleString('ko-KR') : undefined,
+        grade: inferenceDetail.result_data.grade,
+        survival_risk: inferenceDetail.result_data.survival_risk,
+        survival_time: inferenceDetail.result_data.survival_time,
+        recurrence: inferenceDetail.result_data.recurrence,
+        tmz_response: inferenceDetail.result_data.tmz_response,
+        top_genes: inferenceDetail.result_data.xai?.top_genes,
+        processing_time_ms: inferenceDetail.result_data.processing_time_ms,
+        input_genes_count: inferenceDetail.result_data.input_genes_count,
+      })
+    } catch (err) {
+      console.error('PDF 출력 실패:', err)
+      alert('PDF 출력에 실패했습니다.')
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { className: string; label: string }> = {
       COMPLETED: { className: 'status-badge status-completed', label: '완료' },
@@ -185,6 +215,11 @@ export default function MGDetailPage() {
           </div>
         </div>
         <div className="header-actions">
+          {inferenceDetail.status === 'COMPLETED' && (
+            <button onClick={handleExportPDF} className="btn-pdf">
+              PDF 출력
+            </button>
+          )}
           <button onClick={handleDelete} className="btn-delete">
             삭제
           </button>

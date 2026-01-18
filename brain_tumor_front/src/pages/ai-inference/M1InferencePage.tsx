@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OCSTable, type OCSItem } from '@/components/OCSTable'
-import SegMRIViewer, { type SegmentationData } from '@/components/SegMRIViewer'
+import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer'
 import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
 import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
