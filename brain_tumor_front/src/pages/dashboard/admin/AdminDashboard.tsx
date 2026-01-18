@@ -162,6 +162,55 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* 관리 도구 바로가기 */}
+      <div className="dashboard-section">
+        <h3>관리 도구</h3>
+        <div className="admin-tools-grid">
+          <button
+            className="admin-tool-btn"
+            onClick={() => navigate('/admin/users')}
+          >
+            <span className="tool-icon">👥</span>
+            <span className="tool-label">사용자 관리</span>
+          </button>
+          <button
+            className="admin-tool-btn"
+            onClick={() => navigate('/admin/roles')}
+          >
+            <span className="tool-icon">🔐</span>
+            <span className="tool-label">역할 관리</span>
+          </button>
+          <button
+            className="admin-tool-btn"
+            onClick={() => navigate('/admin/menu-permission')}
+          >
+            <span className="tool-icon">📂</span>
+            <span className="tool-label">메뉴 권한</span>
+          </button>
+          <button
+            className="admin-tool-btn"
+            onClick={() => navigate('/admin/pdf-watermark')}
+          >
+            <span className="tool-icon">💧</span>
+            <span className="tool-label">PDF 워터마크</span>
+          </button>
+          <button
+            className="admin-tool-btn"
+            onClick={() => navigate('/admin/audit-log')}
+          >
+            <span className="tool-icon">📝</span>
+            <span className="tool-label">감사 로그</span>
+          </button>
+          <button
+            className="admin-tool-btn"
+            onClick={() => navigate('/admin/system-monitor')}
+          >
+            <span className="tool-icon">📊</span>
+            <span className="tool-label">시스템 모니터</span>
+          </button>
+        </div>
+      </div>
+
       {/* 역할별 사용자 현황 + 캘린더 (병렬) */}
       <div className="dashboard-main-row">
         {/* 역할별 사용자 */}

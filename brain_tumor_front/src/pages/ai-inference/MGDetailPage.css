@@ -327,3 +327,16 @@
 .zscore.negative {
   color: #dc2626;
 }
+
+/* Visualization Grid */
+.visualization-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .visualization-grid {
+    grid-template-columns: 1fr;
+  }
+}

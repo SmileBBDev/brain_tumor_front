@@ -239,6 +239,62 @@
   border: 1px solid var(--border);
 }
 
+/* 관리 도구 그리드 */
+.sm-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.sm-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--bg-main);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sm-tool-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.sm-tool-btn:hover .tool-icon,
+.sm-tool-btn:hover .tool-label {
+  color: white;
+}
+
+.sm-tool-btn .tool-icon {
+  font-size: 24px;
+}
+
+.sm-tool-btn .tool-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+  text-align: center;
+}
+
+@media (max-width: 1200px) {
+  .sm-tools-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .sm-tools-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* 로딩/에러 */
 .sm-overview .loading,
 .sm-overview .error {

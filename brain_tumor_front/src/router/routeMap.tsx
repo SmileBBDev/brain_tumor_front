@@ -13,6 +13,7 @@ const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
 const SystemMonitorPage = lazy(() => import('@/pages/admin/SystemMonitorPage'));
 const UserDetailPage = lazy(() => import('@/pages/admin/usersManagement/UserDetailPage'));
 const RoleControlPage = lazy(() => import('@/pages/admin/roleManagement/RoleControlPage'));
+const PdfWatermarkSettingsPage = lazy(() => import('@/pages/admin/PdfWatermarkSettingsPage'));
 
 // OCS 페이지들 (통합됨)
 const OCSCreatePage = lazy(() => import('@/pages/ocs/OCSCreatePage'));
@@ -50,6 +51,10 @@ const MGInferencePage = lazy(() => import('@/pages/ai-inference/MGInferencePage'
 const MGDetailPage = lazy(() => import('@/pages/ai-inference/MGDetailPage'));
 const MMInferencePage = lazy(() => import('@/pages/ai-inference/MMInferencePage'));
 const MMDetailPage = lazy(() => import('@/pages/ai-inference/MMDetailPage'));
+const AIDashboardPage = lazy(() => import('@/pages/ai-dashboard/AIDashboardPage'));
+// AI 결과 비교 페이지 (담당자 A)
+const AICompareListPage = lazy(() => import('@/pages/ai-inference/AICompareListPage'));
+const AICompareDetailPage = lazy(() => import('@/pages/ai-inference/AICompareDetailPage'));
 // Patient Portal (환자 전용 - MY_CARE)
 const MySummaryPage = lazy(() => import('@/pages/patient-portal/MySummaryPage'));
 const MyVisitsPage = lazy(() => import('@/pages/patient-portal/MyVisitsPage'));
@@ -74,7 +79,8 @@ const ReportDetailPage = lazy(() => import('@/pages/report/ReportDetailPage'));
  * ├── IMAGING: IMAGE_VIEWER, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD, RIS_RESULT_UPLOAD
  * ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
  * ├── AI: AI_REQUEST_LIST, AI_REQUEST_CREATE, AI_REQUEST_DETAIL, AI_PROCESS_STATUS, AI_MODELS,
- * │       AI_M1_INFERENCE, AI_M1_DETAIL, AI_MG_INFERENCE, AI_MG_DETAIL, AI_MM_INFERENCE, AI_MM_DETAIL
+ * │       AI_M1_INFERENCE, AI_M1_DETAIL, AI_MG_INFERENCE, AI_MG_DETAIL, AI_MM_INFERENCE, AI_MM_DETAIL,
+ * │       AI_DASHBOARD, AI_COMPARE_LIST, AI_COMPARE_DETAIL
  * ├── REPORT: REPORT_DASHBOARD, REPORT_LIST, REPORT_CREATE, REPORT_DETAIL
  * ├── ADMIN: ADMIN_USER, ADMIN_USER_DETAIL, ADMIN_ROLE, ADMIN_MENU_PERMISSION, ADMIN_AUDIT_LOG, ADMIN_SYSTEM_MONITOR
  * └── MY_CARE (환자 전용): MY_SUMMARY, MY_VISITS, MY_IMAGING, MY_LAB
@@ -126,6 +132,10 @@ export const routeMap: Record<string, ComponentType> = {
   AI_MG_DETAIL: MGDetailPage,
   AI_MM_INFERENCE: MMInferencePage,
   AI_MM_DETAIL: MMDetailPage,
+  AI_DASHBOARD: AIDashboardPage,
+  // AI 결과 비교 페이지 (담당자 A)
+  AI_COMPARE_LIST: AICompareListPage,
+  AI_COMPARE_DETAIL: AICompareDetailPage,
 
   // === ADMIN 그룹 ===
   ADMIN_USER: UserList,
@@ -134,6 +144,7 @@ export const routeMap: Record<string, ComponentType> = {
   ADMIN_MENU_PERMISSION: MenuPermissionPage,
   ADMIN_AUDIT_LOG: AuditLog,
   ADMIN_SYSTEM_MONITOR: SystemMonitorPage,
+  ADMIN_PDF_WATERMARK: PdfWatermarkSettingsPage,
 
   // === MY_CARE 그룹 (환자 전용) ===
   MY_SUMMARY: MySummaryPage,

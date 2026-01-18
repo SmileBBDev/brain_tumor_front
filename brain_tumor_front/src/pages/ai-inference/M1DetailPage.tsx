@@ -152,6 +152,34 @@ export default function M1DetailPage() {
     }
   }
 
+  // 이미지 URL을 Base64로 변환하는 헬퍼 함수
+  const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
+    try {
+      console.log('[M1 PDF] 썸네일 이미지 로딩:', url)
+      const response = await fetch(url, { credentials: 'include' })
+      if (!response.ok) {
+        console.warn(`[M1 PDF] 이미지 로드 실패 (HTTP ${response.status}):`, url)
+        return null
+      }
+      const blob = await response.blob()
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          console.log('[M1 PDF] 이미지 Base64 변환 완료:', url.slice(-30))
+          resolve(reader.result as string)
+        }
+        reader.onerror = () => {
+          console.error('[M1 PDF] FileReader 오류:', url)
+          resolve(null)
+        }
+        reader.readAsDataURL(blob)
+      })
+    } catch (e) {
+      console.error('[M1 PDF] 이미지 fetch 실패:', url, e)
+      return null
+    }
+  }
+
   // PDF 출력
   const handleExportPDF = async () => {
     if (!inferenceDetail || !inferenceDetail.result_data) {
@@ -159,8 +187,50 @@ export default function M1DetailPage() {
       return
     }
 
+    console.log('[M1 PDF] PDF 출력 시작, Job ID:', inferenceDetail.job_id)
+
     try {
       const { generateM1ReportPDF } = await import('@/utils/exportUtils')
+
+      // MRI 썸네일을 Base64로 변환 (CORS 문제 방지)
+      let mriThumbnails: Array<{ channel: string; url: string; description?: string }> | undefined
+      let thumbnailLoadErrors: string[] = []
+
+      if (inferenceDetail.mri_thumbnails && inferenceDetail.mri_thumbnails.length > 0) {
+        console.log('[M1 PDF] MRI 썸네일 로딩 시작, 개수:', inferenceDetail.mri_thumbnails.length)
+
+        const thumbnailPromises = inferenceDetail.mri_thumbnails.map(async (thumb) => {
+          const fullUrl = `${API_BASE_URL}${thumb.url.startsWith('/api/') ? thumb.url.slice(4) : thumb.url}`
+          const base64 = await fetchImageAsBase64(fullUrl)
+          if (base64) {
+            return {
+              channel: thumb.channel,
+              url: base64,
+              description: thumb.description,
+            }
+          }
+          thumbnailLoadErrors.push(thumb.channel)
+          return null
+        })
+
+        const results = await Promise.all(thumbnailPromises)
+        const validThumbnails = results.filter((t): t is NonNullable<typeof t> => t !== null)
+
+        console.log(`[M1 PDF] 썸네일 로딩 완료: ${validThumbnails.length}/${inferenceDetail.mri_thumbnails.length}개 성공`)
+
+        if (thumbnailLoadErrors.length > 0) {
+          console.warn('[M1 PDF] 썸네일 로딩 실패 채널:', thumbnailLoadErrors.join(', '))
+        }
+
+        if (validThumbnails.length > 0) {
+          mriThumbnails = validThumbnails
+        }
+      } else {
+        console.log('[M1 PDF] MRI 썸네일 데이터 없음')
+      }
+
+      console.log('[M1 PDF] PDF 생성 중...')
+
       await generateM1ReportPDF({
         jobId: inferenceDetail.job_id,
         patientName: inferenceDetail.patient_name,
@@ -173,10 +243,19 @@ export default function M1DetailPage() {
         survival: inferenceDetail.result_data.survival,
         os_days: inferenceDetail.result_data.os_days,
         processing_time_ms: inferenceDetail.result_data.processing_time_ms,
+        mri_thumbnails: mriThumbnails,
       })
-    } catch (err) {
-      console.error('PDF 출력 실패:', err)
-      alert('PDF 출력에 실패했습니다.')
+
+      console.log('[M1 PDF] PDF 출력 완료')
+
+      // 썸네일 일부 실패 시 사용자에게 알림
+      if (thumbnailLoadErrors.length > 0) {
+        alert(`PDF가 생성되었습니다.\n(일부 MRI 이미지 로딩 실패: ${thumbnailLoadErrors.join(', ')})`)
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || String(err)
+      console.error('[M1 PDF] PDF 출력 실패:', errorMsg, err)
+      alert(`PDF 출력에 실패했습니다.\n\n오류: ${errorMsg}`)
     }
   }
 

@@ -15,6 +15,7 @@ from apps.common.views import (
     SystemMonitorView,
     MonitorAlertConfigView,
     MonitorAlertAcknowledgeView,
+    PdfWatermarkConfigView,
 )
 
 
@@ -74,6 +75,7 @@ urlpatterns = [
     path("api/system/monitor/", SystemMonitorView.as_view(), name="system_monitor"),
     path("api/system/monitor/acknowledge/", MonitorAlertAcknowledgeView.as_view(), name="monitor_alert_acknowledge"),
     path("api/system/config/monitor-alerts/", MonitorAlertConfigView.as_view(), name="monitor_alert_config"),
+    path("api/system/config/pdf-watermark/", PdfWatermarkConfigView.as_view(), name="pdf_watermark_config"),
 
     # 진료 보고서 API
     path("api/reports/", include("apps.reports.urls")),

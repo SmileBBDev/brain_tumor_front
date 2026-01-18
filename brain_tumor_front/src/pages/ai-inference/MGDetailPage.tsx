@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import MGResultViewer from '@/components/MGResultViewer'
+import { SurvivalChart } from '@/components/ai/SurvivalChart'
+import { GeneBarChart } from '@/components/ai/GeneBarChart'
+import { GeneHeatmap } from '@/components/ai/GeneHeatmap'
 import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
 import './MGDetailPage.css'
@@ -80,6 +83,71 @@ export default function MGDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [inferenceDetail, setInferenceDetail] = useState<InferenceDetail | null>(null)
+
+  // 생존 곡선 데이터 생성 (샘플 데이터 - 실제 API 연동 시 교체)
+  const survivalChartData = useMemo(() => {
+    if (!inferenceDetail?.result_data?.survival_risk) return []
+
+    // Kaplan-Meier 스타일 생존 곡선 샘플 데이터
+    const timePoints = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60]
+    return timePoints.map(time => ({
+      time,
+      low: Math.max(0, 1 - (time / 100) * 0.8),
+      medium: Math.max(0, 1 - (time / 80) * 0.9),
+      high: Math.max(0, 1 - (time / 60) * 1.0),
+    }))
+  }, [inferenceDetail?.result_data?.survival_risk])
+
+  // 환자 위험군 결정
+  const patientRiskGroup = useMemo((): 'high' | 'medium' | 'low' | undefined => {
+    const riskScore = inferenceDetail?.result_data?.survival_risk?.risk_score
+    if (riskScore === undefined) return undefined
+    if (riskScore < 0.33) return 'low'
+    if (riskScore < 0.66) return 'medium'
+    return 'high'
+  }, [inferenceDetail?.result_data?.survival_risk?.risk_score])
+
+  // 유전자 중요도 데이터 변환
+  const geneBarChartData = useMemo(() => {
+    const topGenes = inferenceDetail?.result_data?.xai?.top_genes
+    if (!topGenes) return []
+
+    return topGenes.slice(0, 15).map(gene => ({
+      name: gene.gene,
+      importance: gene.attention_score,
+      direction: gene.expression_zscore >= 0 ? 'up' as const : 'down' as const,
+      expressionZscore: gene.expression_zscore,
+    }))
+  }, [inferenceDetail?.result_data?.xai?.top_genes])
+
+  // 히트맵 데이터 생성 (샘플 데이터 - 실제 API 연동 시 교체)
+  const heatmapData = useMemo(() => {
+    const topGenes = inferenceDetail?.result_data?.xai?.top_genes
+    if (!topGenes || topGenes.length === 0) return { genes: [], samples: [], values: [] }
+
+    const genes = topGenes.slice(0, 20).map(g => g.gene)
+    const samples = ['Sample1', 'Sample2', 'Sample3', 'Sample4', 'Sample5', 'Patient']
+
+    // 시드 기반 pseudo-random 생성 (일관된 데모 데이터)
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed * 9999) * 10000
+      return x - Math.floor(x)
+    }
+
+    // 샘플 발현량 데이터 생성 (실제 데이터로 교체 필요)
+    const values = genes.map((_, gIdx) =>
+      samples.map((_, sIdx) => {
+        if (sIdx === samples.length - 1) {
+          // 환자 데이터는 실제 z-score 사용
+          return topGenes[gIdx]?.expression_zscore / 3 || 0
+        }
+        // 다른 샘플은 시드 기반 데모 데이터 (일관성 유지)
+        return (seededRandom(gIdx * 100 + sIdx) - 0.5) * 2
+      })
+    )
+
+    return { genes, samples, values }
+  }, [inferenceDetail?.result_data?.xai?.top_genes])
 
   // 데이터 로드
   useEffect(() => {
@@ -310,6 +378,51 @@ export default function MGDetailPage() {
           <MGResultViewer result={inferenceDetail.result_data} />
         </div>
       )}
+
+      {/* 시각화 섹션 - 생존 곡선 + 유전자 중요도 */}
+      {inferenceDetail.status === 'COMPLETED' && inferenceDetail.result_data && (
+        <div className="section">
+          <h3 className="section-title">시각화 분석</h3>
+          <div className="visualization-grid">
+            {/* 생존 곡선 차트 */}
+            {survivalChartData.length > 0 && (
+              <SurvivalChart
+                data={survivalChartData}
+                patientRiskGroup={patientRiskGroup}
+                patientSurvivalMonths={inferenceDetail.result_data.survival_time?.predicted_months}
+                medianSurvival={{ high: 14, medium: 28, low: 48 }}
+                height={320}
+              />
+            )}
+
+            {/* 유전자 중요도 바 차트 */}
+            {geneBarChartData.length > 0 && (
+              <GeneBarChart
+                data={geneBarChartData}
+                maxGenes={10}
+                title="Top 10 유전자 중요도 (Attention)"
+                showDirection={true}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 유전자 히트맵 */}
+      {inferenceDetail.status === 'COMPLETED' &&
+        heatmapData.genes.length > 0 && (
+          <div className="section">
+            <h3 className="section-title">유전자 발현 히트맵</h3>
+            <GeneHeatmap
+              genes={heatmapData.genes}
+              samples={heatmapData.samples}
+              values={heatmapData.values}
+              cellSize={22}
+              maxGenes={20}
+              maxSamples={10}
+            />
+          </div>
+        )}
 
       {/* Error Message */}
       {inferenceDetail.status === 'FAILED' && inferenceDetail.error_message && (

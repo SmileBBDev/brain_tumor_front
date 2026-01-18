@@ -692,3 +692,199 @@ export interface SegmentationCompareData {
     error?: string;
   } | null;
 }
+
+// =============================================================================
+// AI Analytics API (대시보드용)
+// =============================================================================
+
+export interface AIAnalyticsStats {
+  total_analyses: number;
+  completed: number;
+  in_progress: number;
+  pending: number;
+  failed: number;
+
+  result_distribution: {
+    grade: { G2: number; G3: number; G4: number };
+    risk: { low: number; medium: number; high: number };
+    idh: { mutant: number; wildtype: number };
+    mgmt: { methylated: number; unmethylated: number };
+  };
+
+  performance: {
+    avg_dice_wt: number;
+    avg_dice_tc: number;
+    avg_dice_et: number;
+    avg_processing_time_seconds: number;
+    approval_rate: number;
+    rejection_rate: number;
+  };
+
+  high_risk_patients: {
+    patient_id: number;
+    patient_name: string;
+    risk_level: string;
+    analysis_date: string;
+  }[];
+}
+
+export interface ModelUsageStats {
+  period: string;
+  data: {
+    date: string;
+    m1_count: number;
+    mg_count: number;
+    mm_count: number;
+  }[];
+  totals: {
+    m1: number;
+    mg: number;
+    mm: number;
+  };
+}
+
+// AI 분석 통계 조회
+export const getAIAnalyticsStats = async (
+  dateRange?: { start: string; end: string }
+): Promise<AIAnalyticsStats> => {
+  try {
+    const response = await api.get('/ai/analytics/stats/', { params: dateRange });
+    return response.data;
+  } catch {
+    // API가 아직 없는 경우 목업 데이터 반환
+    return {
+      total_analyses: 0,
+      completed: 0,
+      in_progress: 0,
+      pending: 0,
+      failed: 0,
+      result_distribution: {
+        grade: { G2: 0, G3: 0, G4: 0 },
+        risk: { low: 0, medium: 0, high: 0 },
+        idh: { mutant: 0, wildtype: 0 },
+        mgmt: { methylated: 0, unmethylated: 0 },
+      },
+      performance: {
+        avg_dice_wt: 0,
+        avg_dice_tc: 0,
+        avg_dice_et: 0,
+        avg_processing_time_seconds: 0,
+        approval_rate: 0,
+        rejection_rate: 0,
+      },
+      high_risk_patients: [],
+    };
+  }
+};
+
+// 모델별 사용 통계 조회
+export const getModelUsageStats = async (
+  period: 'day' | 'week' | 'month'
+): Promise<ModelUsageStats> => {
+  try {
+    const response = await api.get('/ai/analytics/model-usage/', { params: { period } });
+    return response.data;
+  } catch {
+    // API가 아직 없는 경우 목업 데이터 반환
+    return {
+      period,
+      data: [],
+      totals: { m1: 0, mg: 0, mm: 0 },
+    };
+  }
+}
+
+// =============================================================================
+// AI Compare API (비교 기능용)
+// =============================================================================
+
+// 환자별 AI 분석 이력 조회 (M1 모델 필터)
+export const getPatientAIHistory = async (
+  patientId: number,
+  modelCode?: 'M1' | 'MG' | 'MM'
+): Promise<AIInferenceRequest[]> => {
+  try {
+    const params: Record<string, string | number> = { patient_id: patientId };
+    if (modelCode) params.model_type = modelCode;
+
+    const response = await api.get('/ai/inferences/', { params });
+    const data = response.data || [];
+
+    // 백엔드 응답을 AIInferenceRequest 형식으로 매핑
+    return data
+      .filter((item: AIInferenceBackendResponse) => item.status === 'COMPLETED')
+      .map((item: AIInferenceBackendResponse) => ({
+        id: item.id,
+        request_id: item.job_id,
+        patient: patientId,
+        patient_name: item.patient_name || '',
+        patient_number: item.patient_number || '',
+        model: 0,
+        model_code: item.model_type,
+        model_name: item.model_type === 'M1' ? 'M1 MRI 분석' : item.model_type === 'MG' ? 'MG Gene Analysis' : 'MM 멀티모달',
+        requested_by: item.requested_by || 0,
+        requested_by_name: item.requested_by_name || '',
+        ocs_references: [],
+        input_data: {},
+        status: item.status as AIInferenceRequest['status'],
+        status_display: item.status,
+        priority: 'normal' as const,
+        priority_display: '보통',
+        requested_at: item.created_at,
+        started_at: null,
+        completed_at: item.completed_at || null,
+        processing_time: item.processing_time ?? null,
+        error_message: item.error_message || null,
+        has_result: item.status === 'COMPLETED',
+        result: item.status === 'COMPLETED' ? {
+          id: item.id,
+          result_data: item.result_data || {},
+          confidence_score: null,
+          visualization_paths: [],
+          reviewed_by: null,
+          reviewed_by_name: item.reviewed_by_name || null,
+          review_status: (item.review_status || 'pending') as 'pending' | 'approved' | 'rejected',
+          review_status_display: item.review_status === 'approved' ? '승인됨' : item.review_status === 'rejected' ? '반려됨' : '검토 대기',
+          review_comment: item.review_comment || null,
+          reviewed_at: item.reviewed_at || null,
+          created_at: item.created_at,
+          updated_at: item.created_at,
+        } : undefined,
+        created_at: item.created_at,
+        updated_at: item.created_at,
+      }));
+  } catch (error) {
+    console.error('Failed to fetch patient AI history:', error);
+    return [];
+  }
+}
+
+// 두 결과 비교 데이터 조회
+export interface AICompareResult {
+  job1: AIInferenceRequest;
+  job2: AIInferenceRequest;
+  changes: {
+    wt_change_ml: number;
+    wt_change_percent: number;
+    tc_change_ml: number;
+    tc_change_percent: number;
+    et_change_ml: number;
+    et_change_percent: number;
+    days_between: number;
+  };
+}
+
+export const getAICompareData = async (
+  jobId1: string,
+  jobId2: string
+): Promise<AICompareResult | null> => {
+  try {
+    const response = await api.get('/ai/compare/', {
+      params: { job1: jobId1, job2: jobId2 }
+    });
+    return response.data;
+  } catch {
+    // API가 없는 경우 null 반환 (프론트에서 직접 계산)
+    return null;
+  }
+}

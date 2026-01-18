@@ -658,6 +658,7 @@ def load_menu_permission_seed():
         ('ADMIN_MENU_PERMISSION', '메뉴 권한 관리', '메뉴 권한 관리 화면'),
         ('ADMIN_AUDIT_LOG', '접근 감사 로그', '접근 감사 로그 화면'),
         ('ADMIN_SYSTEM_MONITOR', '시스템 모니터링', '시스템 모니터링 화면'),
+        ('ADMIN_PDF_WATERMARK', 'PDF 워터마크 설정', 'PDF 워터마크 설정 화면'),
         # 진료 보고서
         ('REPORT', '진료 보고서', '진료 보고서 메뉴'),
         ('REPORT_DASHBOARD', '보고서 대시보드', '통합 보고서 대시보드 (OCS+AI+Final)'),
@@ -740,6 +741,7 @@ def load_menu_permission_seed():
     create_menu(10, code='ADMIN_ROLE', path='/admin/roles', order=2, is_active=True, parent=menu_admin)
     create_menu(11, code='ADMIN_SYSTEM_MONITOR', path='/admin/monitor', order=5, is_active=True, parent=menu_admin)
     create_menu(12, code='ADMIN_USER', path='/admin/users', order=1, is_active=True, parent=menu_admin)
+    create_menu(59, code='ADMIN_PDF_WATERMARK', path='/admin/pdf-watermark', order=6, is_active=True, parent=menu_admin)
     menu_admin_user_detail, _ = create_menu(13, code='ADMIN_USER_DETAIL', path='/admin/users/:id', breadcrumb_only=True, order=1, is_active=True, parent_id=12)
 
     # Imaging 하위
@@ -976,7 +978,7 @@ def load_menu_permission_seed():
             'AI', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'AI_PROCESS_STATUS', 'AI_MODELS',
             'AI_M1_INFERENCE', 'AI_M1_DETAIL', 'AI_MG_INFERENCE', 'AI_MG_DETAIL', 'AI_MM_INFERENCE', 'AI_MM_DETAIL',
             'REPORT', 'REPORT_DASHBOARD', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL',
-            'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG', 'ADMIN_SYSTEM_MONITOR'
+            'ADMIN', 'ADMIN_USER', 'ADMIN_USER_DETAIL', 'ADMIN_ROLE', 'ADMIN_MENU_PERMISSION', 'ADMIN_AUDIT_LOG', 'ADMIN_SYSTEM_MONITOR', 'ADMIN_PDF_WATERMARK'
         ],
         'DOCTOR': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'PATIENT_CARE', 'ENCOUNTER_LIST', 'ENCOUNTER_DETAIL', 'OCS_STATUS', 'OCS_CREATE', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'RIS_WORKLIST', 'LAB_RESULT_VIEW', 'AI', 'AI_REQUEST_LIST', 'AI_REQUEST_CREATE', 'AI_REQUEST_DETAIL', 'AI_M1_INFERENCE', 'AI_M1_DETAIL', 'AI_MG_INFERENCE', 'AI_MG_DETAIL', 'AI_MM_INFERENCE', 'AI_MM_DETAIL', 'REPORT', 'REPORT_DASHBOARD', 'REPORT_LIST', 'REPORT_CREATE', 'REPORT_DETAIL'],
         'NURSE': ['DASHBOARD', 'PATIENT_LIST', 'PATIENT_DETAIL', 'ENCOUNTER_LIST', 'ENCOUNTER_DETAIL', 'OCS_STATUS', 'OCS_PROCESS_STATUS', 'IMAGE_VIEWER', 'LAB_RESULT_VIEW', 'REPORT', 'REPORT_DASHBOARD'],  # ENCOUNTER_DETAIL: 과거 SOAP 읽기

@@ -272,12 +272,38 @@
   margin: 0;
 }
 
+/* Contributions Layout */
+.contributions-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.contributions-radar {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .contributions-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Contributions Card */
 .contributions-card {
   background: var(--bg-card, white);
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
+}
+
+.contributions-card__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main, #1f2937);
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
 }
 
 .contributions-grid {
@@ -491,4 +517,33 @@
 
 .result-item .value.available {
   color: #16a34a;
+}
+
+/* MM Analysis Grid (B 컴포넌트 통합) */
+.mm-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.mm-analysis-card {
+  background: var(--bg-card, white);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  min-width: 0;
+}
+
+@media (max-width: 1200px) {
+  .mm-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tumor Trend Card (A 컴포넌트 통합) */
+.mm-tumor-trend-card {
+  background: var(--bg-card, white);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
 }

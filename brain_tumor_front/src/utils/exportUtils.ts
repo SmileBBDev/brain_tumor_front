@@ -9,6 +9,130 @@
  * 동적 import를 사용하며, 실패 시 사용자에게 안내합니다.
  */
 
+import type { jsPDF } from 'jspdf';
+import { getPdfWatermarkConfig, type PdfWatermarkConfig } from '@/services/pdfWatermark.api';
+
+// ============================================
+// PDF 워터마크 유틸리티
+// ============================================
+
+// 워터마크 설정 캐시
+let cachedWatermarkConfig: PdfWatermarkConfig | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_DURATION = 60000; // 1분
+
+/**
+ * 워터마크 설정 조회 (캐시 적용)
+ */
+const getWatermarkConfig = async (): Promise<PdfWatermarkConfig | null> => {
+  const now = Date.now();
+  if (cachedWatermarkConfig && (now - cacheTimestamp) < CACHE_DURATION) {
+    return cachedWatermarkConfig;
+  }
+
+  try {
+    cachedWatermarkConfig = await getPdfWatermarkConfig();
+    cacheTimestamp = now;
+    return cachedWatermarkConfig;
+  } catch (error) {
+    console.warn('워터마크 설정 조회 실패, 워터마크 없이 진행:', error);
+    return null;
+  }
+};
+
+/**
+ * HEX 색상을 RGB 배열로 변환
+ */
+const hexToRgb = (hex: string): [number, number, number] => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (result) {
+    return [
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16)
+    ];
+  }
+  return [200, 200, 200]; // 기본 회색
+};
+
+/**
+ * PDF에 워터마크 적용
+ */
+const applyWatermark = (pdf: jsPDF, config: PdfWatermarkConfig): void => {
+  if (!config.enabled || !config.text) return;
+
+  const pageCount = pdf.getNumberOfPages();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const rgb = hexToRgb(config.color);
+
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+
+    // 워터마크 스타일 설정
+    pdf.setFontSize(config.fontSize);
+    pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
+
+    // GState로 투명도 설정 (jsPDF 2.x 이상)
+    // @ts-ignore - GState는 jsPDF 확장 기능
+    if (pdf.GState) {
+      // @ts-ignore
+      const gState = new pdf.GState({ opacity: config.opacity });
+      // @ts-ignore
+      pdf.setGState(gState);
+    }
+
+    if (config.repeatPattern) {
+      // 패턴 반복
+      const spacing = config.fontSize * 3;
+      for (let x = -pageWidth; x < pageWidth * 2; x += spacing) {
+        for (let y = 0; y < pageHeight + spacing; y += spacing) {
+          pdf.text(config.text, x, y, { angle: config.rotation });
+        }
+      }
+    } else {
+      // 단일 워터마크
+      let x: number, y: number;
+      let align: 'center' | 'left' | 'right' = 'center';
+
+      switch (config.position) {
+        case 'center':
+        case 'diagonal':
+          x = pageWidth / 2;
+          y = pageHeight / 2;
+          align = 'center';
+          break;
+        case 'top-right':
+          x = pageWidth - 20;
+          y = 30;
+          align = 'right';
+          break;
+        case 'bottom-right':
+          x = pageWidth - 20;
+          y = pageHeight - 20;
+          align = 'right';
+          break;
+        default:
+          x = pageWidth / 2;
+          y = pageHeight / 2;
+          align = 'center';
+      }
+
+      pdf.text(config.text, x, y, {
+        angle: config.rotation,
+        align: align
+      });
+    }
+
+    // 투명도 초기화
+    // @ts-ignore
+    if (pdf.GState) {
+      // @ts-ignore
+      pdf.setGState(new pdf.GState({ opacity: 1 }));
+    }
+  }
+};
+
 // ============================================
 // PDF 출력 유틸리티
 // ============================================
@@ -81,6 +205,12 @@ export const generateRISReportPDF = async (data: {
   workerName: string;
   createdAt: string;
   confirmedAt?: string;
+  // 썸네일 이미지 (DICOM 미리보기)
+  thumbnails?: Array<{
+    channel: string;  // T1, T1C, T2, FLAIR 등
+    dataUrl: string;  // base64 이미지 또는 URL
+    description?: string;
+  }>;
 }): Promise<void> => {
   try {
     // 동적 import (패키지 설치 필요: npm install jspdf html2canvas)
@@ -163,6 +293,21 @@ export const generateRISReportPDF = async (data: {
       </div>
       ` : ''}
 
+      ${data.thumbnails && data.thumbnails.length > 0 ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">영상 이미지</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">
+          ${data.thumbnails.map(thumb => `
+            <div style="text-align: center;">
+              <img src="${thumb.dataUrl}" alt="${thumb.channel}" style="width: 160px; height: 160px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 4px; background: #000;" crossorigin="anonymous" />
+              <p style="margin: 6px 0 0 0; font-size: 12px; font-weight: 500; color: #374151;">${thumb.channel}</p>
+              ${thumb.description ? `<p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">${thumb.description}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+
       <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
         <div style="display: flex; justify-content: space-between;">
           <div>
@@ -211,13 +356,21 @@ export const generateRISReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    // PDF 다운로드
-    pdf.save(`RIS_Report_${data.ocsId}_${data.patientNumber}.pdf`);
+    // 워터마크 적용
+    const watermarkConfig = await getWatermarkConfig();
+    if (watermarkConfig) {
+      applyWatermark(pdf, watermarkConfig);
+    }
 
-  } catch (error) {
-    console.error('PDF 생성 실패:', error);
-    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.\nnpm install jspdf html2canvas');
-    throw error;
+    // PDF 다운로드
+    const filename = `RIS_Report_${data.ocsId}_${data.patientNumber}.pdf`;
+    console.log('[exportUtils] RIS PDF 저장:', filename);
+    pdf.save(filename);
+
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.error('[exportUtils] RIS PDF 생성 실패:', errorMsg, error);
+    throw new Error(`RIS PDF 생성 실패: ${errorMsg}`);
   }
 };
 
@@ -324,6 +477,12 @@ export const generateLISReportPDF = async (data: {
     doc.setTextColor(100, 100, 100);
     doc.text(`발급일시: ${new Date().toLocaleString('ko-KR')}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
 
+    // 워터마크 적용
+    const watermarkConfig = await getWatermarkConfig();
+    if (watermarkConfig) {
+      applyWatermark(doc, watermarkConfig);
+    }
+
     // PDF 다운로드
     doc.save(`LIS_Report_${data.ocsId}_${data.patientNumber}.pdf`);
 
@@ -365,6 +524,12 @@ export const generateM1ReportPDF = async (data: {
     predicted_months: number;
   };
   processing_time_ms?: number;
+  // MRI 썸네일 이미지 (T1, T1C, T2, FLAIR)
+  mri_thumbnails?: Array<{
+    channel: string;
+    url: string;
+    description?: string;
+  }>;
 }): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
@@ -471,6 +636,30 @@ export const generateM1ReportPDF = async (data: {
       </div>
       ` : ''}
 
+      ${data.mri_thumbnails && data.mri_thumbnails.length > 0 ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">MRI 이미지</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">
+          ${data.mri_thumbnails.map(thumb => {
+            const channelColors: Record<string, string> = {
+              T1: '#3b82f6',
+              T1C: '#ef4444',
+              T2: '#10b981',
+              FLAIR: '#f59e0b',
+            };
+            const color = channelColors[thumb.channel] || '#6b7280';
+            return `
+            <div style="text-align: center;">
+              <img src="${thumb.url}" alt="${thumb.channel}" style="width: 160px; height: 160px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 4px; background: #000;" crossorigin="anonymous" />
+              <p style="margin: 6px 0 0 0; font-size: 12px; font-weight: 600; color: ${color};">${thumb.channel}</p>
+              ${thumb.description ? `<p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">${thumb.description}</p>` : ''}
+            </div>
+          `;
+          }).join('')}
+        </div>
+      </div>
+      ` : ''}
+
       <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
         <div style="display: flex; justify-content: space-between;">
           <div>
@@ -486,7 +675,7 @@ export const generateM1ReportPDF = async (data: {
     `;
 
     document.body.appendChild(container);
-    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', allowTaint: true });
     document.body.removeChild(container);
 
     const imgData = canvas.toDataURL('image/png');
@@ -509,12 +698,20 @@ export const generateM1ReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    pdf.save(`M1_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
+    // 워터마크 적용
+    const watermarkConfig = await getWatermarkConfig();
+    if (watermarkConfig) {
+      applyWatermark(pdf, watermarkConfig);
+    }
 
-  } catch (error) {
-    console.error('PDF 생성 실패:', error);
-    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.');
-    throw error;
+    const filename = `M1_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`;
+    console.log('[exportUtils] M1 PDF 저장:', filename);
+    pdf.save(filename);
+
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.error('[exportUtils] M1 PDF 생성 실패:', errorMsg, error);
+    throw new Error(`M1 PDF 생성 실패: ${errorMsg}`);
   }
 };
 
@@ -717,6 +914,12 @@ export const generateMGReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
+    // 워터마크 적용
+    const watermarkConfig = await getWatermarkConfig();
+    if (watermarkConfig) {
+      applyWatermark(pdf, watermarkConfig);
+    }
+
     pdf.save(`MG_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
 
   } catch (error) {
@@ -895,6 +1098,12 @@ export const generateMMReportPDF = async (data: {
       pdf.addPage();
       pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
       heightLeft -= (pdfHeight - 20);
+    }
+
+    // 워터마크 적용
+    const watermarkConfig = await getWatermarkConfig();
+    if (watermarkConfig) {
+      applyWatermark(pdf, watermarkConfig);
     }
 
     pdf.save(`MM_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
@@ -1103,6 +1312,12 @@ export const generateFinalReportPDF = async (data: {
       pdf.addPage();
       pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
       heightLeft -= (pdfHeight - 20);
+    }
+
+    // 워터마크 적용
+    const watermarkConfig = await getWatermarkConfig();
+    if (watermarkConfig) {
+      applyWatermark(pdf, watermarkConfig);
     }
 
     pdf.save(`Final_Report_${data.reportId}_${data.patientNumber}.pdf`);

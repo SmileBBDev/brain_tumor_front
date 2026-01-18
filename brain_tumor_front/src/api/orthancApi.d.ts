@@ -58,4 +58,6 @@ export function getStudies(patientOrthancId: string): Promise<OrthancStudy[]>;
 export function getSeries(studyOrthancId: string): Promise<OrthancSeries[]>;
 export function getInstances(seriesOrthancId: string): Promise<OrthancInstance[]>;
 export function getInstanceFileUrl(orthancId: string): string;
+export function getSeriesThumbnailUrl(seriesOrthancId: string): string;
+export function getSeriesPreviewBase64(seriesOrthancId: string): Promise<string | null>;
 export function deleteStudy(studyOrthancId: string): Promise<{ success: boolean; message?: string }>;

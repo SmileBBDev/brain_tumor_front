@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import MMResultViewer from '@/components/MMResultViewer'
+import {
+  ModalityRadarChart,
+  AttentionMapViewer,
+  SurvivalChart,
+  GeneBarChart,
+  TumorTrendChart,
+} from '@/components/ai'
 import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
 import './MMDetailPage.css'
@@ -57,6 +64,27 @@ interface MMResult {
       significance: number
     }>
   }
+  // 생존 곡선 데이터 (B 컴포넌트 통합용)
+  survival_curve?: {
+    data: Array<{ time: number; high: number; medium: number; low: number }>
+    patient_risk_group?: 'high' | 'medium' | 'low'
+    median_survival?: { high: number; medium: number; low: number }
+  }
+  // 유전자 중요도 데이터 (B 컴포넌트 통합용)
+  gene_importance?: Array<{
+    name: string
+    importance: number
+    direction?: 'up' | 'down'
+    expressionZscore?: number
+  }>
+  // 종양 부피 이력 데이터 (A 컴포넌트 통합용)
+  tumor_history?: Array<{
+    date: string
+    wt: number
+    tc: number
+    et: number
+    jobId?: string
+  }>
   processing_time_ms?: number
   model_version?: string
 }
@@ -376,107 +404,133 @@ export default function MMDetailPage() {
       {inferenceDetail.result_data?.modality_contributions && (
         <div className="section">
           <h3 className="section-title">모달리티 기여도</h3>
-          <div className="contributions-card">
-            <div className="contributions-grid">
-              {inferenceDetail.result_data.modality_contributions.mri && (
-                <div className="contribution-item mri">
-                  <div className="contribution-header">
-                    <span className="modality-icon">🧠</span>
-                    <span className="modality-name">MRI</span>
+          <div className="contributions-layout">
+            {/* Radar Chart */}
+            <div className="contributions-radar">
+              <ModalityRadarChart
+                data={inferenceDetail.result_data.modality_contributions}
+                title="기여도 레이더"
+              />
+            </div>
+
+            {/* Bar Chart (기존) */}
+            <div className="contributions-card">
+              <h4 className="contributions-card__title">상세 기여도</h4>
+              <div className="contributions-grid">
+                {inferenceDetail.result_data.modality_contributions.mri && (
+                  <div className="contribution-item mri">
+                    <div className="contribution-header">
+                      <span className="modality-icon">🧠</span>
+                      <span className="modality-name">MRI</span>
+                    </div>
+                    <div className="contribution-bar-container">
+                      <div
+                        className="contribution-bar mri"
+                        style={{ width: `${inferenceDetail.result_data.modality_contributions.mri.weight * 100}%` }}
+                      />
+                    </div>
+                    <div className="contribution-values">
+                      <span>가중치: {(inferenceDetail.result_data.modality_contributions.mri.weight * 100).toFixed(1)}%</span>
+                      <span>신뢰도: {(inferenceDetail.result_data.modality_contributions.mri.confidence * 100).toFixed(1)}%</span>
+                    </div>
                   </div>
-                  <div className="contribution-bar-container">
-                    <div
-                      className="contribution-bar mri"
-                      style={{ width: `${inferenceDetail.result_data.modality_contributions.mri.weight * 100}%` }}
-                    />
+                )}
+                {inferenceDetail.result_data.modality_contributions.gene && (
+                  <div className="contribution-item gene">
+                    <div className="contribution-header">
+                      <span className="modality-icon">🧬</span>
+                      <span className="modality-name">Gene</span>
+                    </div>
+                    <div className="contribution-bar-container">
+                      <div
+                        className="contribution-bar gene"
+                        style={{ width: `${inferenceDetail.result_data.modality_contributions.gene.weight * 100}%` }}
+                      />
+                    </div>
+                    <div className="contribution-values">
+                      <span>가중치: {(inferenceDetail.result_data.modality_contributions.gene.weight * 100).toFixed(1)}%</span>
+                      <span>신뢰도: {(inferenceDetail.result_data.modality_contributions.gene.confidence * 100).toFixed(1)}%</span>
+                    </div>
                   </div>
-                  <div className="contribution-values">
-                    <span>가중치: {(inferenceDetail.result_data.modality_contributions.mri.weight * 100).toFixed(1)}%</span>
-                    <span>신뢰도: {(inferenceDetail.result_data.modality_contributions.mri.confidence * 100).toFixed(1)}%</span>
+                )}
+                {inferenceDetail.result_data.modality_contributions.protein && (
+                  <div className="contribution-item protein">
+                    <div className="contribution-header">
+                      <span className="modality-icon">🔬</span>
+                      <span className="modality-name">Protein</span>
+                    </div>
+                    <div className="contribution-bar-container">
+                      <div
+                        className="contribution-bar protein"
+                        style={{ width: `${inferenceDetail.result_data.modality_contributions.protein.weight * 100}%` }}
+                      />
+                    </div>
+                    <div className="contribution-values">
+                      <span>가중치: {(inferenceDetail.result_data.modality_contributions.protein.weight * 100).toFixed(1)}%</span>
+                      <span>신뢰도: {(inferenceDetail.result_data.modality_contributions.protein.confidence * 100).toFixed(1)}%</span>
+                    </div>
                   </div>
-                </div>
-              )}
-              {inferenceDetail.result_data.modality_contributions.gene && (
-                <div className="contribution-item gene">
-                  <div className="contribution-header">
-                    <span className="modality-icon">🧬</span>
-                    <span className="modality-name">Gene</span>
-                  </div>
-                  <div className="contribution-bar-container">
-                    <div
-                      className="contribution-bar gene"
-                      style={{ width: `${inferenceDetail.result_data.modality_contributions.gene.weight * 100}%` }}
-                    />
-                  </div>
-                  <div className="contribution-values">
-                    <span>가중치: {(inferenceDetail.result_data.modality_contributions.gene.weight * 100).toFixed(1)}%</span>
-                    <span>신뢰도: {(inferenceDetail.result_data.modality_contributions.gene.confidence * 100).toFixed(1)}%</span>
-                  </div>
-                </div>
-              )}
-              {inferenceDetail.result_data.modality_contributions.protein && (
-                <div className="contribution-item protein">
-                  <div className="contribution-header">
-                    <span className="modality-icon">🔬</span>
-                    <span className="modality-name">Protein</span>
-                  </div>
-                  <div className="contribution-bar-container">
-                    <div
-                      className="contribution-bar protein"
-                      style={{ width: `${inferenceDetail.result_data.modality_contributions.protein.weight * 100}%` }}
-                    />
-                  </div>
-                  <div className="contribution-values">
-                    <span>가중치: {(inferenceDetail.result_data.modality_contributions.protein.weight * 100).toFixed(1)}%</span>
-                    <span>신뢰도: {(inferenceDetail.result_data.modality_contributions.protein.confidence * 100).toFixed(1)}%</span>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Cross-Modal Correlations */}
-      {inferenceDetail.result_data?.xai?.cross_modal_correlations && (
+      {/* XAI: Attention Map Viewer */}
+      {inferenceDetail.result_data?.xai && (
         <div className="section">
-          <h3 className="section-title">모달리티 간 상관관계</h3>
-          <div className="correlations-card">
-            <table className="correlations-table">
-              <thead>
-                <tr>
-                  <th>모달리티 쌍</th>
-                  <th>상관계수</th>
-                  <th>유의성</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inferenceDetail.result_data.xai.cross_modal_correlations.map((corr, idx) => (
-                  <tr key={idx}>
-                    <td className="modality-pair">{corr.modality_pair}</td>
-                    <td>
-                      <div className="correlation-bar-container">
-                        <div
-                          className={`correlation-bar ${corr.correlation >= 0 ? 'positive' : 'negative'}`}
-                          style={{ width: `${Math.abs(corr.correlation) * 100}%` }}
-                        />
-                        <span className="correlation-value">
-                          {corr.correlation > 0 ? '+' : ''}{corr.correlation.toFixed(3)}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`significance ${corr.significance < 0.05 ? 'significant' : ''}`}>
-                        p = {corr.significance.toFixed(4)}
-                        {corr.significance < 0.05 && ' *'}
-                        {corr.significance < 0.01 && '*'}
-                        {corr.significance < 0.001 && '*'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h3 className="section-title">XAI 분석 (Explainable AI)</h3>
+          <AttentionMapViewer
+            integratedAttention={inferenceDetail.result_data.xai.integrated_attention}
+            crossModalCorrelations={inferenceDetail.result_data.xai.cross_modal_correlations}
+          />
+        </div>
+      )}
+
+      {/* Survival & Gene Analysis (B 컴포넌트 통합) */}
+      {(inferenceDetail.result_data?.survival_curve || inferenceDetail.result_data?.gene_importance) && (
+        <div className="section">
+          <h3 className="section-title">생존 및 유전자 분석</h3>
+          <div className="mm-analysis-grid">
+            {/* 생존 곡선 */}
+            {inferenceDetail.result_data.survival_curve && (
+              <div className="mm-analysis-card">
+                <SurvivalChart
+                  data={inferenceDetail.result_data.survival_curve.data}
+                  patientRiskGroup={inferenceDetail.result_data.survival_curve.patient_risk_group}
+                  patientSurvivalMonths={inferenceDetail.result_data.integrated_prediction?.survival_time?.predicted_months}
+                  medianSurvival={inferenceDetail.result_data.survival_curve.median_survival}
+                  height={300}
+                />
+              </div>
+            )}
+
+            {/* 유전자 중요도 */}
+            {inferenceDetail.result_data.gene_importance && inferenceDetail.result_data.gene_importance.length > 0 && (
+              <div className="mm-analysis-card">
+                <GeneBarChart
+                  data={inferenceDetail.result_data.gene_importance}
+                  maxGenes={10}
+                  title="주요 유전자 기여도"
+                  showDirection={true}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tumor Volume Trend (A 컴포넌트 통합) */}
+      {inferenceDetail.result_data?.tumor_history && inferenceDetail.result_data.tumor_history.length > 0 && (
+        <div className="section">
+          <h3 className="section-title">종양 부피 변화</h3>
+          <div className="mm-tumor-trend-card">
+            <TumorTrendChart
+              data={inferenceDetail.result_data.tumor_history}
+              showTitle={false}
+              height={280}
+            />
           </div>
         </div>
       )}
