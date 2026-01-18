@@ -404,23 +404,38 @@ export default function UploadSection({ onUploaded, ocsInfo, existingStudy, onSt
             {isUploading ? "업로드 중..." : "업로드"}
           </button>
 
-          <button
-            className="btn ghost"
-            onClick={() => resetAll({ clearPatientId: true, clearStudyDesc: true })}
-            disabled={isUploading || hasExistingStudy}
-            title="파일 선택/상태/PatientID/StudyDescription 모두 초기화"
-          >
-            전체 초기화
-          </button>
+          {ocsInfo ? (
+            // OCS 연동: 버튼 1개 (PatientID는 OCS에서 자동 설정되므로 초기화 불필요)
+            <button
+              className="btn ghost"
+              onClick={() => resetAll({ clearPatientId: false, clearStudyDesc: true })}
+              disabled={isUploading || hasExistingStudy}
+              title="파일 선택/상태/StudyDescription 초기화"
+            >
+              초기화
+            </button>
+          ) : (
+            // OCS 비연동: 버튼 2개
+            <>
+              <button
+                className="btn ghost"
+                onClick={() => resetAll({ clearPatientId: true, clearStudyDesc: true })}
+                disabled={isUploading || hasExistingStudy}
+                title="파일 선택/상태/PatientID/StudyDescription 모두 초기화"
+              >
+                전체 초기화
+              </button>
 
-          <button
-            className="btn ghost"
-            onClick={() => resetAll({ clearPatientId: false, clearStudyDesc: false })}
-            disabled={isUploading || hasExistingStudy}
-            title="파일 선택/상태만 초기화 (PatientID/StudyDescription 유지)"
-          >
-            파일만 초기화
-          </button>
+              <button
+                className="btn ghost"
+                onClick={() => resetAll({ clearPatientId: false, clearStudyDesc: false })}
+                disabled={isUploading || hasExistingStudy}
+                title="파일 선택/상태만 초기화 (PatientID/StudyDescription 유지)"
+              >
+                파일만 초기화
+              </button>
+            </>
+          )}
         </div>
 
         {/* status */}

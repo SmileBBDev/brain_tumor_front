@@ -4,9 +4,11 @@ import {
   getMonitorAlertConfig,
   updateMonitorAlertConfig,
   acknowledgeAlert,
+  getLoginFailLogs,
   type SystemMonitorStats,
   type MonitorAlertConfig,
-  type MonitorAlertItem
+  type MonitorAlertItem,
+  type LoginFailLog
 } from '@/services/monitor.api';
 import '@/assets/style/adminPageStyle.css';
 
@@ -38,6 +40,11 @@ export default function SystemMonitorPage() {
     actions: []
   });
 
+  // 로그인 실패 상세 보기 상태
+  const [showLoginFailDetail, setShowLoginFailDetail] = useState(false);
+  const [loginFailLogs, setLoginFailLogs] = useState<LoginFailLog[]>([]);
+  const [loginFailLoading, setLoginFailLoading] = useState(false);
+
   const fetchStats = async () => {
     try {
       setLoading(true);
@@ -59,6 +66,25 @@ export default function SystemMonitorPage() {
     } catch (err) {
       console.error('Failed to fetch alert config:', err);
     }
+  };
+
+  // 로그인 실패 상세 로그 조회
+  const fetchLoginFailLogs = async () => {
+    setLoginFailLoading(true);
+    try {
+      const logs = await getLoginFailLogs();
+      setLoginFailLogs(logs);
+    } catch (err) {
+      console.error('Failed to fetch login fail logs:', err);
+    } finally {
+      setLoginFailLoading(false);
+    }
+  };
+
+  // 로그인 실패 상세 보기 클릭 핸들러
+  const handleShowLoginFailDetail = () => {
+    setShowLoginFailDetail(true);
+    fetchLoginFailLogs();
   };
 
   useEffect(() => {
@@ -606,9 +632,12 @@ export default function SystemMonitorPage() {
                 <label>총 오류 발생</label>
                 <span className="value-large">{stats?.errors.count || 0}건</span>
               </div>
-              <div className="detail-item">
+              <div className="detail-item clickable-row" onClick={handleShowLoginFailDetail}>
                 <label>로그인 실패</label>
-                <span>{stats?.errors.login_fail || 0}건</span>
+                <span className="clickable-value">
+                  {stats?.errors.login_fail || 0}건
+                  <span className="view-detail-hint">상세보기 →</span>
+                </span>
               </div>
               <div className="detail-item">
                 <label>계정 잠금</label>
@@ -638,6 +667,50 @@ export default function SystemMonitorPage() {
                   >
                     확인 완료 (경고 해제)
                   </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 로그인 실패 상세 목록 모달 */}
+      {showLoginFailDetail && (
+        <div className="modal-overlay" onClick={() => setShowLoginFailDetail(false)}>
+          <div className="modal-content login-fail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>로그인 실패 상세 (금일)</h3>
+              <button className="close-btn" onClick={() => setShowLoginFailDetail(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {loginFailLoading ? (
+                <div className="loading-small">로딩 중...</div>
+              ) : loginFailLogs.length === 0 ? (
+                <div className="empty-message">금일 로그인 실패 기록이 없습니다.</div>
+              ) : (
+                <div className="login-fail-list">
+                  <table className="login-fail-table">
+                    <thead>
+                      <tr>
+                        <th>시간</th>
+                        <th>시도 ID</th>
+                        <th>사용자명</th>
+                        <th>IP 주소</th>
+                        <th>유저 에이전트</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loginFailLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td>{new Date(log.created_at).toLocaleTimeString('ko-KR')}</td>
+                          <td>{log.user_login_id || '-'}</td>
+                          <td>{log.user_name || '-'}</td>
+                          <td>{log.ip_address || '-'}</td>
+                          <td className="detail-cell">{log.user_agent || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

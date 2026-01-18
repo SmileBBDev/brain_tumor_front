@@ -129,7 +129,7 @@ export default function ModalityRadarChart({
               formatter={(value) => <span style={{ color: '#333' }}>{value}</span>}
             />
             <Tooltip
-              formatter={(value: number) => `${value.toFixed(1)}%`}
+              formatter={(value) => `${Number(value).toFixed(1)}%`}
               contentStyle={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
                 border: '1px solid #e0e0e0',

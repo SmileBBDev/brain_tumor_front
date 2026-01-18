@@ -7,7 +7,6 @@
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { api } from '@/services/api'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
 import { useAIInference } from '@/context/AIInferenceContext'
 import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer/SegMRIViewer'
 import GeneVisualization, { type GeneExpressionData } from '@/components/ai/GeneVisualization/GeneVisualization'
@@ -132,8 +131,7 @@ function M1Panel({ isResearch: _isResearch }: PanelProps) {
   const [segLoading, setSegLoading] = useState(false)
   const [segError, setSegError] = useState('')
 
-  const { lastMessage } = useAIInferenceWebSocket()
-  const { requestInference } = useAIInference()
+  const { lastMessage, requestInference } = useAIInference()
 
   useEffect(() => {
     loadOcsList()
@@ -532,8 +530,7 @@ function MGPanel({ isResearch: _isResearch }: PanelProps) {
   const [geneLoading, setGeneLoading] = useState(false)
   const [geneError, setGeneError] = useState('')
 
-  const { lastMessage } = useAIInferenceWebSocket()
-  const { requestInference } = useAIInference()
+  const { lastMessage, requestInference } = useAIInference()
 
   useEffect(() => {
     loadOcsList()
@@ -798,8 +795,7 @@ function MMPanel({ isResearch }: PanelProps) {
   const [lastJobId, setLastJobId] = useState<string | null>(null)
   const abortRef = useRef(false)
 
-  const { lastMessage } = useAIInferenceWebSocket()
-  const { requestInference } = useAIInference()
+  const { lastMessage, requestInference } = useAIInference()
 
   useEffect(() => {
     loadData()

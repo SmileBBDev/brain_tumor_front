@@ -618,7 +618,11 @@ class MonitorAlertAcknowledgeView(APIView):
 # PDF 워터마크 기본 설정
 DEFAULT_PDF_WATERMARK_CONFIG = {
     "enabled": False,
+    "type": "text",
     "text": "CONFIDENTIAL",
+    "imageUrl": "",
+    "imageWidth": 50,
+    "imageHeight": 50,
     "position": "diagonal",
     "opacity": 0.15,
     "fontSize": 48,
@@ -651,13 +655,21 @@ class PdfWatermarkConfigView(APIView):
             data = request.data
 
             # 유효성 검사: 필수 필드
-            required_fields = ['enabled', 'text', 'position', 'opacity', 'fontSize', 'color', 'rotation', 'repeatPattern']
+            required_fields = ['enabled', 'type', 'text', 'position', 'opacity', 'fontSize', 'color', 'rotation', 'repeatPattern']
             for field in required_fields:
                 if field not in data:
                     return Response(
                         {'detail': f'{field} 필드가 필요합니다.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
+
+            # type 유효성 검사
+            valid_types = ['text', 'image']
+            if data['type'] not in valid_types:
+                return Response(
+                    {'detail': f'type은 {valid_types} 중 하나여야 합니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # opacity 범위 검사 (0.0 ~ 1.0)
             if not (0 <= float(data['opacity']) <= 1):

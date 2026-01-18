@@ -3,7 +3,7 @@ import { OCSTable, type OCSItem } from '@/components/OCSTable'
 import GeneVisualization from '@/components/GeneVisualization'
 import type { GeneExpressionData } from '@/components/GeneVisualization/GeneVisualization'
 import MGResultViewer from '@/components/MGResultViewer'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 
 interface MGResult {
@@ -116,8 +116,8 @@ export default function MGInferencePage() {
   const [inferenceHistory, setInferenceHistory] = useState<InferenceRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  // WebSocket
-  const { lastMessage, isConnected } = useAIInferenceWebSocket()
+  // WebSocket (from Context)
+  const { lastMessage, isConnected } = useAIInference()
 
   // OCS 데이터 로드
   useEffect(() => {

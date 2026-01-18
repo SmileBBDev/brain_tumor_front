@@ -1,3 +1,7 @@
+import os
+import uuid
+from pathlib import Path
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,6 +10,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 
 from .models import OCS, OCSHistory
@@ -533,7 +538,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             )
 
         # 파일 확장자 검증
-        allowed_extensions = ['.csv', '.hl7', '.json', '.xml']
+        allowed_extensions = ['.csv', '.hl7', '.json', '.xml', '.txt', '.tsv', '.pdf', '.jpg', '.jpeg', '.png']
         file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
         if file_ext not in allowed_extensions:
             return Response(
@@ -548,7 +553,9 @@ class OCSViewSet(viewsets.ModelViewSet):
             'application/json',
             'application/xml', 'text/xml',
             'application/octet-stream',  # HL7 파일
-            'text/plain',  # CSV, HL7 파일이 이 타입으로 올 수 있음
+            'text/plain', 'text/tab-separated-values',  # CSV, HL7, TSV 파일
+            'application/pdf',
+            'image/jpeg', 'image/png',
         ]
         content_type = uploaded_file.content_type
         guessed_type, _ = mimetypes.guess_type(uploaded_file.name)
@@ -588,14 +595,35 @@ class OCSViewSet(viewsets.ModelViewSet):
             },
         }
 
-        # TODO: 실제 파일 저장 로직 (S3, 로컬 등)
-        # 현재는 파일 정보만 기록
+        # 파일을 CDSS_STORAGE/LIS에 저장
+        lis_storage_path = getattr(settings, 'CDSS_LIS_STORAGE', None)
+        if not lis_storage_path:
+            lis_storage_path = Path(settings.BASE_DIR).parent / "CDSS_STORAGE" / "LIS"
+
+        # OCS별 폴더 생성: LIS/ocs_{ocs_id:04d}/
+        ocs_folder_name = f"ocs_{ocs.id:04d}"
+        ocs_folder = Path(lis_storage_path) / ocs_folder_name
+        ocs_folder.mkdir(parents=True, exist_ok=True)
+
+        # 원본 파일명 사용
+        file_path = ocs_folder / uploaded_file.name
+
+        # 파일 저장
+        with open(file_path, 'wb+') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        # 상대 경로 저장 (CDSS_STORAGE 기준)
+        relative_path = f"LIS/{ocs_folder_name}/{uploaded_file.name}"
+
         file_info = {
             "name": uploaded_file.name,
             "size": uploaded_file.size,
             "content_type": uploaded_file.content_type,
             "uploaded_at": timezone.now().isoformat(),
             "uploaded_by": request.user.id,
+            "storage_path": relative_path,  # 실제 저장 경로
+            "full_path": str(file_path),    # 절대 경로 (디버깅용)
         }
 
         # attachments 업데이트
@@ -847,7 +875,7 @@ class OCSViewSet(viewsets.ModelViewSet):
             )
 
         # 파일 확장자 검증
-        allowed_extensions = ['.dcm', '.dicom', '.jpg', '.jpeg', '.png', '.pdf', '.zip']
+        allowed_extensions = ['.dcm', '.dicom', '.jpg', '.jpeg', '.png', '.pdf', '.zip', '.txt', '.csv', '.json', '.tsv']
         file_ext = '.' + uploaded_file.name.split('.')[-1].lower()
         if file_ext not in allowed_extensions:
             return Response(
@@ -863,6 +891,8 @@ class OCSViewSet(viewsets.ModelViewSet):
             'application/pdf',
             'application/zip', 'application/x-zip-compressed',
             'application/octet-stream',  # DICOM 파일
+            'text/plain', 'text/csv', 'text/tab-separated-values',
+            'application/json',
         ]
         content_type = uploaded_file.content_type
         guessed_type, _ = mimetypes.guess_type(uploaded_file.name)
@@ -902,13 +932,35 @@ class OCSViewSet(viewsets.ModelViewSet):
             },
         }
 
-        # TODO: 실제 파일 저장 로직 (S3, 로컬 등)
+        # 파일을 CDSS_STORAGE/RIS에 저장
+        ris_storage_path = getattr(settings, 'CDSS_RIS_STORAGE', None)
+        if not ris_storage_path:
+            ris_storage_path = Path(settings.BASE_DIR).parent / "CDSS_STORAGE" / "RIS"
+
+        # OCS별 폴더 생성: RIS/ocs_{ocs_id:04d}/
+        ocs_folder_name = f"ocs_{ocs.id:04d}"
+        ocs_folder = Path(ris_storage_path) / ocs_folder_name
+        ocs_folder.mkdir(parents=True, exist_ok=True)
+
+        # 원본 파일명 사용
+        file_path = ocs_folder / uploaded_file.name
+
+        # 파일 저장
+        with open(file_path, 'wb+') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        # 상대 경로 저장 (CDSS_STORAGE 기준)
+        relative_path = f"RIS/{ocs_folder_name}/{uploaded_file.name}"
+
         file_info = {
             "name": uploaded_file.name,
             "size": uploaded_file.size,
             "content_type": uploaded_file.content_type,
             "uploaded_at": timezone.now().isoformat(),
             "uploaded_by": request.user.id,
+            "storage_path": relative_path,
+            "full_path": str(file_path),
         }
 
         # attachments 업데이트

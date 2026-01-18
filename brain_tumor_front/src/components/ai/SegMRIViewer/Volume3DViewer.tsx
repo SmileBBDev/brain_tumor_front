@@ -59,7 +59,7 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
   const groupRef = useRef<THREE.Group | null>(null)
 
   const [isRotating, setIsRotating] = useState(true)
-  const [rotationSpeed, setRotationSpeed] = useState(0.005)
+  const [rotationSpeed] = useState(0.005)
   const [zoom, setZoom] = useState(1)
   const [showBrain, setShowBrain] = useState(true)
   const [brainOpacity, setBrainOpacity] = useState(0.15)

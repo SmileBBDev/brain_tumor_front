@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import MMResultViewer from '@/components/MMResultViewer'
 import {
@@ -10,6 +10,13 @@ import {
 } from '@/components/ai'
 import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
+import PdfPreviewModal from '@/components/PdfPreviewModal'
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api'
+import {
+  DocumentPreview,
+  formatConfidence,
+  getGradeVariant,
+} from '@/components/pdf-preview'
 import './MMDetailPage.css'
 
 interface MMResult {
@@ -115,6 +122,7 @@ export default function MMDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [inferenceDetail, setInferenceDetail] = useState<InferenceDetail | null>(null)
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
 
   // 데이터 로드
   useEffect(() => {
@@ -157,8 +165,13 @@ export default function MMDetailPage() {
     }
   }
 
-  // PDF 출력
-  const handleExportPDF = async () => {
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = () => {
+    setPdfPreviewOpen(true)
+  }
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = async (watermarkConfig: PdfWatermarkConfig) => {
     if (!inferenceDetail || !inferenceDetail.result_data) {
       alert('출력할 데이터가 없습니다.')
       return
@@ -180,7 +193,7 @@ export default function MMDetailPage() {
         integrated_prediction: inferenceDetail.result_data.integrated_prediction,
         modality_contributions: inferenceDetail.result_data.modality_contributions,
         processing_time_ms: inferenceDetail.result_data.processing_time_ms,
-      })
+      }, watermarkConfig)
     } catch (err) {
       console.error('PDF 출력 실패:', err)
       alert('PDF 출력에 실패했습니다.')
@@ -271,7 +284,7 @@ export default function MMDetailPage() {
         </div>
         <div className="header-actions">
           {inferenceDetail.status === 'COMPLETED' && (
-            <button onClick={handleExportPDF} className="btn-pdf">
+            <button onClick={handleOpenPdfPreview} className="btn-pdf">
               PDF 출력
             </button>
           )}
@@ -623,6 +636,128 @@ export default function MMDetailPage() {
           </div>
         </div>
       )}
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title="MM 멀티모달 분석 PDF 미리보기"
+      >
+        {inferenceDetail && inferenceDetail.result_data && (() => {
+          const result = inferenceDetail.result_data;
+          const integrated = result.integrated_prediction;
+          const modalities = {
+            mri: !!inferenceDetail.mri_ocs,
+            gene: !!inferenceDetail.gene_ocs,
+            protein: !!inferenceDetail.protein_ocs,
+          };
+          const modalityLabels = [
+            modalities.mri && 'MRI',
+            modalities.gene && 'Gene',
+            modalities.protein && 'Protein',
+          ].filter(Boolean).join(', ');
+
+          return (
+            <DocumentPreview
+              title="멀티모달 (MM) 분석 보고서"
+              subtitle={`Job ID: ${inferenceDetail.job_id}`}
+              infoGrid={[
+                { label: '환자번호', value: inferenceDetail.patient_number || '-' },
+                { label: '환자명', value: inferenceDetail.patient_name || '-' },
+                { label: '분석 모달리티', value: modalityLabels },
+                { label: '요청일시', value: new Date(inferenceDetail.created_at).toLocaleString('ko-KR') },
+                { label: '완료일시', value: inferenceDetail.completed_at ? new Date(inferenceDetail.completed_at).toLocaleString('ko-KR') : '-' },
+                { label: '처리시간', value: result.processing_time_ms ? `${(result.processing_time_ms / 1000).toFixed(2)}초` : '-' },
+              ]}
+              sections={[
+                // 통합 예측 결과
+                ...(integrated ? [{
+                  type: 'result-boxes' as const,
+                  title: '통합 예측 결과',
+                  items: [
+                    {
+                      title: 'Grade 예측',
+                      value: integrated.grade?.predicted_class || '-',
+                      subText: `신뢰도: ${formatConfidence(integrated.grade?.probability)}`,
+                      variant: getGradeVariant(integrated.grade?.predicted_class),
+                    },
+                    ...(integrated.survival_risk ? [{
+                      title: '생존 위험도',
+                      value: integrated.survival_risk.risk_category || `Score: ${integrated.survival_risk.risk_score?.toFixed(2)}`,
+                      subText: integrated.survival_risk.risk_percentile
+                        ? `상위 ${integrated.survival_risk.risk_percentile}%`
+                        : undefined,
+                      variant: (['high', 'High'].includes(integrated.survival_risk.risk_category || '')
+                        ? 'danger'
+                        : ['medium', 'Medium', 'intermediate', 'Intermediate'].includes(integrated.survival_risk.risk_category || '')
+                          ? 'warning'
+                          : 'default') as 'default' | 'warning' | 'danger',
+                    }] : []),
+                    ...(integrated.survival_time ? [{
+                      title: '예측 생존 기간',
+                      value: `${integrated.survival_time.predicted_months?.toFixed(1) || '-'} 개월`,
+                      subText: integrated.survival_time.confidence_interval
+                        ? `(${integrated.survival_time.confidence_interval.lower} - ${integrated.survival_time.confidence_interval.upper}개월)`
+                        : undefined,
+                    }] : []),
+                  ],
+                }] : []),
+                // 모달리티 기여도
+                ...(result.modality_contributions ? [{
+                  type: 'table' as const,
+                  title: '모달리티 기여도',
+                  columns: ['모달리티', '가중치', '신뢰도'],
+                  rows: [
+                    ...(result.modality_contributions.mri ? [{
+                      '모달리티': 'MRI',
+                      '가중치': `${(result.modality_contributions.mri.weight * 100).toFixed(1)}%`,
+                      '신뢰도': `${(result.modality_contributions.mri.confidence * 100).toFixed(1)}%`,
+                    }] : []),
+                    ...(result.modality_contributions.gene ? [{
+                      '모달리티': 'Gene',
+                      '가중치': `${(result.modality_contributions.gene.weight * 100).toFixed(1)}%`,
+                      '신뢰도': `${(result.modality_contributions.gene.confidence * 100).toFixed(1)}%`,
+                    }] : []),
+                    ...(result.modality_contributions.protein ? [{
+                      '모달리티': 'Protein',
+                      '가중치': `${(result.modality_contributions.protein.weight * 100).toFixed(1)}%`,
+                      '신뢰도': `${(result.modality_contributions.protein.confidence * 100).toFixed(1)}%`,
+                    }] : []),
+                  ],
+                }] : []),
+                // 개별 모달리티 결과
+                ...((result.mri_result || result.gene_result || result.protein_result) ? [{
+                  type: 'table' as const,
+                  title: '개별 모달리티 결과',
+                  columns: ['모달리티', 'Grade 예측', '확률', '비고'],
+                  rows: [
+                    ...(result.mri_result?.grade ? [{
+                      '모달리티': 'MRI',
+                      'Grade 예측': result.mri_result.grade.predicted_class,
+                      '확률': `${(result.mri_result.grade.probability * 100).toFixed(1)}%`,
+                      '비고': result.mri_result.segmentation_available ? '세그멘테이션 가능' : '-',
+                    }] : []),
+                    ...(result.gene_result?.grade ? [{
+                      '모달리티': 'Gene',
+                      'Grade 예측': result.gene_result.grade.predicted_class,
+                      '확률': `${(result.gene_result.grade.probability * 100).toFixed(1)}%`,
+                      '비고': result.gene_result.top_genes_count ? `주요 유전자 ${result.gene_result.top_genes_count}개` : '-',
+                    }] : []),
+                    ...(result.protein_result?.grade ? [{
+                      '모달리티': 'Protein',
+                      'Grade 예측': result.protein_result.grade.predicted_class,
+                      '확률': `${(result.protein_result.grade.probability * 100).toFixed(1)}%`,
+                      '비고': result.protein_result.markers_analyzed ? `분석 마커 ${result.protein_result.markers_analyzed}개` : '-',
+                    }] : []),
+                  ],
+                }] : []),
+              ]}
+              signature={{ label: '분석 담당', name: 'AI System' }}
+            />
+          );
+        })()}
+      </PdfPreviewModal>
     </div>
   )
 }

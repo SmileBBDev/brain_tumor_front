@@ -4,6 +4,13 @@ import { InferenceResult } from '@/components/InferenceResult'
 import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer'
 import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
+import PdfPreviewModal from '@/components/PdfPreviewModal'
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api'
+import {
+  DocumentPreview,
+  formatConfidence,
+  getGradeVariant,
+} from '@/components/pdf-preview'
 import './M1DetailPage.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
@@ -78,6 +85,9 @@ export default function M1DetailPage() {
   const [segmentationData, setSegmentationData] = useState<SegmentationData | null>(null)
   const [loadingSegmentation, setLoadingSegmentation] = useState(false)
   const [segmentationError, setSegmentationError] = useState<string>('')
+
+  // PDF 미리보기 모달
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
 
   // 데이터 로드
   useEffect(() => {
@@ -180,8 +190,13 @@ export default function M1DetailPage() {
     }
   }
 
-  // PDF 출력
-  const handleExportPDF = async () => {
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = () => {
+    setPdfPreviewOpen(true)
+  }
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = async (watermarkConfig: PdfWatermarkConfig) => {
     if (!inferenceDetail || !inferenceDetail.result_data) {
       alert('출력할 데이터가 없습니다.')
       return
@@ -244,7 +259,7 @@ export default function M1DetailPage() {
         os_days: inferenceDetail.result_data.os_days,
         processing_time_ms: inferenceDetail.result_data.processing_time_ms,
         mri_thumbnails: mriThumbnails,
-      })
+      }, watermarkConfig)
 
       console.log('[M1 PDF] PDF 출력 완료')
 
@@ -320,7 +335,7 @@ export default function M1DetailPage() {
         </div>
         <div className="header-actions">
           {inferenceDetail.status === 'COMPLETED' && (
-            <button onClick={handleExportPDF} className="btn-pdf">
+            <button onClick={handleOpenPdfPreview} className="btn-pdf">
               PDF 출력
             </button>
           )}
@@ -489,6 +504,71 @@ export default function M1DetailPage() {
           )}
         </div>
       )}
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title="M1 MRI 분석 PDF 미리보기"
+      >
+        {inferenceDetail && inferenceDetail.result_data && (
+          <DocumentPreview
+            title="M1 MRI AI 분석 보고서"
+            subtitle="뇌종양 MRI 영상 AI 진단 결과"
+            infoGrid={[
+              { label: 'Job ID', value: inferenceDetail.job_id },
+              { label: '환자번호', value: inferenceDetail.patient_number },
+              { label: '환자명', value: inferenceDetail.patient_name },
+              { label: '요청일시', value: new Date(inferenceDetail.created_at).toLocaleString('ko-KR') },
+              { label: '완료일시', value: inferenceDetail.completed_at ? new Date(inferenceDetail.completed_at).toLocaleString('ko-KR') : undefined },
+              { label: '처리시간', value: inferenceDetail.result_data.processing_time_ms ? `${(inferenceDetail.result_data.processing_time_ms / 1000).toFixed(2)}초` : undefined },
+            ]}
+            sections={[
+              {
+                type: 'result-boxes',
+                title: 'AI 분석 결과',
+                items: [
+                  ...(inferenceDetail.result_data.grade ? [{
+                    title: '종양 등급 (Grade)',
+                    value: inferenceDetail.result_data.grade.predicted_class,
+                    subText: `신뢰도: ${formatConfidence(inferenceDetail.result_data.grade.probability)}`,
+                    variant: getGradeVariant(inferenceDetail.result_data.grade.predicted_class),
+                  }] : []),
+                  ...(inferenceDetail.result_data.idh ? [{
+                    title: 'IDH 돌연변이',
+                    value: inferenceDetail.result_data.idh.predicted_class,
+                    subText: inferenceDetail.result_data.idh.mutant_probability !== undefined
+                      ? `신뢰도: ${formatConfidence(inferenceDetail.result_data.idh.mutant_probability)}`
+                      : undefined,
+                    variant: 'default' as const,
+                  }] : []),
+                  ...(inferenceDetail.result_data.mgmt ? [{
+                    title: 'MGMT 프로모터 메틸화',
+                    value: inferenceDetail.result_data.mgmt.predicted_class,
+                    subText: inferenceDetail.result_data.mgmt.methylated_probability !== undefined
+                      ? `신뢰도: ${formatConfidence(inferenceDetail.result_data.mgmt.methylated_probability)}`
+                      : undefined,
+                    variant: 'default' as const,
+                  }] : []),
+                  ...(inferenceDetail.result_data.survival ? [{
+                    title: '생존 예후',
+                    value: `${inferenceDetail.result_data.survival.risk_category}${inferenceDetail.result_data.os_days ? ` (예상 생존기간: ${inferenceDetail.result_data.os_days.predicted_days}일)` : ''}`,
+                    subText: `위험 점수: ${inferenceDetail.result_data.survival.risk_score.toFixed(2)}`,
+                    variant: 'default' as const,
+                  }] : []),
+                ],
+              },
+              {
+                type: 'text',
+                title: '주의 사항',
+                content: '본 AI 분석 결과는 의료진의 진단을 보조하기 위한 참고 자료입니다. 최종 진단 및 치료 결정은 반드시 전문 의료진의 판단에 따라 이루어져야 합니다.',
+                variant: 'warning',
+              },
+            ]}
+          />
+        )}
+      </PdfPreviewModal>
     </div>
   )
 }

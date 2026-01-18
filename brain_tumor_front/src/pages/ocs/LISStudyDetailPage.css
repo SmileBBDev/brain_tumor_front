@@ -343,6 +343,16 @@
   font-size: 14px;
 }
 
+.no-files p {
+  margin: 0;
+}
+
+.no-files .allowed-extensions {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
 .result-tab .result-header {
   display: flex;
   justify-content: space-between;

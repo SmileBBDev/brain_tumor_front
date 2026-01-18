@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OCSTable, type OCSItem } from '@/components/OCSTable'
 import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
 import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 import './M1InferencePage.css'
@@ -53,7 +52,7 @@ export default function M1InferencePage() {
   const navigate = useNavigate()
 
   // AI Inference Context (전역 알림 및 FastAPI 상태 감지)
-  const { requestInference, isFastAPIAvailable } = useAIInference()
+  const { requestInference, isFastAPIAvailable, lastMessage, isConnected } = useAIInference()
 
   // State
   const [ocsData, setOcsData] = useState<OCSItem[]>([])
@@ -74,9 +73,6 @@ export default function M1InferencePage() {
   const [segmentationData, setSegmentationData] = useState<SegmentationData | null>(null)
   const [loadingSegmentation, setLoadingSegmentation] = useState(false)
   const [segmentationError, setSegmentationError] = useState<string>('')
-
-  // WebSocket
-  const { lastMessage, isConnected } = useAIInferenceWebSocket()
 
   // OCS 데이터 로드
   useEffect(() => {

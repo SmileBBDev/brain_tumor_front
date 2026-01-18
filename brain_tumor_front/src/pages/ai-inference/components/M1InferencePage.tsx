@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { OCSTable, type OCSItem } from '@/components/OCSTable'
 import { InferenceResult } from '@/components/InferenceResult'
 import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 
 interface M1Result {
@@ -65,8 +65,8 @@ export default function M1InferencePage() {
   const [loadingSegmentation, setLoadingSegmentation] = useState(false)
   const [segmentationError, setSegmentationError] = useState<string>('')
 
-  // WebSocket
-  const { lastMessage, isConnected } = useAIInferenceWebSocket()
+  // WebSocket (from Context)
+  const { lastMessage, isConnected } = useAIInference()
 
   // OCS 데이터 로드
   useEffect(() => {

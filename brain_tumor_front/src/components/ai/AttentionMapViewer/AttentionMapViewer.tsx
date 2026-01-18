@@ -96,7 +96,7 @@ export default function AttentionMapViewer({
                 width={75}
               />
               <Tooltip
-                formatter={(value: number) => [`${(value * 100).toFixed(1)}%`, 'Attention']}
+                formatter={(value) => [`${(Number(value) * 100).toFixed(1)}%`, 'Attention']}
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: '1px solid #e0e0e0',
@@ -105,7 +105,7 @@ export default function AttentionMapViewer({
                 }}
               />
               <Bar dataKey="attention" radius={[0, 4, 4, 0]}>
-                {chartData.map((entry, index) => (
+                {chartData.map((_, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={colorPalette[index % colorPalette.length]}

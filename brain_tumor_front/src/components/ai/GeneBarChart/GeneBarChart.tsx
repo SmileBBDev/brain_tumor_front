@@ -169,7 +169,7 @@ const GeneBarChart: React.FC<GeneBarChartProps> = ({
               <LabelList
                 dataKey="importance"
                 position="right"
-                formatter={(v: number) => `${(v * 100).toFixed(1)}%`}
+                formatter={(v) => `${(Number(v) * 100).toFixed(1)}%`}
                 style={{ fontSize: 11, fill: '#666' }}
               />
             </Bar>

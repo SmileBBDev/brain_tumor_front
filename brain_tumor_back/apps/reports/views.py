@@ -323,7 +323,7 @@ class UnifiedReportDashboardView(APIView):
         if not report_type or report_type in ['AI_M1', 'AI_MG', 'AI_MM']:
             ai_queryset = AIInference.objects.filter(
                 status=AIInference.Status.COMPLETED
-            ).select_related('patient', 'mri_ocs', 'rna_ocs', 'protein_ocs')
+            ).select_related('patient', 'mri_ocs', 'rna_ocs', 'protein_ocs', 'requested_by')
 
             if patient_id:
                 ai_queryset = ai_queryset.filter(patient_id=patient_id)
@@ -387,7 +387,7 @@ class UnifiedReportDashboardView(APIView):
                     'patient_id': report.patient.id if report.patient else None,
                     'patient_number': report.patient.patient_number if report.patient else None,
                     'patient_name': report.patient.name if report.patient else None,
-                    'title': f'{report.get_report_type_display()} - {report.primary_diagnosis[:30]}...' if len(report.primary_diagnosis) > 30 else f'{report.get_report_type_display()} - {report.primary_diagnosis}',
+                    'title': f'{report.get_report_type_display()} - {(report.primary_diagnosis or "")[:30]}...' if report.primary_diagnosis and len(report.primary_diagnosis) > 30 else f'{report.get_report_type_display()} - {report.primary_diagnosis or ""}',
                     'status': report.status,
                     'status_display': report.get_status_display(),
                     'result': None,
@@ -413,7 +413,7 @@ class UnifiedReportDashboardView(APIView):
         if ocs.job_role == 'RIS':
             # Orthanc Study ID가 있으면 실제 DICOM 썸네일 사용
             worker_result = ocs.worker_result or {}
-            orthanc_info = worker_result.get('orthanc', {})
+            orthanc_info = worker_result.get('orthanc') or {}
             orthanc_study_id = orthanc_info.get('orthanc_study_id')
 
             if orthanc_study_id:

@@ -9,10 +9,14 @@ class EncounterListSerializer(serializers.ModelSerializer):
 
     patient_name = serializers.CharField(source='patient.name', read_only=True)
     patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
-    attending_doctor_name = serializers.CharField(source='attending_doctor.name', read_only=True)
+    attending_doctor_name = serializers.SerializerMethodField()
     encounter_type_display = serializers.CharField(source='get_encounter_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     department_display = serializers.CharField(source='get_department_display', read_only=True)
+
+    def get_attending_doctor_name(self, obj):
+        """담당 의사 이름 (None 처리)"""
+        return obj.attending_doctor.name if obj.attending_doctor else None
 
     class Meta:
         model = Encounter
@@ -50,13 +54,21 @@ class EncounterDetailSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.name', read_only=True)
     patient_number = serializers.CharField(source='patient.patient_number', read_only=True)
     patient_gender = serializers.CharField(source='patient.gender', read_only=True)
-    patient_age = serializers.IntegerField(source='patient.age', read_only=True)
-    attending_doctor_name = serializers.CharField(source='attending_doctor.name', read_only=True)
+    patient_age = serializers.SerializerMethodField()
+    attending_doctor_name = serializers.SerializerMethodField()
     encounter_type_display = serializers.CharField(source='get_encounter_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     department_display = serializers.CharField(source='get_department_display', read_only=True)
     duration_days = serializers.ReadOnlyField()
     is_active = serializers.ReadOnlyField()
+
+    def get_patient_age(self, obj):
+        """환자 나이 (None 처리)"""
+        return obj.patient.age if obj.patient else None
+
+    def get_attending_doctor_name(self, obj):
+        """담당 의사 이름 (None 처리)"""
+        return obj.attending_doctor.name if obj.attending_doctor else None
 
     class Meta:
         model = Encounter

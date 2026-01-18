@@ -20,6 +20,9 @@ import {
 } from '@/services/report.api';
 import { LoadingSpinner } from '@/components/common';
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
+import PdfPreviewModal from '@/components/PdfPreviewModal';
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
+import { DocumentPreview } from '@/components/pdf-preview';
 import './ReportDetailPage.css';
 
 // 상태 라벨
@@ -57,6 +60,9 @@ export default function ReportDetailPage() {
   // 처리 상태
   const [processing, setProcessing] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+
+  // PDF 미리보기 모달
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   // 데이터 조회
   const fetchReport = useCallback(async () => {
@@ -249,8 +255,13 @@ export default function ReportDetailPage() {
     setIsEditing(false);
   }, [report]);
 
-  // PDF 출력
-  const handleExportPDF = useCallback(async () => {
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = useCallback(() => {
+    setPdfPreviewOpen(true);
+  }, []);
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = useCallback(async (watermarkConfig: PdfWatermarkConfig) => {
     if (!report) return;
 
     try {
@@ -278,7 +289,7 @@ export default function ReportDetailPage() {
         approvedByName: report.approved_by_name || undefined,
         approvedAt: report.approved_at ? formatDateTime(report.approved_at) : undefined,
         finalizedAt: report.finalized_at ? formatDateTime(report.finalized_at) : undefined,
-      });
+      }, watermarkConfig);
     } catch (err) {
       console.error('PDF 출력 실패:', err);
       alert('PDF 출력에 실패했습니다.');
@@ -335,7 +346,7 @@ export default function ReportDetailPage() {
             </>
           ) : (
             <>
-              <button className="btn btn-secondary" onClick={handleExportPDF}>
+              <button className="btn btn-secondary" onClick={handleOpenPdfPreview}>
                 PDF 출력
               </button>
               {canDelete && (
@@ -660,6 +671,103 @@ export default function ReportDetailPage() {
           </section>
         )}
       </div>
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title="최종 보고서 PDF 미리보기"
+      >
+        {report && (
+          <DocumentPreview
+            title="최종 보고서"
+            subtitle={`${report.report_type_display} | ${report.report_id}`}
+            infoGrid={[
+              { label: '환자번호', value: report.patient_number },
+              { label: '환자명', value: report.patient_name },
+              { label: '보고서 유형', value: report.report_type_display },
+              { label: '상태', value: STATUS_LABELS[report.status] },
+              { label: '진단일', value: formatDate(report.diagnosis_date) },
+              { label: '작성일', value: formatDateTime(report.created_at) },
+            ]}
+            sections={[
+              // 진단 정보
+              ...(report.primary_diagnosis ? [{
+                type: 'text' as const,
+                title: '주 진단명',
+                content: report.primary_diagnosis,
+              }] : []),
+              ...(report.secondary_diagnoses && report.secondary_diagnoses.length > 0 ? [{
+                type: 'text' as const,
+                title: '부 진단명',
+                content: report.secondary_diagnoses.join('\n'),
+              }] : []),
+              ...(report.clinical_findings ? [{
+                type: 'text' as const,
+                title: '임상 소견',
+                content: report.clinical_findings,
+              }] : []),
+              // 치료 정보
+              ...(report.treatment_summary ? [{
+                type: 'text' as const,
+                title: '치료 요약',
+                content: report.treatment_summary,
+              }] : []),
+              ...(report.treatment_plan ? [{
+                type: 'text' as const,
+                title: '향후 치료 계획',
+                content: report.treatment_plan,
+              }] : []),
+              // AI 분석 및 의사 소견
+              ...(report.ai_analysis_summary ? [{
+                type: 'text' as const,
+                title: 'AI 분석 요약',
+                content: report.ai_analysis_summary,
+              }] : []),
+              ...(report.doctor_opinion ? [{
+                type: 'text' as const,
+                title: '의사 소견',
+                content: report.doctor_opinion,
+              }] : []),
+              ...(report.recommendations ? [{
+                type: 'text' as const,
+                title: '권고 사항',
+                content: report.recommendations,
+              }] : []),
+              ...(report.prognosis ? [{
+                type: 'text' as const,
+                title: '예후',
+                content: report.prognosis,
+              }] : []),
+              // 승인 정보
+              ...((report.reviewed_by || report.approved_by) ? [{
+                type: 'table' as const,
+                title: '승인 정보',
+                columns: ['구분', '담당자', '일시'],
+                rows: [
+                  ...(report.reviewed_by ? [{
+                    '구분': '검토',
+                    '담당자': report.reviewed_by_name || '-',
+                    '일시': formatDateTime(report.reviewed_at),
+                  }] : []),
+                  ...(report.approved_by ? [{
+                    '구분': '승인',
+                    '담당자': report.approved_by_name || '-',
+                    '일시': formatDateTime(report.approved_at),
+                  }] : []),
+                  ...(report.finalized_at ? [{
+                    '구분': '최종 확정',
+                    '담당자': '-',
+                    '일시': formatDateTime(report.finalized_at),
+                  }] : []),
+                ],
+              }] : []),
+            ]}
+            signature={{ label: '작성자', name: report.created_by_name || '-' }}
+          />
+        )}
+      </PdfPreviewModal>
     </div>
   );
 }

@@ -2,13 +2,16 @@
  * OCS 결과 보고서 페이지
  * - CONFIRMED 상태의 OCS 결과를 보기 좋게 표시
  * - 환자 정보, 검사 정보, 결과 정보 포함
- * - 인쇄 기능 지원
+ * - PDF 출력 기능 지원 (워터마크 설정 가능)
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getOCS } from '@/services/ocs.api';
 import type { OCSDetail } from '@/types/ocs';
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext';
+import PdfPreviewModal from '@/components/PdfPreviewModal';
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
+import { DocumentPreview } from '@/components/pdf-preview';
 import './OCSResultReportPage.css';
 
 // 날짜 포맷
@@ -50,6 +53,7 @@ export default function OCSResultReportPage() {
   const [ocs, setOcs] = useState<OCSDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const { markAsCached } = useThumbnailCache();
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   const fetchOCSDetail = useCallback(async () => {
     if (!ocsId) return;
@@ -73,10 +77,66 @@ export default function OCSResultReportPage() {
     fetchOCSDetail();
   }, [fetchOCSDetail]);
 
-  // 인쇄
-  const handlePrint = () => {
-    window.print();
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = () => {
+    setPdfPreviewOpen(true);
   };
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = useCallback(async (watermarkConfig: PdfWatermarkConfig) => {
+    if (!ocs) return;
+
+    try {
+      const workerResult = ocs.worker_result || {};
+      const labResults = (workerResult as any).labResults || [];
+      const findings = (workerResult as any).findings || '';
+      const impression = (workerResult as any).impression || '';
+      const recommendation = (workerResult as any).recommendation || '';
+
+      if (ocs.job_role === 'RIS') {
+        // RIS PDF 생성
+        const { generateRISReportPDF } = await import('@/utils/exportUtils');
+        await generateRISReportPDF({
+          ocsId: ocs.ocs_id,
+          patientName: ocs.patient.name,
+          patientNumber: ocs.patient.patient_number,
+          jobType: ocs.job_type,
+          findings: findings,
+          impression: impression,
+          recommendation: recommendation,
+          tumorDetected: ocs.ocs_result === false ? true : ocs.ocs_result === true ? false : null,
+          doctorName: ocs.doctor.name,
+          workerName: ocs.worker?.name || '-',
+          createdAt: formatDate(ocs.created_at),
+          confirmedAt: ocs.confirmed_at ? formatDate(ocs.confirmed_at) : undefined,
+        }, watermarkConfig);
+      } else if (ocs.job_role === 'LIS') {
+        // LIS PDF 생성
+        const { generateLISReportPDF } = await import('@/utils/exportUtils');
+        await generateLISReportPDF({
+          ocsId: ocs.ocs_id,
+          patientName: ocs.patient.name,
+          patientNumber: ocs.patient.patient_number,
+          jobType: ocs.job_type,
+          results: labResults.map((item: any) => ({
+            itemName: item.testName || '',
+            value: item.value || '',
+            unit: item.unit || '',
+            refRange: item.refRange || '',
+            flag: item.flag || 'normal',
+          })),
+          interpretation: (workerResult as any).interpretation || '',
+          doctorName: ocs.doctor.name,
+          workerName: ocs.worker?.name || '-',
+          createdAt: formatDate(ocs.created_at),
+          confirmedAt: ocs.confirmed_at ? formatDate(ocs.confirmed_at) : undefined,
+        }, watermarkConfig);
+      }
+    } catch (err) {
+      console.error('PDF 출력 실패:', err);
+      alert('PDF 출력에 실패했습니다.');
+    }
+  }, [ocs]);
 
   // 뒤로가기
   const handleBack = () => {

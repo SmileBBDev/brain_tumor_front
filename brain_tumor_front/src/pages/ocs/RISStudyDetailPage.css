@@ -527,6 +527,16 @@
   font-size: 0.9rem;
 }
 
+.no-files p {
+  margin: 0;
+}
+
+.no-files .allowed-extensions {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
 /* 검사 결과 항목 섹션 */
 .result-items-section {
   background: white;

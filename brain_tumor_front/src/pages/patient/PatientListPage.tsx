@@ -129,7 +129,6 @@ export default function PatientListPage() {
             <select value={statusFilter} onChange={handleStatusChange}>
               <option value="">전체 상태</option>
               <option value="active">활성</option>
-              <option value="inactive">비활성</option>
               <option value="deceased">사망</option>
             </select>
             <select value={genderFilter} onChange={handleGenderChange}>

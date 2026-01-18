@@ -182,7 +182,7 @@ export default function AdminDashboard() {
           </button>
           <button
             className="admin-tool-btn"
-            onClick={() => navigate('/admin/menu-permission')}
+            onClick={() => navigate('/admin/permissions')}
           >
             <span className="tool-icon">📂</span>
             <span className="tool-label">메뉴 권한</span>
@@ -196,14 +196,14 @@ export default function AdminDashboard() {
           </button>
           <button
             className="admin-tool-btn"
-            onClick={() => navigate('/admin/audit-log')}
+            onClick={() => navigate('/admin/audit')}
           >
             <span className="tool-icon">📝</span>
             <span className="tool-label">감사 로그</span>
           </button>
           <button
             className="admin-tool-btn"
-            onClick={() => navigate('/admin/system-monitor')}
+            onClick={() => navigate('/admin/monitor')}
           >
             <span className="tool-icon">📊</span>
             <span className="tool-label">시스템 모니터</span>

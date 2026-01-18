@@ -6,6 +6,13 @@ import { GeneBarChart } from '@/components/ai/GeneBarChart'
 import { GeneHeatmap } from '@/components/ai/GeneHeatmap'
 import { aiApi } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
+import PdfPreviewModal from '@/components/PdfPreviewModal'
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api'
+import {
+  DocumentPreview,
+  formatConfidence,
+  getRiskVariant,
+} from '@/components/pdf-preview'
 import './MGDetailPage.css'
 
 interface MGResult {
@@ -83,6 +90,7 @@ export default function MGDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [inferenceDetail, setInferenceDetail] = useState<InferenceDetail | null>(null)
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
 
   // 생존 곡선 데이터 생성 (샘플 데이터 - 실제 API 연동 시 교체)
   const survivalChartData = useMemo(() => {
@@ -190,8 +198,13 @@ export default function MGDetailPage() {
     }
   }
 
-  // PDF 출력
-  const handleExportPDF = async () => {
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = () => {
+    setPdfPreviewOpen(true)
+  }
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = async (watermarkConfig: PdfWatermarkConfig) => {
     if (!inferenceDetail || !inferenceDetail.result_data) {
       alert('출력할 데이터가 없습니다.')
       return
@@ -213,7 +226,7 @@ export default function MGDetailPage() {
         top_genes: inferenceDetail.result_data.xai?.top_genes,
         processing_time_ms: inferenceDetail.result_data.processing_time_ms,
         input_genes_count: inferenceDetail.result_data.input_genes_count,
-      })
+      }, watermarkConfig)
     } catch (err) {
       console.error('PDF 출력 실패:', err)
       alert('PDF 출력에 실패했습니다.')
@@ -284,7 +297,7 @@ export default function MGDetailPage() {
         </div>
         <div className="header-actions">
           {inferenceDetail.status === 'COMPLETED' && (
-            <button onClick={handleExportPDF} className="btn-pdf">
+            <button onClick={handleOpenPdfPreview} className="btn-pdf">
               PDF 출력
             </button>
           )}
@@ -474,6 +487,83 @@ export default function MGDetailPage() {
           </div>
         </div>
       )}
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title="MG 유전자 분석 PDF 미리보기"
+      >
+        {inferenceDetail && inferenceDetail.result_data && (
+          <DocumentPreview
+            title="MG 유전자 AI 분석 보고서"
+            subtitle="RNA-seq 기반 뇌종양 유전자 분석 결과"
+            infoGrid={[
+              { label: 'Job ID', value: inferenceDetail.job_id },
+              { label: '환자번호', value: inferenceDetail.patient_number },
+              { label: '환자명', value: inferenceDetail.patient_name },
+              { label: '요청일시', value: new Date(inferenceDetail.created_at).toLocaleString('ko-KR') },
+              { label: '완료일시', value: inferenceDetail.completed_at ? new Date(inferenceDetail.completed_at).toLocaleString('ko-KR') : undefined },
+              { label: '입력 유전자 수', value: inferenceDetail.result_data.input_genes_count ? `${inferenceDetail.result_data.input_genes_count}개` : undefined },
+            ]}
+            sections={[
+              {
+                type: 'result-boxes',
+                title: 'AI 분석 결과',
+                items: [
+                  ...(inferenceDetail.result_data.survival_risk ? [{
+                    title: '생존 위험도',
+                    value: inferenceDetail.result_data.survival_risk.risk_category || '-',
+                    subText: `위험 점수: ${inferenceDetail.result_data.survival_risk.risk_score.toFixed(3)}${inferenceDetail.result_data.survival_risk.risk_percentile ? ` (상위 ${inferenceDetail.result_data.survival_risk.risk_percentile}%)` : ''}`,
+                    variant: getRiskVariant(inferenceDetail.result_data.survival_risk.risk_category),
+                  }] : []),
+                  ...(inferenceDetail.result_data.survival_time ? [{
+                    title: '예상 생존 기간',
+                    value: `${inferenceDetail.result_data.survival_time.predicted_months} 개월`,
+                    subText: inferenceDetail.result_data.survival_time.confidence_interval ? `95% 신뢰구간: ${inferenceDetail.result_data.survival_time.confidence_interval.lower} - ${inferenceDetail.result_data.survival_time.confidence_interval.upper} 개월` : undefined,
+                    variant: 'default' as const,
+                  }] : []),
+                  ...(inferenceDetail.result_data.grade ? [{
+                    title: '종양 등급 예측',
+                    value: inferenceDetail.result_data.grade.predicted_class,
+                    subText: `신뢰도: ${formatConfidence(inferenceDetail.result_data.grade.probability)}`,
+                    variant: 'default' as const,
+                  }] : []),
+                  ...(inferenceDetail.result_data.recurrence ? [{
+                    title: '재발 위험도',
+                    value: inferenceDetail.result_data.recurrence.predicted_class || '-',
+                    subText: `재발 확률: ${formatConfidence(inferenceDetail.result_data.recurrence.probability)}`,
+                    variant: getRiskVariant(inferenceDetail.result_data.recurrence.predicted_class),
+                  }] : []),
+                  ...(inferenceDetail.result_data.tmz_response ? [{
+                    title: 'Temozolomide 반응 예측',
+                    value: inferenceDetail.result_data.tmz_response.predicted_class,
+                    subText: `신뢰도: ${formatConfidence(inferenceDetail.result_data.tmz_response.probability)}`,
+                    variant: 'default' as const,
+                  }] : []),
+                ],
+              },
+              ...(inferenceDetail.result_data.xai?.top_genes && inferenceDetail.result_data.xai.top_genes.length > 0 ? [{
+                type: 'table' as const,
+                title: `주요 유전자 (Top ${Math.min(10, inferenceDetail.result_data.xai.top_genes.length)})`,
+                columns: ['순위', '유전자명', '중요도'],
+                rows: inferenceDetail.result_data.xai.top_genes.slice(0, 10).map((gene: any, idx: number) => ({
+                  '순위': idx + 1,
+                  '유전자명': gene.gene_name,
+                  '중요도': gene.importance.toFixed(4),
+                })),
+              }] : []),
+              {
+                type: 'text',
+                title: '주의 사항',
+                content: '본 AI 분석 결과는 의료진의 진단을 보조하기 위한 참고 자료입니다. 최종 진단 및 치료 결정은 반드시 전문 의료진의 판단에 따라 이루어져야 합니다.',
+                variant: 'warning',
+              },
+            ]}
+          />
+        )}
+      </PdfPreviewModal>
     </div>
   )
 }

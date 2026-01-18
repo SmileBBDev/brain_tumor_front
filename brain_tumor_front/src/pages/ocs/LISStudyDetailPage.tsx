@@ -9,19 +9,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { getOCS, startOCS, saveOCSResult, confirmOCS } from '@/services/ocs.api';
+import { getOCS, startOCS, saveOCSResult, confirmOCS, uploadLISFile } from '@/services/ocs.api';
 import type { OCSDetail, GeneMutation, ProteinMarker } from '@/types/ocs';
 import { getLISCategory, LIS_CATEGORY_LABELS } from '@/utils/ocs.utils';
 import { aiApi } from '@/services/ai.api';
 import {
   type StoredFileInfo,
   type FileWithData,
-  processFileUpload,
   loadFilesWithData,
-  removeFileFromStorage,
   migrateFilesToStorage,
 } from '@/utils/fileStorage';
 import AIAnalysisPanel from './components/AIAnalysisPanel';
+import PdfPreviewModal from '@/components/PdfPreviewModal';
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
+import {
+  DocumentPreview,
+  formatDate as formatDatePreview,
+  getGenderDisplay,
+} from '@/components/pdf-preview';
 import './LISStudyDetailPage.css';
 
 // 탭 타입 - genetic, protein 탭 추가
@@ -113,6 +118,9 @@ export default function LISStudyDetailPage() {
   // AI 추론 상태
   const [aiRequesting, setAiRequesting] = useState(false);
   const [aiJobId, setAiJobId] = useState<string | null>(null);
+
+  // PDF 미리보기 모달
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   // 검사 카테고리 확인
   const testCategory = ocs ? getLISCategory(ocs.job_type) : 'BLOOD';
@@ -283,34 +291,41 @@ export default function LISStudyDetailPage() {
     setProteinMarkers(proteinMarkers.filter((_, i) => i !== index));
   };
 
-  // 파일 업로드 핸들러 (LocalStorage에 저장)
+  // 파일 업로드 핸들러 (서버 CDSS_STORAGE/LIS에 저장)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !ocs) return;
 
-    // 파일별로 LocalStorage에 저장 후 상태 업데이트
-    const uploadPromises = Array.from(files).map(async (file) => {
+    // 파일별로 서버에 업로드
+    for (const file of Array.from(files)) {
       try {
-        const storedInfo = await processFileUpload(file, ocs.id);
-        // UI용 dataUrl도 함께 로드
+        // 백엔드 API 호출하여 CDSS_STORAGE/LIS에 저장
+        const response = await uploadLISFile(ocs.id, file);
+
+        // 서버 응답의 파일 정보를 StoredFileInfo 형식으로 변환
         const fileWithData: FileWithData = {
-          ...storedInfo,
-          dataUrl: localStorage.getItem(storedInfo.storageKey) || undefined,
+          name: response.file.name,
+          size: response.file.size,
+          type: response.file.content_type,
+          uploadedAt: response.file.uploaded_at,
+          storageKey: response.file.storage_path || '', // 서버 저장 경로
         };
-        return fileWithData;
+
+        setUploadedFiles((prev) => [...prev, fileWithData]);
+
+        // RNA_SEQ 타입이고 CSV 파일인 경우 자동으로 RNA 시퀀싱 데이터 경로 설정
+        if (ocs.job_type === 'RNA_SEQ' && file.name.toLowerCase().endsWith('.csv')) {
+          const storagePath = response.file.storage_path || `LIS/${ocs.id}/${response.file.name}`;
+          setRnaSeqPath(storagePath);
+        }
       } catch (error) {
         console.error('파일 업로드 실패:', file.name, error);
         alert(`파일 업로드 실패: ${file.name}\n${(error as Error).message}`);
-        return null;
       }
-    });
-
-    const results = await Promise.all(uploadPromises);
-    const successfulUploads = results.filter((r): r is FileWithData => r !== null);
-
-    if (successfulUploads.length > 0) {
-      setUploadedFiles((prev) => [...prev, ...successfulUploads]);
     }
+
+    // 업로드 성공 시 OCS 데이터 새로고침 (attachments 업데이트 반영)
+    await fetchOCSDetail();
 
     // 입력 초기화
     if (fileInputRef.current) {
@@ -318,12 +333,8 @@ export default function LISStudyDetailPage() {
     }
   };
 
-  // 파일 삭제 (LocalStorage에서도 삭제)
+  // 파일 삭제 (서버에서는 삭제하지 않고 UI에서만 제거 - 추후 삭제 API 추가 가능)
   const handleRemoveFile = (index: number) => {
-    const fileToRemove = uploadedFiles[index];
-    if (fileToRemove?.storageKey) {
-      removeFileFromStorage(fileToRemove.storageKey);
-    }
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
@@ -545,8 +556,13 @@ export default function LISStudyDetailPage() {
     }
   };
 
-  // PDF 출력
-  const handleExportPDF = async () => {
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = () => {
+    setPdfPreviewOpen(true);
+  };
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = async (watermarkConfig: PdfWatermarkConfig) => {
     if (!ocs) return;
 
     try {
@@ -568,7 +584,7 @@ export default function LISStudyDetailPage() {
         workerName: ocs.worker?.name || '-',
         createdAt: formatDate(ocs.created_at),
         confirmedAt: ocs.result_ready_at ? formatDate(ocs.result_ready_at) : undefined,
-      });
+      }, watermarkConfig);
     } catch (error) {
       console.error('PDF 출력 실패:', error);
       alert('PDF 출력에 실패했습니다. jspdf 패키지가 설치되어 있는지 확인하세요.');
@@ -709,20 +725,20 @@ export default function LISStudyDetailPage() {
           )}
           {['RESULT_READY', 'CONFIRMED'].includes(ocs.ocs_status) && (
             <>
-              {/* AI 분석 요청 버튼 (CONFIRMED 상태 + RNA_SEQ만) */}
+              {/* MG 추론 버튼 (CONFIRMED 상태 + RNA_SEQ만) */}
               {ocs.ocs_status === 'CONFIRMED' && ocs.job_type === 'RNA_SEQ' && (
                 <button
                   className="btn btn-ai"
                   onClick={handleRequestAIInference}
                   disabled={aiRequesting}
-                  title="MG AI 분석 요청"
+                  title="MG 추론 요청"
                 >
                   {aiRequesting && aiJobId
                     ? `'${aiJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
-                    : '🤖 AI 분석'}
+                    : 'MG 추론'}
                 </button>
               )}
-              <button className="btn btn-secondary" onClick={handleExportPDF}>
+              <button className="btn btn-secondary" onClick={handleOpenPdfPreview}>
                 PDF 출력
               </button>
             </>
@@ -929,7 +945,7 @@ export default function LISStudyDetailPage() {
                       ref={fileInputRef}
                       type="file"
                       multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.csv,.doc,.docx"
+                      accept=".pdf,.jpg,.jpeg,.png,.csv,.json,.txt,.tsv,.hl7,.xml"
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}
                       id="file-upload"
@@ -965,7 +981,10 @@ export default function LISStudyDetailPage() {
                 </ul>
               ) : (
                 <div className="no-files">
-                  첨부된 파일이 없습니다. {canEdit && '파일을 업로드하세요.'}
+                  <p>첨부된 파일이 없습니다. {canEdit && '파일을 업로드하세요.'}</p>
+                  <p className="allowed-extensions">
+                    허용 확장자: PDF, JPG, PNG, CSV, JSON, TXT, TSV, HL7, XML
+                  </p>
                 </div>
               )}
             </div>
@@ -1550,6 +1569,52 @@ export default function LISStudyDetailPage() {
           </div>
         )}
       </section>
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title="LIS 검사 결과 PDF 미리보기"
+      >
+        {ocs && (
+          <DocumentPreview
+            title="검사 결과 보고서"
+            subtitle="LIS (Laboratory Information System)"
+            infoGrid={[
+              { label: '환자번호', value: ocs.patient.patient_number },
+              { label: '환자명', value: ocs.patient.name },
+              { label: '검사번호', value: ocs.ocs_id },
+              { label: '검사유형', value: ocs.job_type },
+              { label: '처방의', value: ocs.doctor.name },
+              { label: '검사자', value: ocs.worker?.name },
+              { label: '검사일', value: formatDatePreview(ocs.created_at) },
+              { label: '확정일', value: formatDatePreview(ocs.result_ready_at) },
+            ]}
+            sections={[
+              {
+                type: 'table',
+                title: '검사 결과',
+                columns: ['검사항목', '결과값', '단위', '참고범위', '플래그'],
+                rows: labResults.map(r => ({
+                  '검사항목': r.testName,
+                  '결과값': r.value,
+                  '단위': r.unit,
+                  '참고범위': r.refRange,
+                  '플래그': r.flag === 'abnormal' ? 'H' : r.flag === 'critical' ? 'HH' : '-',
+                })),
+                emptyText: '검사 결과가 없습니다.',
+              },
+              ...(interpretation ? [{
+                type: 'text' as const,
+                title: '의학적 해석 (Interpretation)',
+                content: interpretation,
+              }] : []),
+            ]}
+            signature={{ label: '검사자', name: ocs.worker?.name || '-' }}
+          />
+        )}
+      </PdfPreviewModal>
     </div>
   );
 }

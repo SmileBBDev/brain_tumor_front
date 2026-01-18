@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MMResultViewer from '@/components/MMResultViewer'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
 import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 import './MMInferencePage.css'
@@ -77,7 +76,7 @@ export default function MMInferencePage() {
   const navigate = useNavigate()
 
   // AI Inference Context (전역 알림 및 FastAPI 상태 감지)
-  const { requestInference, isFastAPIAvailable } = useAIInference()
+  const { requestInference, isFastAPIAvailable, lastMessage, isConnected } = useAIInference()
 
   // State
   const [_loading, setLoading] = useState(false)
@@ -104,9 +103,6 @@ export default function MMInferencePage() {
   // 추론 이력
   const [inferenceHistory, setInferenceHistory] = useState<InferenceRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-
-  // WebSocket
-  const { lastMessage, isConnected } = useAIInferenceWebSocket()
 
   useEffect(() => {
     loadAllOcsData()

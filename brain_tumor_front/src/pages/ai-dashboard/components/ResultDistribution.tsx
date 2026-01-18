@@ -62,7 +62,7 @@ export default function ResultDistribution({ data, loading = false }: ResultDist
             outerRadius={90}
             paddingAngle={2}
             dataKey="value"
-            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+            label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
             labelLine={{ stroke: '#666', strokeWidth: 1 }}
           >
             {chartData.map((entry) => (
@@ -75,7 +75,7 @@ export default function ResultDistribution({ data, loading = false }: ResultDist
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number, name: string) => [
+            formatter={(value, name) => [
               `${value}건`,
               LABELS[name as keyof typeof LABELS],
             ]}

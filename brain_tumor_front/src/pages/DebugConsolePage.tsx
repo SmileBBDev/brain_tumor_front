@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAIInferenceWebSocket } from '../hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 
 interface LogEntry {
   id: number
@@ -30,8 +30,9 @@ export default function DebugConsolePage() {
   const logIdRef = useRef(0)
   const requestIdRef = useRef(0)
 
-  // WebSocket
-  const { lastMessage, isConnected, connectionState } = useAIInferenceWebSocket()
+  // WebSocket (from Context)
+  const { lastMessage, isConnected } = useAIInference()
+  const connectionState = isConnected ? 'connected' : 'disconnected'
 
   // Add log entry
   const addLog = (type: LogEntry['type'], message: string, details?: any) => {

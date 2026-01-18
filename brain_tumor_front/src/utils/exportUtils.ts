@@ -41,87 +41,145 @@ const getWatermarkConfig = async (): Promise<PdfWatermarkConfig | null> => {
 };
 
 /**
- * HEX 색상을 RGB 배열로 변환
+ * 텍스트를 캔버스로 렌더링하여 이미지로 변환 (한글 지원)
  */
-const hexToRgb = (hex: string): [number, number, number] => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (result) {
-    return [
-      parseInt(result[1], 16),
-      parseInt(result[2], 16),
-      parseInt(result[3], 16)
-    ];
-  }
-  return [200, 200, 200]; // 기본 회색
+const renderTextToImage = async (
+  text: string,
+  fontSize: number,
+  color: string,
+  opacity: number,
+  rotation: number
+): Promise<string> => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas context not available');
+
+  // 폰트 설정
+  const fontFamily = "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+  ctx.font = `bold ${fontSize}px ${fontFamily}`;
+
+  // 텍스트 크기 측정
+  const metrics = ctx.measureText(text);
+  const textWidth = metrics.width;
+  const textHeight = fontSize;
+
+  // 회전을 고려한 캔버스 크기 계산
+  const radians = (Math.abs(rotation) * Math.PI) / 180;
+  const canvasWidth = Math.ceil(textWidth * Math.cos(radians) + textHeight * Math.sin(radians)) + 20;
+  const canvasHeight = Math.ceil(textWidth * Math.sin(radians) + textHeight * Math.cos(radians)) + 20;
+
+  canvas.width = canvasWidth * 2; // 고해상도
+  canvas.height = canvasHeight * 2;
+
+  // 다시 폰트 설정 (캔버스 크기 변경 후 리셋됨)
+  ctx.font = `bold ${fontSize * 2}px ${fontFamily}`;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = opacity;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 회전 적용
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.fillText(text, 0, 0);
+
+  return canvas.toDataURL('image/png');
 };
 
 /**
- * PDF에 워터마크 적용
+ * PDF에 워터마크 적용 (이미지/텍스트 모두 지원, 한글 지원)
  */
-const applyWatermark = (pdf: jsPDF, config: PdfWatermarkConfig): void => {
-  if (!config.enabled || !config.text) return;
+const applyWatermark = async (pdf: jsPDF, config: PdfWatermarkConfig): Promise<void> => {
+  if (!config.enabled) return;
+
+  // type 필드가 없으면 text로 기본 설정 (하위 호환성)
+  const watermarkType = config.type || 'text';
+
+  if (watermarkType === 'text' && !config.text) return;
+  if (watermarkType === 'image' && !config.imageUrl) return;
 
   const pageCount = pdf.getNumberOfPages();
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const rgb = hexToRgb(config.color);
+
+  // 이미지 워터마크 또는 텍스트를 이미지로 변환
+  let watermarkImage: string;
+  let imgWidth: number;
+  let imgHeight: number;
+
+  if (watermarkType === 'image' && config.imageUrl) {
+    watermarkImage = config.imageUrl;
+    imgWidth = config.imageWidth || 50;
+    imgHeight = config.imageHeight || 50;
+  } else {
+    // 텍스트를 이미지로 변환 (한글 지원)
+    watermarkImage = await renderTextToImage(
+      config.text,
+      config.fontSize,
+      config.color,
+      config.opacity,
+      config.rotation
+    );
+    // 텍스트 이미지 크기 계산 (대략적)
+    imgWidth = config.fontSize * config.text.length * 0.6;
+    imgHeight = config.fontSize * 1.2;
+  }
 
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
 
-    // 워터마크 스타일 설정
-    pdf.setFontSize(config.fontSize);
-    pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
-
-    // GState로 투명도 설정 (jsPDF 2.x 이상)
-    // @ts-ignore - GState는 jsPDF 확장 기능
-    if (pdf.GState) {
+    // GState로 투명도 설정 (이미지 워터마크용)
+    if (watermarkType === 'image') {
       // @ts-ignore
-      const gState = new pdf.GState({ opacity: config.opacity });
-      // @ts-ignore
-      pdf.setGState(gState);
+      if (pdf.GState) {
+        // @ts-ignore
+        const gState = new pdf.GState({ opacity: config.opacity });
+        // @ts-ignore
+        pdf.setGState(gState);
+      }
     }
 
     if (config.repeatPattern) {
       // 패턴 반복
-      const spacing = config.fontSize * 3;
-      for (let x = -pageWidth; x < pageWidth * 2; x += spacing) {
-        for (let y = 0; y < pageHeight + spacing; y += spacing) {
-          pdf.text(config.text, x, y, { angle: config.rotation });
+      const spacingX = imgWidth * 1.5;
+      const spacingY = imgHeight * 2;
+      for (let x = 0; x < pageWidth + spacingX; x += spacingX) {
+        for (let y = 0; y < pageHeight + spacingY; y += spacingY) {
+          try {
+            pdf.addImage(watermarkImage, 'PNG', x - imgWidth / 2, y - imgHeight / 2, imgWidth, imgHeight);
+          } catch {
+            // 이미지 추가 실패 시 무시
+          }
         }
       }
     } else {
       // 단일 워터마크
       let x: number, y: number;
-      let align: 'center' | 'left' | 'right' = 'center';
 
       switch (config.position) {
         case 'center':
         case 'diagonal':
-          x = pageWidth / 2;
-          y = pageHeight / 2;
-          align = 'center';
+          x = (pageWidth - imgWidth) / 2;
+          y = (pageHeight - imgHeight) / 2;
           break;
         case 'top-right':
-          x = pageWidth - 20;
-          y = 30;
-          align = 'right';
+          x = pageWidth - imgWidth - 10;
+          y = 10;
           break;
         case 'bottom-right':
-          x = pageWidth - 20;
-          y = pageHeight - 20;
-          align = 'right';
+          x = pageWidth - imgWidth - 10;
+          y = pageHeight - imgHeight - 10;
           break;
         default:
-          x = pageWidth / 2;
-          y = pageHeight / 2;
-          align = 'center';
+          x = (pageWidth - imgWidth) / 2;
+          y = (pageHeight - imgHeight) / 2;
       }
 
-      pdf.text(config.text, x, y, {
-        angle: config.rotation,
-        align: align
-      });
+      try {
+        pdf.addImage(watermarkImage, 'PNG', x, y, imgWidth, imgHeight);
+      } catch (e) {
+        console.warn('워터마크 이미지 추가 실패:', e);
+      }
     }
 
     // 투명도 초기화
@@ -211,7 +269,7 @@ export const generateRISReportPDF = async (data: {
     dataUrl: string;  // base64 이미지 또는 URL
     description?: string;
   }>;
-}): Promise<void> => {
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     // 동적 import (패키지 설치 필요: npm install jspdf html2canvas)
     const { jsPDF } = await import('jspdf');
@@ -356,10 +414,10 @@ export const generateRISReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    // 워터마크 적용
-    const watermarkConfig = await getWatermarkConfig();
-    if (watermarkConfig) {
-      applyWatermark(pdf, watermarkConfig);
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(pdf, finalWatermarkConfig);
     }
 
     // PDF 다운로드
@@ -394,7 +452,7 @@ export const generateLISReportPDF = async (data: {
   workerName: string;
   createdAt: string;
   confirmedAt?: string;
-}): Promise<void> => {
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
@@ -477,10 +535,10 @@ export const generateLISReportPDF = async (data: {
     doc.setTextColor(100, 100, 100);
     doc.text(`발급일시: ${new Date().toLocaleString('ko-KR')}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
 
-    // 워터마크 적용
-    const watermarkConfig = await getWatermarkConfig();
-    if (watermarkConfig) {
-      applyWatermark(doc, watermarkConfig);
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(doc, finalWatermarkConfig);
     }
 
     // PDF 다운로드
@@ -530,7 +588,7 @@ export const generateM1ReportPDF = async (data: {
     url: string;
     description?: string;
   }>;
-}): Promise<void> => {
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
     const html2canvas = (await import('html2canvas')).default;
@@ -698,10 +756,10 @@ export const generateM1ReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    // 워터마크 적용
-    const watermarkConfig = await getWatermarkConfig();
-    if (watermarkConfig) {
-      applyWatermark(pdf, watermarkConfig);
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(pdf, finalWatermarkConfig);
     }
 
     const filename = `M1_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`;
@@ -752,7 +810,7 @@ export const generateMGReportPDF = async (data: {
   }>;
   processing_time_ms?: number;
   input_genes_count?: number;
-}): Promise<void> => {
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
     const html2canvas = (await import('html2canvas')).default;
@@ -914,10 +972,10 @@ export const generateMGReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    // 워터마크 적용
-    const watermarkConfig = await getWatermarkConfig();
-    if (watermarkConfig) {
-      applyWatermark(pdf, watermarkConfig);
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(pdf, finalWatermarkConfig);
     }
 
     pdf.save(`MG_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
@@ -963,7 +1021,7 @@ export const generateMMReportPDF = async (data: {
     protein?: { weight: number; confidence: number };
   };
   processing_time_ms?: number;
-}): Promise<void> => {
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
     const html2canvas = (await import('html2canvas')).default;
@@ -1100,10 +1158,10 @@ export const generateMMReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    // 워터마크 적용
-    const watermarkConfig = await getWatermarkConfig();
-    if (watermarkConfig) {
-      applyWatermark(pdf, watermarkConfig);
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(pdf, finalWatermarkConfig);
     }
 
     pdf.save(`MM_Report_${data.jobId}_${data.patientNumber || 'unknown'}.pdf`);
@@ -1141,7 +1199,7 @@ export const generateFinalReportPDF = async (data: {
   approvedByName?: string;
   approvedAt?: string;
   finalizedAt?: string;
-}): Promise<void> => {
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
     const html2canvas = (await import('html2canvas')).default;
@@ -1314,10 +1372,10 @@ export const generateFinalReportPDF = async (data: {
       heightLeft -= (pdfHeight - 20);
     }
 
-    // 워터마크 적용
-    const watermarkConfig = await getWatermarkConfig();
-    if (watermarkConfig) {
-      applyWatermark(pdf, watermarkConfig);
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(pdf, finalWatermarkConfig);
     }
 
     pdf.save(`Final_Report_${data.reportId}_${data.patientNumber}.pdf`);

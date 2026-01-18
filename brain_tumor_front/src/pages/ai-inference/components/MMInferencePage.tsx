@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import MMResultViewer from '@/components/MMResultViewer'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
+import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 
 interface MMResult {
@@ -97,8 +97,8 @@ export default function MMInferencePage() {
   const [inferenceHistory, setInferenceHistory] = useState<InferenceRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  // WebSocket
-  const { lastMessage, isConnected } = useAIInferenceWebSocket()
+  // WebSocket (from Context)
+  const { lastMessage, isConnected } = useAIInference()
 
   // 초기 데이터 로드
   useEffect(() => {

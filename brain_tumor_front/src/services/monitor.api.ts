@@ -91,3 +91,33 @@ export const unacknowledgeAlert = async (alertType: string): Promise<void> => {
     params: { alert_type: alertType },
   });
 };
+
+// 로그인 실패 상세 로그 타입
+export type LoginFailLog = {
+  id: number;
+  user: number | null;
+  user_login_id: string | null;
+  user_name: string | null;
+  user_role: string | null;
+  action: string;
+  action_display: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+/**
+ * 오늘 로그인 실패 상세 로그 조회
+ */
+export const getLoginFailLogs = async (): Promise<LoginFailLog[]> => {
+  const today = new Date().toISOString().split('T')[0];
+  const response = await api.get('/audit/', {
+    params: {
+      action: 'LOGIN_FAIL',
+      date_from: today,
+      date_to: today,
+      page_size: 100,
+    },
+  });
+  return response.data.results || [];
+};

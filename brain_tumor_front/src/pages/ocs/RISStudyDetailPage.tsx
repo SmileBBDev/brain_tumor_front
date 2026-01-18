@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { getOCS, startOCS, saveOCSResult, confirmOCS } from '@/services/ocs.api';
+import { getOCS, startOCS, saveOCSResult, confirmOCS, uploadRISFile } from '@/services/ocs.api';
 import type { OCSDetail, RISWorkerResult } from '@/types/ocs';
 import { OCS_STATUS_LABELS } from '@/types/ocs';
 import { aiApi } from '@/services/ai.api';
@@ -19,11 +19,16 @@ import { getSeries } from '@/api/orthancApi';
 import {
   type StoredFileInfo,
   type FileWithData,
-  processFileUpload,
   loadFilesWithData,
-  removeFileFromStorage,
   migrateFilesToStorage,
 } from '@/utils/fileStorage';
+import PdfPreviewModal from '@/components/PdfPreviewModal';
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
+import {
+  DocumentPreview,
+  formatDate as formatDatePreview,
+  getGenderDisplay,
+} from '@/components/pdf-preview';
 import './RISStudyDetailPage.css';
 
 // 검사 결과 항목 타입
@@ -88,6 +93,10 @@ export default function RISStudyDetailPage() {
   const [_aiInferenceStatus, setAiInferenceStatus] = useState<'none' | 'pending' | 'processing' | 'completed' | 'failed'>('none');
   const [aiJobId, setAiJobId] = useState<string | null>(null);
   const [aiRequesting, setAiRequesting] = useState(false);
+
+  // PDF 미리보기 모달
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [previewThumbnails, setPreviewThumbnails] = useState<Array<{ channel: string; url: string }>>([]);
 
   // URL 쿼리 파라미터 처리 (tab, openViewer)
   useEffect(() => {
@@ -163,33 +172,31 @@ export default function RISStudyDetailPage() {
     setImageResults(imageResults.filter((_, i) => i !== index));
   };
 
-  // 파일 업로드 핸들러 (LocalStorage에 저장)
+  // 파일 업로드 핸들러 (서버에 저장)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !ocsDetail) return;
 
-    // 파일별로 LocalStorage에 저장 후 상태 업데이트
-    const uploadPromises = Array.from(files).map(async (file) => {
+    // 파일별로 서버에 업로드
+    for (const file of Array.from(files)) {
       try {
-        const storedInfo = await processFileUpload(file, ocsDetail.id);
-        // UI용 dataUrl도 함께 로드
-        const fileWithData: FileWithData = {
-          ...storedInfo,
-          dataUrl: localStorage.getItem(storedInfo.storageKey) || undefined,
-        };
-        return fileWithData;
+        const response = await uploadRISFile(ocsDetail.id, file);
+
+        // 서버 응답에서 파일 정보 추출
+        if (response.file) {
+          const fileWithData: FileWithData = {
+            name: response.file.name,
+            size: response.file.size,
+            type: response.file.content_type,
+            uploadedAt: response.file.uploaded_at,
+            storageKey: response.file.storage_path || response.file.full_path || '',
+          };
+          setUploadedFiles((prev) => [...prev, fileWithData]);
+        }
       } catch (error) {
         console.error('파일 업로드 실패:', file.name, error);
         alert(`파일 업로드 실패: ${file.name}\n${(error as Error).message}`);
-        return null;
       }
-    });
-
-    const results = await Promise.all(uploadPromises);
-    const successfulUploads = results.filter((r): r is FileWithData => r !== null);
-
-    if (successfulUploads.length > 0) {
-      setUploadedFiles((prev) => [...prev, ...successfulUploads]);
     }
 
     if (fileInputRef.current) {
@@ -197,12 +204,9 @@ export default function RISStudyDetailPage() {
     }
   };
 
-  // 파일 삭제 (LocalStorage에서도 삭제)
+  // 파일 삭제 (UI에서만 제거 - 서버 삭제 API 필요 시 추가 구현)
   const handleRemoveFile = (index: number) => {
-    const fileToRemove = uploadedFiles[index];
-    if (fileToRemove?.storageKey) {
-      removeFileFromStorage(fileToRemove.storageKey);
-    }
+    // TODO: 서버에서 파일 삭제 API 호출 필요
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
@@ -354,8 +358,42 @@ export default function RISStudyDetailPage() {
     alert('EMR 전송 기능은 준비 중입니다.');
   };
 
-  // PDF 출력
-  const handleExportPDF = async () => {
+  // PDF 미리보기 열기
+  const handleOpenPdfPreview = async () => {
+    setPdfPreviewOpen(true);
+
+    // 미리보기용 썸네일 로드
+    if (ocsDetail) {
+      const orthancInfo = (ocsDetail.worker_result as any)?.orthanc;
+      if (orthancInfo?.series && orthancInfo.series.length > 0) {
+        try {
+          const { getSeriesPreviewBase64 } = await import('@/api/orthancApi');
+          const thumbs: Array<{ channel: string; url: string }> = [];
+
+          for (const series of orthancInfo.series) {
+            const seriesId = series.orthanc_id;
+            const seriesLabel = series.series_type || series.description || 'DICOM';
+            if (seriesId && seriesLabel !== 'SEG') {
+              try {
+                const base64 = await getSeriesPreviewBase64(seriesId);
+                if (base64) {
+                  thumbs.push({ channel: seriesLabel, url: base64 });
+                }
+              } catch (e) {
+                console.error('썸네일 로드 실패:', seriesLabel, e);
+              }
+            }
+          }
+          setPreviewThumbnails(thumbs);
+        } catch (e) {
+          console.error('썸네일 로드 실패:', e);
+        }
+      }
+    }
+  };
+
+  // PDF 출력 (워터마크 설정 적용)
+  const handleExportPDF = async (watermarkConfig: PdfWatermarkConfig) => {
     if (!ocsDetail) return;
 
     console.log('[RIS PDF] PDF 출력 시작, OCS ID:', ocsDetail.ocs_id);
@@ -425,7 +463,7 @@ export default function RISStudyDetailPage() {
         createdAt: formatDate(ocsDetail.created_at),
         confirmedAt: ocsDetail.result_ready_at ? formatDate(ocsDetail.result_ready_at) : undefined,
         thumbnails: thumbnails.length > 0 ? thumbnails : undefined,
-      });
+      }, watermarkConfig);
 
       console.log('[RIS PDF] PDF 출력 완료');
 
@@ -690,17 +728,17 @@ export default function RISStudyDetailPage() {
                   className="btn btn-ai"
                   onClick={handleRequestAIInference}
                   disabled={aiRequesting}
-                  title="M1 AI 분석 요청"
+                  title="M1 추론 요청"
                 >
                   {aiRequesting && aiJobId
                     ? `'${aiJobId}' 요청 중, 현재 페이지를 벗어나도 괜찮습니다`
-                    : '🤖 AI 분석'}
+                    : 'M1 추론'}
                 </button>
               )}
               <button className="btn btn-success" onClick={handleSendToEMR}>
                 EMR 전송
               </button>
-              <button className="btn btn-secondary" onClick={handleExportPDF}>
+              <button className="btn btn-secondary" onClick={handleOpenPdfPreview}>
                 PDF 출력
               </button>
             </>
@@ -974,7 +1012,7 @@ export default function RISStudyDetailPage() {
                       ref={fileInputRef}
                       type="file"
                       multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.dcm,.dicom"
+                      accept=".pdf,.jpg,.jpeg,.png,.dcm,.dicom,.txt,.csv,.json,.tsv"
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}
                       id="ris-file-upload"
@@ -1010,7 +1048,10 @@ export default function RISStudyDetailPage() {
                 </ul>
               ) : (
                 <div className="no-files">
-                  첨부된 파일이 없습니다. {canEdit && '파일을 업로드하세요.'}
+                  <p>첨부된 파일이 없습니다. {canEdit && '파일을 업로드하세요.'}</p>
+                  <p className="allowed-extensions">
+                    허용 확장자: PDF, JPG, PNG, DICOM, TXT, CSV, JSON, TSV
+                  </p>
                 </div>
               )}
             </div>
@@ -1187,6 +1228,58 @@ export default function RISStudyDetailPage() {
         isMyWork={isMyWork}
         workerName={ocsDetail?.worker?.name}
       />
+
+      {/* PDF 미리보기 모달 */}
+      <PdfPreviewModal
+        isOpen={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        onConfirm={handleExportPDF}
+        title="RIS 영상 판독 PDF 미리보기"
+      >
+        {ocsDetail && (
+          <DocumentPreview
+            title="영상 판독 보고서"
+            subtitle="RIS (Radiology Information System)"
+            infoGrid={[
+              { label: '환자번호', value: ocsDetail.patient.patient_number },
+              { label: '환자명', value: ocsDetail.patient.name },
+              { label: '검사번호', value: ocsDetail.ocs_id },
+              { label: '검사유형', value: ocsDetail.job_type || 'MRI' },
+              { label: '처방의', value: ocsDetail.doctor.name },
+              { label: '판독의', value: ocsDetail.worker?.name },
+              { label: '검사일', value: formatDatePreview(ocsDetail.created_at) },
+              { label: '확정일', value: formatDatePreview(ocsDetail.result_ready_at) },
+            ]}
+            sections={[
+              ...(previewThumbnails.length > 0 ? [{
+                type: 'thumbnails' as const,
+                title: 'MRI 영상',
+                items: previewThumbnails.map(t => ({ label: t.channel, url: t.url })),
+              }] : []),
+              {
+                type: 'result-boxes' as const,
+                title: '판독 결과',
+                items: [
+                  ...(tumorDetected !== null ? [{
+                    title: '종양 검출',
+                    value: tumorDetected ? '종양 검출됨' : '종양 미검출',
+                    variant: tumorDetected ? 'danger' as const : 'default' as const,
+                  }] : []),
+                  {
+                    title: '소견 (Impression)',
+                    value: impression || (ocsDetail.worker_result as RISWorkerResult)?.impression || '소견 내용 없음',
+                  },
+                  {
+                    title: '권고사항 (Recommendation)',
+                    value: recommendation || (ocsDetail.worker_result as RISWorkerResult)?.recommendation || '권고사항 없음',
+                  },
+                ],
+              },
+            ]}
+            signature={{ label: '판독의', name: ocsDetail.worker?.name || '-' }}
+          />
+        )}
+      </PdfPreviewModal>
     </div>
   );
 }

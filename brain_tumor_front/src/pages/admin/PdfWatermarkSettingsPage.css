@@ -380,3 +380,155 @@
   text-align: center;
   margin: 12px 0 0 0;
 }
+
+/* Type Selector */
+.pdf-watermark-page .type-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.pdf-watermark-page .type-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pdf-watermark-page .type-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.pdf-watermark-page .type-btn.active {
+  border-color: #3b82f6;
+  background: #3b82f6;
+  color: white;
+}
+
+.pdf-watermark-page .type-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Image Upload */
+.pdf-watermark-page .image-upload-area {
+  margin-top: 8px;
+}
+
+.pdf-watermark-page .image-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.2s;
+  gap: 8px;
+}
+
+.pdf-watermark-page .image-drop-zone:hover:not(.disabled) {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.pdf-watermark-page .image-drop-zone.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pdf-watermark-page .image-drop-zone .drop-icon {
+  font-size: 32px;
+}
+
+.pdf-watermark-page .image-drop-zone .drop-hint {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.pdf-watermark-page .image-preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.pdf-watermark-page .image-preview {
+  max-width: 150px;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-watermark-page .image-remove-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pdf-watermark-page .image-remove-btn:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.pdf-watermark-page .image-remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form Row Group (for side-by-side inputs) */
+.pdf-watermark-page .form-row-group {
+  display: flex;
+  gap: 12px;
+}
+
+.pdf-watermark-page .form-row.half {
+  flex: 1;
+}
+
+/* Preview Image */
+.pdf-watermark-page .preview-watermark .single-image {
+  max-width: 60px;
+  max-height: 60px;
+  object-fit: contain;
+}
+
+.pdf-watermark-page .preview-watermark .repeat-image {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.pdf-watermark-page .preview-watermark:not(.repeat) .single-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pdf-watermark-page .preview-watermark.top-right:not(.repeat) .single-image {
+  position: static;
+  transform: none;
+}
+
+.pdf-watermark-page .preview-watermark.bottom-right:not(.repeat) .single-image {
+  position: static;
+  transform: none;
+}

@@ -149,6 +149,8 @@ export interface LISUploadResponse {
     content_type: string;
     uploaded_at: string;
     uploaded_by: number;
+    storage_path?: string;  // CDSS_STORAGE 상대 경로
+    full_path?: string;     // 절대 경로 (디버깅용)
   };
   external_source: {
     institution: {
@@ -288,6 +290,8 @@ export interface RISUploadResponse {
     content_type: string;
     uploaded_at: string;
     uploaded_by: number;
+    storage_path?: string;  // CDSS_STORAGE 상대 경로
+    full_path?: string;     // 절대 경로 (디버깅용)
   };
   external_source: {
     institution: {

@@ -36,6 +36,41 @@ export interface AIInferenceNotification {
   timestamp: string;
 }
 
+// WebSocket 메시지 타입 (useAIInferenceWebSocket 호환)
+export interface AIInferenceMessage {
+  type: string;
+  request_id?: string;
+  job_id?: string;
+  status: string;
+  patient_id?: number;
+  model_code?: string;
+  result?: {
+    grade?: {
+      predicted_class: string;
+      probability: number;
+      probabilities?: Record<string, number>;
+    };
+    idh?: {
+      predicted_class: string;
+      mutant_probability: number;
+    };
+    mgmt?: {
+      predicted_class: string;
+      methylated_probability: number;
+    };
+    survival?: {
+      risk_score: number;
+      risk_category: string;
+    };
+    os_days?: {
+      predicted_days: number;
+      predicted_months: number;
+    };
+    processing_time_ms?: number;
+  };
+  error?: string;
+}
+
 interface AIInferenceContextValue {
   // 작업 상태
   jobs: Map<string, AIJob>;
@@ -48,6 +83,9 @@ interface AIInferenceContextValue {
   // 연결 상태
   isConnected: boolean;
   isFastAPIAvailable: boolean;
+
+  // WebSocket 메시지 (useAIInferenceWebSocket 호환)
+  lastMessage: AIInferenceMessage | null;
 
   // 작업 요청
   requestInference: (modelType: AIModelType, params: any) => Promise<AIJob | null>;
@@ -77,6 +115,7 @@ export function AIInferenceProvider({ children }: Props) {
   const [notifications, setNotifications] = useState<AIInferenceNotification[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isFastAPIAvailable, setIsFastAPIAvailable] = useState(true);
+  const [lastMessage, setLastMessage] = useState<AIInferenceMessage | null>(null);
 
   // jobs 변경 시 ref도 동기화
   useEffect(() => {
@@ -176,6 +215,9 @@ export function AIInferenceProvider({ children }: Props) {
         console.log('[AI Context] WebSocket 메시지:', data);
 
         if (data.type === 'pong') return;
+
+        // lastMessage 업데이트 (useAIInferenceWebSocket 호환)
+        setLastMessage(data);
 
         // AI 추론 결과 수신
         if (data.type === 'AI_INFERENCE_RESULT') {
@@ -419,6 +461,7 @@ export function AIInferenceProvider({ children }: Props) {
     removeNotification,
     isConnected,
     isFastAPIAvailable,
+    lastMessage,
     requestInference,
     getJob,
     refreshJob,

@@ -4,7 +4,6 @@ import { OCSTable, type OCSItem } from '@/components/OCSTable'
 import GeneVisualization from '@/components/GeneVisualization'
 import type { GeneExpressionData } from '@/components/GeneVisualization/GeneVisualization'
 import MGResultViewer from '@/components/MGResultViewer'
-import { useAIInferenceWebSocket } from '@/hooks/useAIInferenceWebSocket'
 import { useAIInference } from '@/context/AIInferenceContext'
 import { ocsApi, aiApi } from '@/services/ai.api'
 import './MGInferencePage.css'
@@ -84,7 +83,7 @@ export default function MGInferencePage() {
   const navigate = useNavigate()
 
   // AI Inference Context (전역 알림 및 FastAPI 상태 감지)
-  const { requestInference, isFastAPIAvailable } = useAIInference()
+  const { requestInference, isFastAPIAvailable, lastMessage, isConnected } = useAIInference()
 
   // State
   const [ocsData, setOcsData] = useState<OCSItem[]>([])
@@ -109,9 +108,6 @@ export default function MGInferencePage() {
   // 추론 이력
   const [inferenceHistory, setInferenceHistory] = useState<InferenceRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-
-  // WebSocket
-  const { lastMessage, isConnected } = useAIInferenceWebSocket()
 
   // OCS 데이터 로드
   useEffect(() => {

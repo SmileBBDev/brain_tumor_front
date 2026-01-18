@@ -1272,3 +1272,87 @@ label {
 .delete-alert-btn:hover {
   background: #fecaca;
 }
+
+/* 클릭 가능한 상세 항목 */
+.detail-item.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 6px;
+  padding: 12px 8px;
+  margin: 0 -8px;
+}
+
+.detail-item.clickable-row:hover {
+  background-color: #f3f4f6;
+}
+
+.clickable-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-detail-hint {
+  font-size: 12px;
+  color: #3b82f6;
+  font-weight: 400;
+}
+
+/* 로그인 실패 상세 모달 */
+.login-fail-modal {
+  width: 700px;
+  max-width: 90vw;
+}
+
+.login-fail-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.login-fail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.login-fail-table th,
+.login-fail-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.login-fail-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #6b7280;
+  position: sticky;
+  top: 0;
+}
+
+.login-fail-table td {
+  color: #374151;
+}
+
+.login-fail-table tr:hover {
+  background: #f9fafb;
+}
+
+.login-fail-table .detail-cell {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading-small {
+  padding: 40px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.empty-message {
+  padding: 40px;
+  text-align: center;
+  color: #9ca3af;
+}
