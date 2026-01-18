@@ -43,6 +43,15 @@ if (!globalSocket || globalSocket.readyState === WebSocket.CLOSED) {
 
 **문제**: 로그아웃 시 OCS WebSocket을 명시적으로 종료하지 않아 다음 로그인 시 이전 연결 재사용
 
+
+
+
+
+
+
+
+
+
 ## 해결 방법
 
 ### 1. `ocsSocket.ts` - 토큰 변경 감지 및 재연결
