@@ -104,7 +104,7 @@ class EncounterViewSet(viewsets.ModelViewSet):
         if end_date:
             queryset = queryset.filter(admission_date__lte=end_date)
 
-        return queryset.select_related('patient', 'attending_doctor')
+        return queryset.select_related('patient', 'attending_doctor').order_by('-admission_date')
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -168,10 +168,21 @@ class EncounterViewSet(viewsets.ModelViewSet):
                     )
 
                 encounter.status = 'completed'
+                now = timezone.now()
+
                 if not encounter.discharge_date:
-                    encounter.discharge_date = timezone.now()
+                    encounter.discharge_date = now
+
+                # 예약 시간(admission_date)이 퇴원 시간보다 미래인 경우
+                # 실제 진료 시간으로 조정 (퇴원 1분 전으로 설정)
+                update_fields = ['status', 'discharge_date']
+                if encounter.admission_date and encounter.admission_date > encounter.discharge_date:
+                    from datetime import timedelta
+                    encounter.admission_date = encounter.discharge_date - timedelta(minutes=1)
+                    update_fields.append('admission_date')
+
                 # update_fields로 필요한 필드만 업데이트 (full_clean 건너뜀)
-                encounter.save(update_fields=['status', 'discharge_date'])
+                encounter.save(update_fields=update_fields)
 
             serializer = self.get_serializer(encounter)
             return Response(serializer.data)

@@ -141,7 +141,9 @@ class Encounter(models.Model):
                 raise ValidationError('퇴원 일시는 입원 일시보다 이후여야 합니다.')
 
     def save(self, *args, **kwargs):
-        self.full_clean()
+        # update_fields가 지정된 경우 full_clean 건너뜀 (부분 업데이트)
+        if not kwargs.get('update_fields'):
+            self.full_clean()
         super().save(*args, **kwargs)
 
     @property

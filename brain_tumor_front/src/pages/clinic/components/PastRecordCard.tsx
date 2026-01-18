@@ -50,14 +50,19 @@ export default function PastRecordCard({
   const [prescriptions, setPrescriptions] = useState<PrescriptionListItem[]>([]);
   const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
 
-  // 완료된 진료 기록만 필터링 (최근 순)
+  // 완료된 진료 기록만 필터링 (최근 순 - admission_date 기준)
   const pastRecords = useMemo(() => {
     return encounters
       .filter((e) => e.status === 'completed')
       .sort((a, b) => {
-        const dateA = a.admission_date || a.encounter_date || '';
-        const dateB = b.admission_date || b.encounter_date || '';
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
+        // admission_date를 우선 사용, 없으면 encounter_date 또는 created_at 사용
+        const dateA = a.admission_date || a.encounter_date || a.created_at || '';
+        const dateB = b.admission_date || b.encounter_date || b.created_at || '';
+        // 유효하지 않은 날짜는 맨 뒤로 보냄
+        const timeA = dateA ? new Date(dateA).getTime() : 0;
+        const timeB = dateB ? new Date(dateB).getTime() : 0;
+        // 내림차순 정렬 (최근 날짜가 먼저)
+        return timeB - timeA;
       })
       .slice(0, 10);
   }, [encounters]);
