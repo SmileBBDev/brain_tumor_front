@@ -1435,11 +1435,95 @@ def create_dummy_prescriptions(num_prescriptions=20, num_items_per_rx=3, force=F
     return True
 
 
+def copy_patient_data_for_external(ocs_id: str, job_type: str, job_role: str) -> bool:
+    """
+    기존 patient_data에서 랜덤 환자 데이터를 CDSS_STORAGE로 복사
+    - LIS: RNA_SEQ → rna 폴더, BIOMARKER → protein 폴더
+    - RIS: MRI → mri 폴더
+    """
+    import shutil
+    import json
+
+    # 경로 설정
+    base_dir = Path(__file__).resolve().parent.parent.parent  # brain_tumor_dev
+    patient_data_dir = base_dir / 'patient_data'
+    cdss_storage_dir = base_dir / 'CDSS_STORAGE'
+
+    # patient_data 폴더에서 사용 가능한 환자 목록
+    available_patients = [d for d in patient_data_dir.iterdir() if d.is_dir() and d.name.startswith('TCGA-')]
+    if not available_patients:
+        print(f"    [WARNING] patient_data에 복사할 환자 데이터가 없습니다.")
+        return False
+
+    # 랜덤 환자 선택
+    source_patient = random.choice(available_patients)
+
+    if job_role == 'LIS':
+        target_dir = cdss_storage_dir / 'LIS' / ocs_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        if job_type == 'RNA_SEQ':
+            # RNA 데이터 복사
+            source_rna_dir = source_patient / 'rna'
+            if source_rna_dir.exists():
+                for file in source_rna_dir.iterdir():
+                    if file.suffix in ['.csv', '.json']:
+                        shutil.copy2(file, target_dir / file.name)
+                # summary에 patient_id 업데이트
+                summary_file = target_dir / 'rna_summary.json'
+                if summary_file.exists():
+                    with open(summary_file, 'r', encoding='utf-8') as f:
+                        summary = json.load(f)
+                    summary['patient_id'] = source_patient.name
+                    summary['source'] = f"external_{source_patient.name}"
+                    with open(summary_file, 'w', encoding='utf-8') as f:
+                        json.dump(summary, f, indent=2)
+                return True
+
+        elif job_type == 'BIOMARKER':
+            # Protein 데이터 복사
+            source_protein_dir = source_patient / 'protein'
+            if source_protein_dir.exists():
+                for file in source_protein_dir.iterdir():
+                    if file.suffix in ['.csv', '.json']:
+                        shutil.copy2(file, target_dir / file.name)
+                # summary에 patient_id 업데이트
+                summary_file = target_dir / 'protein_summary.json'
+                if summary_file.exists():
+                    with open(summary_file, 'r', encoding='utf-8') as f:
+                        summary = json.load(f)
+                    summary['patient_id'] = source_patient.name
+                    summary['source'] = f"external_{source_patient.name}"
+                    with open(summary_file, 'w', encoding='utf-8') as f:
+                        json.dump(summary, f, indent=2)
+                return True
+
+    elif job_role == 'RIS':
+        target_dir = cdss_storage_dir / 'RIS' / ocs_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        if job_type == 'MRI':
+            # MRI 데이터 복사 (nii.gz 파일들)
+            source_mri_dir = source_patient / 'mri'
+            if source_mri_dir.exists():
+                for subdir in source_mri_dir.iterdir():
+                    if subdir.is_dir():
+                        target_subdir = target_dir / subdir.name
+                        target_subdir.mkdir(parents=True, exist_ok=True)
+                        for file in subdir.iterdir():
+                            if file.suffix in ['.gz', '.nii']:
+                                shutil.copy2(file, target_subdir / file.name)
+                return True
+
+    return False
+
+
 def create_external_ocs_data(force=False):
     """
     외부기관 OCS 더미 데이터 생성
-    - LIS 외부 데이터: extr_0001 ~ extr_0010
-    - RIS 외부 데이터: risx_0001 ~ risx_0010
+    - LIS 외부 데이터: extr_0001 ~ extr_0010 (RNA_SEQ, BIOMARKER)
+    - RIS 외부 데이터: risx_0001 ~ risx_0010 (MRI)
+    - patient_data에서 실제 파일을 CDSS_STORAGE로 복사
     """
     print("\n[12단계] 외부기관 OCS 데이터 생성...")
 
@@ -1477,7 +1561,8 @@ def create_external_ocs_data(force=False):
     created_ris = 0
 
     # LIS 외부 데이터 생성 (extr_0001 ~ extr_0010)
-    lis_job_types = ['RNA_SEQ', 'BIOMARKER', 'GENE_PANEL', 'CBC', 'CMP']
+    # RNA_SEQ와 BIOMARKER만 사용 (실제 파일이 있는 타입)
+    lis_job_types = ['RNA_SEQ', 'BIOMARKER']
     for i in range(10):
         ocs_id = f"extr_{i+1:04d}"
         if OCS.objects.filter(ocs_id=ocs_id).exists():
@@ -1485,10 +1570,14 @@ def create_external_ocs_data(force=False):
 
         patient = random.choice(patients)
         user = random.choice(external_users)
-        job_type = random.choice(lis_job_types)
+        # 짝수는 RNA_SEQ, 홀수는 BIOMARKER
+        job_type = lis_job_types[i % 2]
         days_ago = random.randint(1, 30)
 
         try:
+            # 파일 복사
+            file_copied = copy_patient_data_for_external(ocs_id, job_type, 'LIS')
+
             with transaction.atomic():
                 ocs = OCS.objects.create(
                     ocs_id=ocs_id,
@@ -1518,6 +1607,7 @@ def create_external_ocs_data(force=False):
                     },
                     attachments={
                         "files": [],
+                        "has_data_files": file_copied,
                         "external_source": {
                             "institution": {
                                 "name": user.name if user else "외부기관",
@@ -1531,13 +1621,14 @@ def create_external_ocs_data(force=False):
                     result_ready_at=now - timedelta(days=days_ago - 1),
                 )
                 created_lis += 1
-                print(f"  [+] LIS 외부: {ocs_id} ({job_type}) - {patient.patient_number}")
+                file_status = "✓" if file_copied else "✗"
+                print(f"  [+] LIS 외부: {ocs_id} ({job_type}) - {patient.patient_number} [파일:{file_status}]")
 
         except Exception as e:
             print(f"  [ERROR] {ocs_id}: {e}")
 
     # RIS 외부 데이터 생성 (risx_0001 ~ risx_0010)
-    ris_job_types = ['MRI', 'CT', 'PET']
+    # MRI만 사용 (실제 파일이 있는 타입)
     for i in range(10):
         ocs_id = f"risx_{i+1:04d}"
         if OCS.objects.filter(ocs_id=ocs_id).exists():
@@ -1545,10 +1636,13 @@ def create_external_ocs_data(force=False):
 
         patient = random.choice(patients)
         user = random.choice(external_users)
-        job_type = random.choice(ris_job_types)
+        job_type = 'MRI'
         days_ago = random.randint(1, 30)
 
         try:
+            # 파일 복사
+            file_copied = copy_patient_data_for_external(ocs_id, job_type, 'RIS')
+
             with transaction.atomic():
                 ocs = OCS.objects.create(
                     ocs_id=ocs_id,
@@ -1577,6 +1671,7 @@ def create_external_ocs_data(force=False):
                     },
                     attachments={
                         "files": [],
+                        "has_data_files": file_copied,
                         "external_source": {
                             "institution": {
                                 "name": user.name if user else "외부기관",
@@ -1590,7 +1685,8 @@ def create_external_ocs_data(force=False):
                     result_ready_at=now - timedelta(days=days_ago - 1),
                 )
                 created_ris += 1
-                print(f"  [+] RIS 외부: {ocs_id} ({job_type}) - {patient.patient_number}")
+                file_status = "✓" if file_copied else "✗"
+                print(f"  [+] RIS 외부: {ocs_id} ({job_type}) - {patient.patient_number} [파일:{file_status}]")
 
         except Exception as e:
             print(f"  [ERROR] {ocs_id}: {e}")

@@ -5,10 +5,27 @@
 
   "RemoteAccessAllowed" : true,
   "AuthenticationEnabled" : false,
-  "RegisteredUsers" : {
-    "orthanc" : "orthanc"
-  },
+  "RegisteredUsers" : {},
 
   "DicomAet" : "ORTHANC",
-  "SslEnabled" : false
+  "SslEnabled" : false,
+
+  "HttpsCACertificates" : "",
+  "StrictAetComparison" : false,
+  "DicomCheckCalledAet" : false,
+
+  "DicomAlwaysAllowEcho" : true,
+  "DicomAlwaysAllowStore" : true,
+  "DicomAlwaysAllowFind" : true,
+  "DicomAlwaysAllowFindWorklist" : true,
+  "DicomAlwaysAllowGet" : true,
+  "DicomAlwaysAllowMove" : true,
+
+  "OrthancExplorer2" : {
+    "Enable" : true,
+    "IsDefaultOrthancUI" : true,
+    "UiOptions" : {
+      "EnableAnonymousAccess" : true
+    }
+  }
 }

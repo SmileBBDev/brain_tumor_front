@@ -14,11 +14,24 @@ services:
     ports:
       - "8042:8042"   # HTTP Web UI
       - "4242:4242"   # DICOM Protocol
+    environment:
+      # 인증 완전 비활성화 (외부 접근 허용)
+      - ORTHANC__AUTHENTICATION_ENABLED=false
+      - ORTHANC__REMOTE_ACCESS_ALLOWED=true
+      # HTTP 서버 설정
+      - ORTHANC__HTTP_SERVER_HOST=0.0.0.0
+      # Authorization 플러그인 완전 비활성화
+      - AUTHORIZATION_PLUGIN_ENABLED=false
+      - ORTHANC__AUTHORIZATION__ENABLE=false
+      - ORTHANC__AUTHORIZATION__CHECK_VIEWERS=false
+      # Orthanc Explorer 2 익명 접근 허용
+      - ORTHANC__ORTHANC_EXPLORER_2__IS_DEFAULT_ORTHANC_UI=true
+      - ORTHANC__ORTHANC_EXPLORER_2__UI__ENABLE_ANONYMOUS_ACCESS=true
     volumes:
       - ./orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
       - orthanc_data:/var/lib/orthanc/db
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8042/system"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8042/system || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
