@@ -56,7 +56,7 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
         gender: summary.patient.gender,
         birthDate: summary.patient.birth_date,
         phone: summary.patient.phone,
-        bloodType: summary.patient.blood_type,
+        bloodType: summary.patient.blood_type ?? undefined,
         address: summary.patient.address,
         encounters: summary.encounters,
         ocsHistory: summary.ocs_history,
@@ -268,6 +268,7 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
               ]}
               sections={[
                 {
+                  type: 'text' as const,
                   title: `진료 이력 (${summary.encounters.length}건)`,
                   content: summary.encounters.length > 0
                     ? summary.encounters.map(enc =>
@@ -276,6 +277,7 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
                     : '진료 이력이 없습니다.',
                 },
                 {
+                  type: 'text' as const,
                   title: `검사 이력 (${summary.ocs_history.length}건)`,
                   content: summary.ocs_history.length > 0
                     ? summary.ocs_history.map(ocs =>
@@ -284,6 +286,7 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
                     : '검사 이력이 없습니다.',
                 },
                 {
+                  type: 'text' as const,
                   title: `AI 분석 이력 (${summary.ai_inferences.length}건)`,
                   content: summary.ai_inferences.length > 0
                     ? summary.ai_inferences.map(ai =>

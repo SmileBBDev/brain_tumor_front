@@ -5,4 +5,5 @@ export {
   type ViewMode,
   type DisplayMode,
   type SegMRIViewerProps,
+  type CompareResult,
 } from './SegMRIViewer'

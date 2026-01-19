@@ -144,9 +144,22 @@ export default function SummaryTab({ role, patientId, patientName, patientNumber
         const resultData = latestCompletedAI.result?.result_data as Record<string, unknown> | undefined;
         await generateMMReportPDF({
           ...baseData,
-          prediction: resultData?.prediction as string | undefined,
-          confidence: resultData?.confidence as number | undefined,
-          modality_contributions: resultData?.modality_contributions as Record<string, number> | undefined,
+          modalities: {
+            mri: !!resultData?.mri_used,
+            gene: !!resultData?.gene_used,
+            protein: !!resultData?.protein_used,
+          },
+          integrated_prediction: resultData?.integrated_prediction as {
+            grade: { predicted_class: string; probability: number };
+            survival_risk?: { risk_score: number; risk_category?: string };
+            survival_time?: { predicted_days: number; predicted_months: number };
+          } | undefined,
+          modality_contributions: resultData?.modality_contributions as {
+            mri?: { weight: number; confidence: number };
+            gene?: { weight: number; confidence: number };
+            protein?: { weight: number; confidence: number };
+          } | undefined,
+          processing_time_ms: resultData?.processing_time_ms as number | undefined,
         }, watermarkConfig);
       } else {
         // 기본 M1 형식으로 출력

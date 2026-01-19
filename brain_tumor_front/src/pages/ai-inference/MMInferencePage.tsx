@@ -87,7 +87,7 @@ export default function MMInferencePage() {
   const { requestInference, isFastAPIAvailable, lastMessage, isConnected } = useAIInference()
 
   // State
-  const [loading, setLoading] = useState(true)
+  const [_loading, setLoading] = useState(true)
   const [inferenceStatus, setInferenceStatus] = useState<string>('')
   const [inferenceResult, setInferenceResult] = useState<MMResult | null>(null)
   const [error, setError] = useState<string>('')

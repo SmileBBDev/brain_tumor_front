@@ -882,13 +882,17 @@ export const generateMGReportPDF = async (data: {
     probability: number;
   };
   top_genes?: Array<{
-    rank: number;
+    rank?: number;
     gene: string;
-    attention_score: number;
-    expression_zscore: number;
+    attention_score?: number;
+    expression_zscore?: number;
+    importance?: number;
   }>;
   processing_time_ms?: number;
   input_genes_count?: number;
+  risk_group?: string;
+  survival_months?: number;
+  confidence?: number;
 }, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
@@ -910,12 +914,12 @@ export const generateMGReportPDF = async (data: {
     `;
 
     // Top genes 테이블 생성
-    const topGenesHtml = data.top_genes?.slice(0, 10).map(g => `
+    const topGenesHtml = data.top_genes?.slice(0, 10).map((g, idx) => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${g.rank}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${g.rank ?? idx + 1}</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 500;">${g.gene}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${g.attention_score.toFixed(4)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; color: ${g.expression_zscore > 0 ? '#10b981' : '#ef4444'};">${g.expression_zscore > 0 ? '+' : ''}${g.expression_zscore.toFixed(2)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${(g.attention_score ?? g.importance ?? 0).toFixed(4)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; color: ${(g.expression_zscore ?? 0) > 0 ? '#10b981' : '#ef4444'};">${(g.expression_zscore ?? 0) > 0 ? '+' : ''}${(g.expression_zscore ?? 0).toFixed(2)}</td>
       </tr>
     `).join('') || '';
 
