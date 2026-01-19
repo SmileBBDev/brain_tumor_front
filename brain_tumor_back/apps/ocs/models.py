@@ -274,7 +274,11 @@ class OCS(models.Model):
 
     def _generate_ocs_id(self):
         """ocs_id 자동 생성 (ocs_0001 형식)"""
-        last_ocs = OCS.objects.order_by('-id').first()
+        # ocs_ prefix를 가진 OCS 중 마지막 번호 조회
+        last_ocs = OCS.objects.filter(
+            ocs_id__startswith='ocs_'
+        ).order_by('-ocs_id').first()
+
         if last_ocs and last_ocs.ocs_id:
             try:
                 last_num = int(last_ocs.ocs_id.split('_')[1])

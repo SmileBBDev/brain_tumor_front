@@ -146,27 +146,47 @@ class ExternalDashboardStatsView(APIView):
         try:
             now = timezone.now()
             week_ago = now - timedelta(days=7)
+            user = request.user
 
-            # 외부 데이터 필터: prefix(extr_, risx_) 또는 doctor_request.source == 'external_upload'
+            # 외부 데이터 기본 필터
+            # - extr_, risx_ prefix
+            # - doctor_request.source == 'external_upload'
+            # - attachments.external_source.institution 존재 (외부환자 OCS)
+            external_filter = (
+                Q(ocs_id__startswith='extr_') |
+                Q(ocs_id__startswith='risx_') |
+                Q(doctor_request__source='external_upload') |
+                Q(attachments__external_source__institution__isnull=False)
+            )
+
+            # EXTERNAL 역할은 자기 기관의 OCS만 조회
+            # attachments.external_source.institution.code가 자기 login_id와 일치하는 것만
+            # ADMIN/SYSTEMMANAGER는 모든 외부 OCS 조회 가능
+            if user.role and user.role.code == 'EXTERNAL':
+                user_filter = Q(attachments__external_source__institution__code=user.login_id)
+            else:
+                user_filter = Q()  # 관리자는 필터 없음
+
             # 외부 LIS 업로드
             lis_external = OCS.objects.filter(
-                Q(ocs_id__startswith='extr_') | Q(doctor_request__source='external_upload'),
+                external_filter,
+                user_filter,
                 job_role='LIS',
                 is_deleted=False
             )
 
             # 외부 RIS 업로드
             ris_external = OCS.objects.filter(
-                Q(ocs_id__startswith='risx_') | Q(doctor_request__source='external_upload'),
+                external_filter,
+                user_filter,
                 job_role='RIS',
                 is_deleted=False
             )
 
-            # 최근 업로드 (외부 데이터 전체)
+            # 최근 업로드
             recent = OCS.objects.filter(
-                Q(ocs_id__startswith='extr_') |
-                Q(ocs_id__startswith='risx_') |
-                Q(doctor_request__source='external_upload'),
+                external_filter,
+                user_filter,
                 is_deleted=False
             ).select_related('patient').order_by('-created_at')[:10]
 

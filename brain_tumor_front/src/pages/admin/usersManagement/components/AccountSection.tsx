@@ -70,9 +70,9 @@ export default function AccountSection({ value, onChange, userName, birthDate }:
 
       <div className="field">
         <label>역할</label>
-        <select 
+        <select
           className="userInfoOption"
-          value={value.role} 
+          value={value.role}
           onChange={handle("role")}
         >
           <option value="">선택</option>
@@ -82,6 +82,7 @@ export default function AccountSection({ value, onChange, userName, birthDate }:
           <option value="PATIENT">환자</option>
           <option value="RIS">영상과</option>
           <option value="LIS">검사과</option>
+          <option value="EXTERNAL">외부기관</option>
         </select>
       </div>
     </section>
