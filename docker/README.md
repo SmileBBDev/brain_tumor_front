@@ -31,15 +31,17 @@
 
 ```
 docker/
-├── docker-compose.yml              # 기본 인프라 (Orthanc + Redis + Network)
-├── docker-compose.django.yml       # Django + MySQL
+├── docker-compose.django.yml       # Django + Orthanc + Redis + MySQL (메인 VM)
 ├── docker-compose.fastapi.yml      # FastAPI + Celery (⚠️ 별도 VM 배포)
 ├── docker-compose.emr.yml          # OpenEMR + HAPI FHIR + DBs
+├── docker-compose.production.yml   # Production (Nginx 포함)
 ├── setup.py                        # 환경 체크 및 자동 설정 스크립트
 ├── .env.example                    # 환경변수 템플릿
 ├── .env                            # 실제 환경변수 (생성 필요)
-└── orthanc/
-    └── orthanc.json                # Orthanc 설정
+├── orthanc/
+│   └── orthanc.json                # Orthanc 설정
+└── nginx/
+    └── nginx.conf                  # Nginx 설정 (Production)
 ```
 
 ---
@@ -48,10 +50,10 @@ docker/
 
 | 파일 | 서비스 | 포트 | 배포 위치 |
 |------|--------|------|----------|
-| `docker-compose.yml` | orthanc, redis | 8042, 4242, 6379 | 메인 VM |
-| `docker-compose.django.yml` | django, django-db | 8000, 3306 | 메인 VM |
+| `docker-compose.django.yml` | django, django-db, orthanc, redis | 8000, 3306, 8042, 6379 | 메인 VM |
 | `docker-compose.emr.yml` | openemr, openemr-db, hapi-fhir, hapi-db | 8080, 8081, 3308, 5432 | 메인 VM |
 | `docker-compose.fastapi.yml` | fastapi, fastapi-celery, fastapi-redis | 9000, 6380 | **별도 VM** |
+| `docker-compose.production.yml` | nginx + django + orthanc + redis | 80, 443, 8042 | 메인 VM |
 
 ---
 
@@ -72,10 +74,7 @@ cp .env.example .env
 ### 2단계: 메인 VM 서비스 실행
 
 ```bash
-# 기본 인프라 (Orthanc + Redis)
-# docker compose -f docker-compose.yml up -d
-
-# Django + MySQL + 기본 인프라 (Orthanc + Redis)
+# Django + Orthanc + Redis + MySQL
 docker compose -f docker-compose.django.yml up -d
 
 # OpenEMR + HAPI FHIR (필요시)
@@ -248,14 +247,14 @@ FastAPI는 별도의 VM에서 실행되므로, 메인 VM의 서비스에 접근�
 ```bash
 cd docker
 
-# 기본 인프라 (Orthanc + Redis + Network)
-docker compose -f docker-compose.yml up -d
-
-# Django + MySQL
+# Django + Orthanc + Redis + MySQL
 docker compose -f docker-compose.django.yml up -d
 
-# OpenEMR + HAPI FHIR
+# OpenEMR + HAPI FHIR (필요시)
 docker compose -f docker-compose.emr.yml up -d
+
+# Production (Nginx 포함)
+docker compose -f docker-compose.production.yml up -d --build
 ```
 
 ### FastAPI VM (별도 서버)
@@ -280,8 +279,8 @@ docker compose -f docker-compose.fastapi.yml up -d --build
 
 ```bash
 # 메인 VM
-docker compose -f docker-compose.yml logs -f
 docker compose -f docker-compose.django.yml logs -f django
+docker compose -f docker-compose.django.yml logs -f orthanc
 docker compose -f docker-compose.emr.yml logs -f openemr
 
 # FastAPI VM
@@ -303,7 +302,6 @@ docker compose -f docker-compose.fastapi.yml restart fastapi
 
 ```bash
 # 메인 VM
-docker compose -f docker-compose.yml down
 docker compose -f docker-compose.django.yml down
 docker compose -f docker-compose.emr.yml down
 
@@ -315,7 +313,6 @@ docker compose -f docker-compose.fastapi.yml down
 
 ```bash
 # 메인 VM
-docker compose -f docker-compose.yml ps
 docker compose -f docker-compose.django.yml ps
 docker compose -f docker-compose.emr.yml ps
 
@@ -438,16 +435,207 @@ docker run --rm -v django_db_data:/data -v $(pwd):/backup \
 
 - [ ] `.env` 파일 생성 및 설정
 - [ ] `FASTAPI_URL` 설정 (FastAPI VM IP)
-- [ ] `docker-compose.yml` 실행
 - [ ] `docker-compose.django.yml` 실행
 - [ ] `docker-compose.emr.yml` 실행 (필요시)
-- [ ] 방화벽 포트 개방
+- [ ] 방화벽 포트 개방 (8000, 8042, 6379)
 
 ### FastAPI VM
 
 - [ ] 프로젝트 파일 복사
 - [ ] **`python setup.py` 실행** (필수!)
-- [ ] `.env` 파일에서 `MAIN_VM_IP` 설정
+- [ ] `docker/.env` 파일에서 `MAIN_VM_IP` 설정
+- [ ] **`modAI/.env` 파일에서 `MAIN_VM_IP` 설정** (⚠️ 중요!)
 - [ ] `docker-compose.fastapi.yml` 빌드 및 실행
 - [ ] 방화벽 포트 개방
 - [ ] 메인 VM과 통신 테스트
+
+---
+
+## ⚠️ 중요: modAI/.env 설정 (FastAPI VM)
+
+FastAPI VM에서 M1/MG/MM 모델 추론 시 메인 VM의 Orthanc/Django 서버에 접근하기 위해 **`modAI/.env` 파일 설정이 필수**입니다.
+
+### 설정 방법
+
+```bash
+# FastAPI VM에서 modAI/.env 파일 편집
+nano modAI/.env
+```
+
+```env
+# ⚠️ VM 배포 시 반드시 메인 VM IP로 변경!
+MAIN_VM_IP=192.168.0.11
+
+# 아래는 MAIN_VM_IP 기반으로 자동 생성됨 (주석 유지 권장)
+# ORTHANC_URL=http://192.168.0.11:8042
+# DJANGO_URL=http://192.168.0.11:8000
+```
+
+### 설정 원리
+
+`modAI/config.py`에서 `MAIN_VM_IP`를 기반으로 URL을 자동 생성합니다:
+- `ORTHANC_URL` 환경변수가 없으면 → `http://{MAIN_VM_IP}:8042`
+- `DJANGO_URL` 환경변수가 없으면 → `http://{MAIN_VM_IP}:8000`
+
+### 설정 후 재시작
+
+```bash
+# 환경변수 변경 후 컨테이너 재시작 필요
+docker compose -f docker-compose.fastapi.yml restart
+```
+
+---
+
+## WebSocket 설정
+
+Django는 **Daphne ASGI 서버**를 사용하여 HTTP와 WebSocket을 모두 처리합니다.
+
+### WebSocket 엔드포인트
+
+| 경로 | Consumer | 용도 |
+|------|----------|------|
+| `ws/permissions/` | PermissionConsumer | 권한 실시간 알림 |
+| `ws/user-permissions/` | UserPermissionConsumer | 사용자 권한 알림 |
+| `ws/presence/` | PresenceConsumer | 온라인 상태 |
+| `ws/ocs/` | OCSConsumer | OCS 실시간 업데이트 |
+| `ws/ai-inference/` | AIInferenceConsumer | AI 추론 진행 상태 |
+
+### 아키텍처
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Django (Daphne)                         │
+│                         :8000                                │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐     ┌─────────────────────────────────┐   │
+│  │    HTTP     │     │          WebSocket               │   │
+│  │  Requests   │     │   ws://host:8000/ws/...          │   │
+│  └──────┬──────┘     └──────────────┬──────────────────┘   │
+│         │                           │                       │
+│         ▼                           ▼                       │
+│  ┌─────────────┐     ┌─────────────────────────────────┐   │
+│  │   Django    │     │   Django Channels (Consumers)    │   │
+│  │   Views     │     │   - PermissionConsumer           │   │
+│  │             │     │   - OCSConsumer                  │   │
+│  │             │     │   - AIInferenceConsumer          │   │
+│  └──────┬──────┘     └──────────────┬──────────────────┘   │
+│         │                           │                       │
+│         └───────────────┬───────────┘                       │
+│                         ▼                                   │
+│               ┌─────────────────┐                           │
+│               │  Redis          │                           │
+│               │  Channel Layer  │                           │
+│               │    :6379        │                           │
+│               └─────────────────┘                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 설정 파일
+
+| 파일 | 용도 |
+|------|------|
+| `config/asgi.py` | ASGI 애플리케이션 진입점 |
+| `config/routing.py` | WebSocket URL 라우팅 |
+| `config/base.py` | CHANNEL_LAYERS (Redis) 설정 |
+| `apps/*/consumers.py` | WebSocket Consumer 구현 |
+
+### WebSocket 연결 테스트
+
+```javascript
+// 브라우저 콘솔에서 테스트
+const ws = new WebSocket('ws://192.168.0.11:8000/ws/ai-inference/');
+ws.onopen = () => console.log('Connected');
+ws.onmessage = (e) => console.log('Message:', e.data);
+ws.onclose = () => console.log('Disconnected');
+```
+
+---
+
+## Nginx + Cloudflare 설정 (Production)
+
+### Nginx 역할
+
+`docker-compose.production.yml` 사용 시 Nginx가 리버스 프록시로 동작합니다.
+
+```
+┌───────────────┐     ┌──────────┐     ┌──────────────────────┐
+│  Cloudflare   │────►│  Nginx   │────►│  Django (Daphne)     │
+│  (CDN/SSL)    │     │  :80/443 │     │  :8000               │
+└───────────────┘     └────┬─────┘     └──────────────────────┘
+                           │
+                           ├──────────►  React Frontend (정적 파일)
+                           │
+                           └──────────►  Orthanc (:8042)
+```
+
+### Nginx 주요 설정
+
+| 경로 | 대상 | 설명 |
+|------|------|------|
+| `/` | React SPA | 정적 파일 서빙 |
+| `/api/` | Django | REST API 프록시 |
+| `/ws/` | Django | **WebSocket 프록시** |
+| `/admin/` | Django | 관리자 페이지 |
+| `/orthanc/` | Orthanc | DICOM 뷰어 |
+| `/ai/` | FastAPI | AI 추론 (같은 호스트일 때) |
+
+### WebSocket Nginx 설정 (중요!)
+
+`nginx/nginx.conf`에서 WebSocket 프록시 설정:
+
+```nginx
+location /ws/ {
+    proxy_pass http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+
+    # WebSocket 타임아웃 (7일)
+    proxy_connect_timeout 7d;
+    proxy_send_timeout 7d;
+    proxy_read_timeout 7d;
+}
+```
+
+### Cloudflare 설정 (WebSocket 사용 시)
+
+Cloudflare를 사용할 경우 **WebSocket 지원을 활성화**해야 합니다:
+
+1. **Cloudflare Dashboard** → Network → WebSockets → **On**
+
+2. **SSL/TLS 모드**: Full (strict) 권장
+
+3. **프록시 상태**:
+   - 일반 트래픽: Proxied (주황색 구름)
+   - WebSocket 문제 시: DNS only (회색 구름)로 테스트
+
+### Cloudflare + WebSocket 문제 해결
+
+WebSocket 연결이 안 될 경우:
+
+```bash
+# 1. Cloudflare 우회 테스트 (직접 IP 접속)
+wscat -c ws://192.168.0.11:8000/ws/ai-inference/
+
+# 2. Nginx 로그 확인
+docker logs nn-nginx --tail 50
+
+# 3. Django 로그 확인
+docker logs nn-django --tail 50
+```
+
+### Production 배포 명령어
+
+```bash
+# 1. 프론트엔드 빌드
+cd ../brain_tumor_front
+npm run build
+
+# 2. 빌드 결과물 복사
+cp -r dist/* ../docker/nginx/html/
+
+# 3. Production 스택 실행
+cd ../docker
+docker compose -f docker-compose.production.yml up -d --build
+```

@@ -36,8 +36,11 @@ class Settings(BaseSettings):
     PORT: int = 9000
     DEBUG: bool = False
 
-    # Orthanc DICOM Server
-    ORTHANC_URL: str = "http://localhost:8042"
+    # VM Communication (배포 시 메인 VM IP로 설정)
+    MAIN_VM_IP: str = "localhost"
+
+    # Orthanc DICOM Server (ORTHANC_URL 환경변수가 없으면 MAIN_VM_IP 사용)
+    ORTHANC_URL: str = ""
     ORTHANC_USER: str = "orthanc"
     ORTHANC_PASSWORD: str = "orthanc"
 
@@ -47,8 +50,15 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = ""  # 비어있으면 REDIS_URL 사용
     CELERY_RESULT_BACKEND: str = ""  # 비어있으면 REDIS_URL 사용
 
-    # Django callback URL
-    DJANGO_URL: str = "http://localhost:8000"
+    # Django callback URL (DJANGO_URL 환경변수가 없으면 MAIN_VM_IP 사용)
+    DJANGO_URL: str = ""
+
+    def model_post_init(self, __context):
+        """환경변수가 없으면 MAIN_VM_IP 기반으로 URL 생성"""
+        if not self.ORTHANC_URL:
+            object.__setattr__(self, 'ORTHANC_URL', f"http://{self.MAIN_VM_IP}:8042")
+        if not self.DJANGO_URL:
+            object.__setattr__(self, 'DJANGO_URL', f"http://{self.MAIN_VM_IP}:8000")
 
     # Storage paths
     BASE_DIR: Path = Path(__file__).parent
