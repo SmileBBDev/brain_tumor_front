@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { InferenceResult } from '@/components/InferenceResult'
-import SegMRIViewer, { type SegmentationData } from '@/components/ai/SegMRIViewer'
+import SegMRIViewer, { type SegmentationData, type CompareResult } from '@/components/ai/SegMRIViewer'
 import { aiApi, getPatientAIHistory, type AIInferenceRequest } from '@/services/ai.api'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
 import PdfPreviewModal from '@/components/PdfPreviewModal'
@@ -169,6 +169,39 @@ export default function M1DetailPage() {
       )
     } finally {
       setLoadingSegmentation(false)
+    }
+  }
+
+  // Compare 데이터 로드 (GT vs Prediction)
+  const loadCompareData = async (): Promise<CompareResult | null> => {
+    if (!jobId) return null
+
+    try {
+      const data = await aiApi.getSegmentationCompareData(jobId)
+
+      if (!data.has_ground_truth || data.orthanc_seg_status !== 'loaded') {
+        alert(
+          data.orthanc_seg_status === 'no_ocs'
+            ? 'OCS 연결 정보가 없어 GT 비교를 할 수 없습니다.'
+            : 'Ground Truth SEG 데이터를 찾을 수 없습니다.'
+        )
+        return null
+      }
+
+      return {
+        groundTruth: data.ground_truth!,
+        diceScores: data.comparison_metrics
+          ? {
+              wt: data.comparison_metrics.dice_wt,
+              tc: data.comparison_metrics.dice_tc,
+              et: data.comparison_metrics.dice_et,
+            }
+          : undefined,
+      }
+    } catch (err) {
+      console.error('Compare data load failed:', err)
+      alert('GT 비교 데이터 로드에 실패했습니다.')
+      return null
     }
   }
 
@@ -523,6 +556,8 @@ export default function M1DetailPage() {
                 initialViewMode="axial"
                 initialDisplayMode="pred_only"
                 maxCanvasSize={600}
+                enableCompareTab={true}
+                onCompareRequest={loadCompareData}
               />
             </div>
           ) : (

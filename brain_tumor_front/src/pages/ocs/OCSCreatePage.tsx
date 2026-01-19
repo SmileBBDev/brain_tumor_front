@@ -194,7 +194,7 @@ export default function OCSCreatePage() {
       if (urlPatientId) {
         navigate(-1); // 진료 페이지에서 왔으면 뒤로가기
       } else {
-        navigate('/ocs/doctor'); // OCS 관리 목록으로 이동
+        navigate('/ocs/status'); // OCS 현황 목록으로 이동
       }
     } catch (error) {
       console.error('Failed to create OCS:', error);

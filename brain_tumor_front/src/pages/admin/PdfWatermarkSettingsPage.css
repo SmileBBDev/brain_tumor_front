@@ -156,6 +156,7 @@
   border-radius: 6px;
   background: white;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 .pdf-watermark-page .form-row input:focus,
@@ -394,7 +395,8 @@
   font-weight: 500;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  background: white;
+  background: #f3f4f6;
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s;
 }

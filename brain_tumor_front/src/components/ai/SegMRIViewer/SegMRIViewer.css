@@ -605,6 +605,16 @@
   cursor: not-allowed;
 }
 
+/* Compare 탭 활성화 시 강조 */
+.seg-mri-viewer__layout-tab--compare {
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+}
+
+.seg-mri-viewer__layout-tab--compare:hover {
+  background: linear-gradient(135deg, #66bb6a, #43a047);
+}
+
 /* Orthogonal View */
 .seg-mri-viewer__ortho-channel {
   display: flex;

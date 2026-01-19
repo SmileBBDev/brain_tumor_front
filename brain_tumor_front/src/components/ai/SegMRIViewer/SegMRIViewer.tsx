@@ -61,6 +61,12 @@ export type DisplayMode = 'difference' | 'gt_only' | 'pred_only' | 'overlay'
 
 // ============== Component Props ==============
 
+/** Compare 요청 결과 타입 */
+export interface CompareResult {
+  groundTruth: number[][][]
+  diceScores?: DiceScores
+}
+
 export interface SegMRIViewerProps {
   /** 세그멘테이션 데이터 (MRI, GT, Prediction 볼륨) */
   data: SegmentationData
@@ -74,6 +80,10 @@ export interface SegMRIViewerProps {
   initialDisplayMode?: DisplayMode
   /** 캔버스 최대 크기 (px) */
   maxCanvasSize?: number
+  /** Compare 탭 활성화 여부 */
+  enableCompareTab?: boolean
+  /** Compare 탭 클릭 시 GT 데이터 로드 콜백 */
+  onCompareRequest?: () => Promise<CompareResult | null>
 }
 
 // ============== Constants ==============
@@ -101,6 +111,8 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
   initialViewMode = 'axial',
   initialDisplayMode = 'pred_only',
   maxCanvasSize = 450,
+  enableCompareTab = false,
+  onCompareRequest,
 }) => {
   // Canvas refs (최대 4개 뷰어)
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([null, null, null, null])
@@ -141,6 +153,11 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
   const [showED, setShowED] = useState(true)
   const [showET, setShowET] = useState(true)
 
+  // Compare 모드 상태
+  const [isCompareMode, setIsCompareMode] = useState(false)
+  const [loadingCompare, setLoadingCompare] = useState(false)
+  const [compareGT, setCompareGT] = useState<number[][][] | null>(null)
+  const [compareDiceScores, setCompareDiceScores] = useState<DiceScores | undefined>()
 
   // ============== Helper Functions ==============
 
@@ -361,7 +378,9 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     ctx.putImageData(imageData, 0, 0)
 
     // 세그멘테이션 오버레이
-    const gtSlice = data.groundTruth ? getSlice(data.groundTruth, sliceIdx, mode) : null
+    // Compare 모드일 때는 compareGT 사용, 아니면 data.groundTruth 사용
+    const gtVolume = isCompareMode && compareGT ? compareGT : data.groundTruth
+    const gtSlice = gtVolume ? getSlice(gtVolume, sliceIdx, mode) : null
     const predSlice = data.prediction ? getSlice(data.prediction, sliceIdx, mode) : null
 
     ctx.globalAlpha = segOpacity
@@ -449,7 +468,7 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     }
 
     ctx.globalAlpha = 1
-  }, [data, displayMode, showGroundTruth, showPrediction, showMRI, segOpacity, getSlice, showNCR, showED, showET, getMriVolumeByChannel])
+  }, [data, displayMode, showGroundTruth, showPrediction, showMRI, segOpacity, getSlice, showNCR, showED, showET, getMriVolumeByChannel, isCompareMode, compareGT])
 
   /** 싱글 뷰어용 래퍼 함수 */
   const renderCanvas = useCallback((canvas: HTMLCanvasElement | null, channel: MRIChannel) => {
@@ -514,6 +533,33 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
     setViewers(newViewers)
   }
 
+  // Compare 탭 클릭 핸들러
+  const handleCompareClick = async () => {
+    if (isCompareMode) {
+      // 이미 Compare 모드면 원래 모드로 복귀
+      setIsCompareMode(false)
+      _setDisplayMode(initialDisplayMode)
+      return
+    }
+
+    if (!onCompareRequest) return
+
+    setLoadingCompare(true)
+    try {
+      const result = await onCompareRequest()
+      if (result) {
+        setCompareGT(result.groundTruth)
+        setCompareDiceScores(result.diceScores)
+        setIsCompareMode(true)
+        _setDisplayMode('difference')
+      }
+    } catch (err) {
+      console.error('Compare data load failed:', err)
+    } finally {
+      setLoadingCompare(false)
+    }
+  }
+
   const displaySize = getDisplaySize()
 
   // ============== Render ==============
@@ -550,26 +596,41 @@ const SegMRIViewer: React.FC<SegMRIViewerProps> = ({
             >
               3D
             </button>
+            {/* Compare 탭 */}
+            {enableCompareTab && (
+              <button
+                className={`seg-mri-viewer__layout-tab ${isCompareMode ? 'seg-mri-viewer__layout-tab--active seg-mri-viewer__layout-tab--compare' : ''}`}
+                onClick={handleCompareClick}
+                title="GT vs Prediction 비교"
+                disabled={loadingCompare}
+              >
+                {loadingCompare ? '...' : 'Compare'}
+              </button>
+            )}
           </div>
-          {diceScores && (
-            <div className="seg-mri-viewer__dice-scores">
-              {diceScores.wt !== undefined && (
-                <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--wt">
-                  WT: {(diceScores.wt * 100).toFixed(1)}%
-                </span>
-              )}
-              {diceScores.tc !== undefined && (
-                <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--tc">
-                  TC: {(diceScores.tc * 100).toFixed(1)}%
-                </span>
-              )}
-              {diceScores.et !== undefined && (
-                <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--et">
-                  ET: {(diceScores.et * 100).toFixed(1)}%
-                </span>
-              )}
-            </div>
-          )}
+          {/* Dice Scores - Compare 모드일 때는 compareDiceScores 표시 */}
+          {(() => {
+            const displayDiceScores = isCompareMode ? compareDiceScores : diceScores
+            return displayDiceScores && (
+              <div className="seg-mri-viewer__dice-scores">
+                {displayDiceScores.wt !== undefined && (
+                  <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--wt">
+                    WT: {(displayDiceScores.wt * 100).toFixed(1)}%
+                  </span>
+                )}
+                {displayDiceScores.tc !== undefined && (
+                  <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--tc">
+                    TC: {(displayDiceScores.tc * 100).toFixed(1)}%
+                  </span>
+                )}
+                {displayDiceScores.et !== undefined && (
+                  <span className="seg-mri-viewer__dice-chip seg-mri-viewer__dice-chip--et">
+                    ET: {(displayDiceScores.et * 100).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
 
