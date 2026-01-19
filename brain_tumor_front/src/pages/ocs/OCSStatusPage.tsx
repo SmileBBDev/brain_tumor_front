@@ -79,6 +79,7 @@ export default function OCSStatusPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority | ''>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [myWorkOnly, setMyWorkOnly] = useState(false);
 
   // Modal states
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -108,6 +109,7 @@ export default function OCSStatusPage() {
         if (jobRoleFilter) params.job_role = jobRoleFilter;
         if (priorityFilter) params.priority = priorityFilter;
         if (searchQuery) params.q = searchQuery;
+        if (myWorkOnly && user?.id) params.doctor_id = user.id;
 
         const response = await getOCSList(params);
         // 페이지네이션 응답과 배열 응답 모두 처리
@@ -126,7 +128,7 @@ export default function OCSStatusPage() {
     };
 
     fetchOCSList();
-  }, [page, pageSize, statusFilter, jobRoleFilter, priorityFilter, searchQuery, refreshKey]);
+  }, [page, pageSize, statusFilter, jobRoleFilter, priorityFilter, searchQuery, myWorkOnly, user?.id, refreshKey]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -264,6 +266,17 @@ export default function OCSStatusPage() {
             ))}
           </select>
 
+          <label className="checkbox-filter">
+            <input
+              type="checkbox"
+              checked={myWorkOnly}
+              onChange={(e) => {
+                setMyWorkOnly(e.target.checked);
+                setPage(1);
+              }}
+            />
+            내 작업만
+          </label>
 
           {role === 'SYSTEMMANAGER' && (
             <button className="btn secondary" onClick={handleExportExcel}>

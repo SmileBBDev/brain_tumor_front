@@ -148,6 +148,31 @@
   border-color: #007bff;
 }
 
+/* 체크박스 필터 */
+.ocs-status-page .checkbox-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.ocs-status-page .checkbox-filter:hover {
+  border-color: #007bff;
+}
+
+.ocs-status-page .checkbox-filter input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #007bff;
+}
+
 /* 테이블 컨테이너 */
 .ocs-status-page .content {
   background: white;

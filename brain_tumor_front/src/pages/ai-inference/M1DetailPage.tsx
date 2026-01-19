@@ -556,7 +556,7 @@ export default function M1DetailPage() {
                 initialViewMode="axial"
                 initialDisplayMode="pred_only"
                 maxCanvasSize={600}
-                enableCompareTab={true}
+                enableCompareTab={false}  // GT 전처리 미구현으로 비활성화 (docs/GT_SEG_비교기능_분석보고서.md 참고)
                 onCompareRequest={loadCompareData}
               />
             </div>

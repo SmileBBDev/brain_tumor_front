@@ -1781,9 +1781,10 @@ class AIInferenceSegmentationCompareView(APIView):
             logger.info(f"OCS {ocs.id}: SEG 시리즈가 없습니다.")
             return None
 
-        orthanc_series_id = seg_series.get('orthanc_series_id')
+        # orthanc_id 또는 orthanc_series_id 둘 다 지원
+        orthanc_series_id = seg_series.get('orthanc_id') or seg_series.get('orthanc_series_id')
         if not orthanc_series_id:
-            logger.warning(f"OCS {ocs.id}: SEG 시리즈의 Orthanc ID가 없습니다.")
+            logger.warning(f"OCS {ocs.id}: SEG 시리즈의 Orthanc ID가 없습니다. seg_series={seg_series}")
             return None
 
         try:
@@ -1829,7 +1830,24 @@ class AIInferenceSegmentationCompareView(APIView):
 
                 # 3D 볼륨으로 스택
                 seg_volume = np.stack(slices, axis=-1)
-                logger.info(f"SEG 볼륨 로드 완료: shape={seg_volume.shape}")
+                logger.info(f"SEG 볼륨 로드 완료: shape={seg_volume.shape}, unique={np.unique(seg_volume)}")
+
+                # 라벨 정규화: Orthanc SEG의 스케일된 값을 BraTS 라벨로 변환
+                # 원본: 0=배경, 32767=라벨1, 65535=라벨2 등
+                # 타겟: 0=배경, 1=NCR, 2=ED, 3=ET (또는 4=ET for BraTS)
+                unique_vals = np.unique(seg_volume)
+                if len(unique_vals) > 1 and unique_vals.max() > 10:
+                    # 스케일된 값 → 순차적 라벨로 매핑
+                    sorted_vals = sorted(unique_vals)
+                    label_map = {v: i for i, v in enumerate(sorted_vals)}
+                    logger.info(f"라벨 매핑: {label_map}")
+
+                    # 매핑 적용
+                    normalized = np.zeros_like(seg_volume, dtype=np.uint8)
+                    for old_val, new_val in label_map.items():
+                        normalized[seg_volume == old_val] = new_val
+                    seg_volume = normalized
+                    logger.info(f"라벨 정규화 완료: unique={np.unique(seg_volume)}")
 
                 return seg_volume
 
@@ -1914,40 +1932,52 @@ class AIInferenceSegmentationCompareView(APIView):
                     gt_volumes['tc_volume'] = gt_volumes['et_volume'] + gt_volumes['ncr_volume']
                     gt_volumes['wt_volume'] = gt_volumes['tc_volume'] + gt_volumes['ed_volume']
 
+                    # GT를 Prediction 크기에 맞게 리샘플링 (프론트엔드 표시용)
+                    try:
+                        from scipy.ndimage import zoom
+                        if pred_mask.shape != gt_mask.shape:
+                            zoom_factors = [p / g for p, g in zip(pred_mask.shape, gt_mask.shape)]
+                            gt_resampled = zoom(gt_mask.astype(np.float32), zoom_factors, order=0).astype(np.uint8)
+                            logger.info(f"GT 마스크 리샘플링: {gt_mask.shape} -> {gt_resampled.shape}")
+                        else:
+                            gt_resampled = gt_mask
+                    except Exception as e:
+                        logger.error(f"GT 리샘플링 실패: {e}")
+                        gt_resampled = gt_mask
+
                     # 비교 메트릭 계산
                     try:
-                        # 예측 마스크를 GT 크기에 맞게 리샘플링 (필요시)
-                        if pred_mask.shape != gt_mask.shape:
-                            from scipy.ndimage import zoom
-                            zoom_factors = [g / p for g, p in zip(gt_mask.shape, pred_mask.shape)]
-                            pred_resampled = zoom(pred_mask, zoom_factors, order=0)  # nearest neighbor
-                            logger.info(f"예측 마스크 리샘플링: {pred_mask.shape} -> {pred_resampled.shape}")
-                        else:
-                            pred_resampled = pred_mask
+                        # M1 Prediction 라벨: 0=배경, 1=NCR, 2=ED, 3=ET
+                        # GT 라벨 (정규화 후): 0=배경, 1=?, 2=?
+                        # 모든 종양 영역으로 단순 비교
+                        pred_tumor = (pred_mask > 0).astype(int)
+                        gt_tumor = (gt_resampled > 0).astype(int)
 
-                        # Dice Score 계산
+                        # Whole Tumor Dice (모든 종양 영역)
+                        intersection = np.sum(pred_tumor & gt_tumor)
+                        dice_wt = 2.0 * intersection / (np.sum(pred_tumor) + np.sum(gt_tumor)) if (np.sum(pred_tumor) + np.sum(gt_tumor)) > 0 else 1.0
+
+                        # 개별 라벨 Dice (라벨이 일치하는 경우만)
+                        pred_unique = set(np.unique(pred_mask)) - {0}
+                        gt_unique = set(np.unique(gt_resampled)) - {0}
+
                         comparison_metrics = {
-                            'dice_wt': self._calculate_dice_score(
-                                np.isin(pred_resampled, [1, 2, 4]).astype(int),
-                                np.isin(gt_mask, [1, 2, 4]).astype(int),
-                                1
-                            ),
-                            'dice_tc': self._calculate_dice_score(
-                                np.isin(pred_resampled, [1, 4]).astype(int),
-                                np.isin(gt_mask, [1, 4]).astype(int),
-                                1
-                            ),
-                            'dice_et': self._calculate_dice_score(pred_resampled, gt_mask, 4),
+                            'dice_wt': float(dice_wt),
+                            'dice_tc': None,  # 라벨 매핑이 불확실하여 계산 생략
+                            'dice_et': None,
+                            'pred_labels': list(pred_unique),
+                            'gt_labels': list(gt_unique),
                         }
-                        comparison_metrics['dice_mean'] = np.mean([
-                            comparison_metrics['dice_wt'],
-                            comparison_metrics['dice_tc'],
-                            comparison_metrics['dice_et']
-                        ])
+                        comparison_metrics['dice_mean'] = comparison_metrics['dice_wt']
+
+                        logger.info(f"Dice Score 계산 완료: WT={dice_wt:.4f}")
 
                     except Exception as e:
                         logger.error(f"비교 메트릭 계산 실패: {e}")
                         comparison_metrics = {'error': str(e)}
+
+                    # 리샘플링된 GT 저장 (프론트엔드 전송용)
+                    gt_mask = gt_resampled
             else:
                 orthanc_seg_status = 'no_ocs'
 
