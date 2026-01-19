@@ -550,6 +550,72 @@ export default function NurseDashboard() {
           onSuccess={handlePatientCreateSuccess}
         />
       )}
+
+      {/* 요약 카드 클릭 시 환자 목록 모달 */}
+      {summaryModalFilter && (
+        <div className="modal-overlay" onClick={handleCloseSummaryModal}>
+          <div className="modal-content summary-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{SUMMARY_CARD_CONFIG[summaryModalFilter].title} 환자 목록</h2>
+              <button className="btn-close" onClick={handleCloseSummaryModal}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              {filteredEncountersForModal.length === 0 ? (
+                <div className="empty-message">해당하는 환자가 없습니다.</div>
+              ) : (
+                <table className="table reception-table">
+                  <thead>
+                    <tr>
+                      <th>접수 시간</th>
+                      <th>환자명</th>
+                      <th>환자번호</th>
+                      <th>진료 유형</th>
+                      <th>담당의</th>
+                      <th>주호소</th>
+                      <th>상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEncountersForModal.map((encounter) => (
+                      <tr
+                        key={encounter.id}
+                        onClick={() => {
+                          handleCloseSummaryModal();
+                          handleRowClick(encounter);
+                        }}
+                        className={getRowClass(encounter)}
+                      >
+                        <td>{formatTime(encounter.admission_date)}</td>
+                        <td className="patient-name">{encounter.patient_name}</td>
+                        <td>{encounter.patient_number}</td>
+                        <td>{encounter.encounter_type_display}</td>
+                        <td>{encounter.attending_doctor_name}</td>
+                        <td className="chief-complaint">{encounter.chief_complaint}</td>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <EncounterStatusDropdown
+                            encounterId={encounter.id}
+                            currentStatus={encounter.status}
+                            onStatusChange={handleStatusChange}
+                            compact
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="modal-footer">
+              <span className="patient-count">총 {filteredEncountersForModal.length}명</span>
+              <button className="btn" onClick={handleCloseSummaryModal}>
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

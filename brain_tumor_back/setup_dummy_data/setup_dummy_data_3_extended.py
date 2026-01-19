@@ -852,7 +852,7 @@ def print_summary():
     print(f"  테스트 계정:")
     print(f"    system / system001 (시스템 관리자)")
     print(f"    admin / admin001 (병원 관리자)")
-    print(f"    doctor1~5 / doctor1001~5001 (의사)")
+    print(f"    doctor1~10 / doctor1001~10001 (의사)")
 
 
 def main():

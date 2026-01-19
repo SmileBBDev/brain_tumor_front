@@ -59,20 +59,46 @@
   margin-bottom: 1rem;
 }
 
+.nurse-dashboard .card.summary.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nurse-dashboard .card.summary.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 .nurse-dashboard .card.summary.total .value {
   color: var(--primary, #3b82f6);
+}
+
+.nurse-dashboard .card.summary.total.clickable:hover {
+  border-color: var(--primary, #3b82f6);
 }
 
 .nurse-dashboard .card.summary.scheduled .value {
   color: #f59e0b;
 }
 
+.nurse-dashboard .card.summary.scheduled.clickable:hover {
+  border-color: #f59e0b;
+}
+
 .nurse-dashboard .card.summary.in-progress .value {
   color: #06b6d4;
 }
 
+.nurse-dashboard .card.summary.in-progress.clickable:hover {
+  border-color: #06b6d4;
+}
+
 .nurse-dashboard .card.summary.completed .value {
   color: #10b981;
+}
+
+.nurse-dashboard .card.summary.completed.clickable:hover {
+  border-color: #10b981;
 }
 
 /* 의사별 필터 */
@@ -344,4 +370,51 @@
   .nurse-dashboard .reception-table td {
     padding: 0.5rem;
   }
+}
+
+/* ========================================
+   요약 카드 클릭 모달 스타일
+   ======================================== */
+.nurse-dashboard .summary-modal {
+  max-width: 900px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.nurse-dashboard .summary-modal .modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.nurse-dashboard .summary-modal .modal-body .empty-message {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-sub, #64748b);
+}
+
+.nurse-dashboard .summary-modal .modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  background: var(--bg-main, #f8fafc);
+}
+
+.nurse-dashboard .summary-modal .patient-count {
+  font-size: 0.875rem;
+  color: var(--text-sub, #64748b);
+}
+
+.nurse-dashboard .summary-modal .reception-table {
+  margin: 0;
+}
+
+.nurse-dashboard .summary-modal .reception-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }

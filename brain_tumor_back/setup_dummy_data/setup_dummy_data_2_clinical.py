@@ -2081,7 +2081,7 @@ def print_summary():
     print(f"  테스트 계정:")
     print(f"    system / system001 (시스템 관리자)")
     print(f"    admin / admin001 (병원 관리자)")
-    print(f"    doctor1~5 / doctor1001~5001 (의사)")
+    print(f"    doctor1~10 / doctor1001~10001 (의사)")
     print(f"    nurse1~3 / nurse1001~3001 (간호사)")
     print(f"    patient1~5 / patient1001~5001 (환자)")
     print(f"    ris1~3 / ris1001~3001 (영상과)")
