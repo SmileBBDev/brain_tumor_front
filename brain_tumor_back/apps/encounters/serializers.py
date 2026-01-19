@@ -290,6 +290,11 @@ class EncounterSearchSerializer(serializers.Serializer):
         required=False,
         help_text='진료 종료일 (YYYY-MM-DD)'
     )
+    time_filter = serializers.ChoiceField(
+        choices=[('all', '전체'), ('past', '지난 시간'), ('future', '이후 시간')],
+        required=False,
+        help_text='시간 기준 필터 (past: 현재 시간 이전, future: 현재 시간 이후)'
+    )
 
     def validate(self, data):
         """날짜 범위 검증"""
@@ -300,3 +305,12 @@ class EncounterSearchSerializer(serializers.Serializer):
             raise serializers.ValidationError("시작일은 종료일보다 이전이어야 합니다.")
 
         return data
+
+
+class EncounterStatusChangeSerializer(serializers.Serializer):
+    """진료 상태 변경용 Serializer"""
+
+    status = serializers.ChoiceField(
+        choices=Encounter.STATUS_CHOICES,
+        help_text='변경할 진료 상태'
+    )

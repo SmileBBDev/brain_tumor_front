@@ -1523,28 +1523,74 @@ def _generate_external_lis_worker_result(job_type: str, ocs_id: str, is_confirme
         }
 
 
-def _generate_external_ris_worker_result(ocs_id: str, is_confirmed: bool = True) -> dict:
+def _get_existing_ocs_dicom_info(index: int) -> dict:
+    """
+    기존 ocs_* OCS에서 실제 Orthanc DICOM 정보를 가져옴
+    외부 OCS가 실제 DICOM을 참조하도록 함
+    """
+    from apps.ocs.models import OCS
+
+    # 기존 ocs_* 중 CONFIRMED이고 DICOM이 있는 것 조회
+    source_ocs_list = OCS.objects.filter(
+        ocs_id__startswith='ocs_',
+        job_role='RIS',
+        ocs_status='CONFIRMED'
+    ).exclude(worker_result={}).order_by('ocs_id')
+
+    if source_ocs_list.exists():
+        # index를 순환하여 사용
+        ocs = source_ocs_list[index % source_ocs_list.count()]
+        wr = ocs.worker_result or {}
+        dicom_info = wr.get('dicom', {})
+        orthanc_info = wr.get('orthanc', {})
+
+        if dicom_info.get('study_uid'):
+            return {
+                'dicom': dicom_info,
+                'orthanc': orthanc_info
+            }
+
+    return None
+
+
+def _generate_external_ris_worker_result(ocs_id: str, is_confirmed: bool = True, index: int = 0) -> dict:
     """
     외부기관 RIS OCS worker_result 생성 (내부 환자와 동일한 v1.2 포맷)
+    실제 Orthanc에 있는 DICOM의 study_uid를 사용하여 AI 추론이 가능하도록 함
     """
     import uuid
     timestamp = timezone.now().isoformat() + "Z"
 
-    # 가상의 Orthanc 정보 생성
-    study_uid = f"1.2.410.200001.{random.randint(1000, 9999)}.{random.randint(100000, 999999)}"
-    orthanc_study_id = uuid.uuid4().hex[:32]
+    # 기존 OCS에서 실제 DICOM 정보 가져오기
+    existing_info = _get_existing_ocs_dicom_info(index)
 
-    series_types = ["t1", "t1ce", "t2", "flair", "seg"]
-    series_list = []
-
-    for i, series_type in enumerate(series_types):
-        series_list.append({
-            "orthanc_id": uuid.uuid4().hex[:32],
-            "series_uid": f"1.2.826.0.1.3680043.8.498.{random.randint(10000000000, 99999999999)}",
-            "series_type": series_type.upper() if series_type != "t1ce" else "T1C",
-            "description": series_type,
-            "instances_count": 155,
-        })
+    if existing_info:
+        # 실제 DICOM 정보 사용
+        dicom_info = existing_info['dicom']
+        orthanc_info = existing_info['orthanc']
+    else:
+        # 기존 OCS가 없으면 가상 정보 생성 (AI 추론 불가)
+        study_uid = f"1.2.410.200001.{random.randint(1000, 9999)}.{random.randint(100000, 999999)}"
+        series_types = ["t1", "t1ce", "t2", "flair", "seg"]
+        series_list = []
+        for i, series_type in enumerate(series_types):
+            series_list.append({
+                "orthanc_id": uuid.uuid4().hex[:32],
+                "series_uid": f"1.2.826.0.1.3680043.8.498.{random.randint(10000000000, 99999999999)}",
+                "series_type": series_type.upper() if series_type != "t1ce" else "T1C",
+                "description": series_type,
+                "instances_count": 155,
+            })
+        dicom_info = {
+            "study_uid": study_uid,
+            "series_count": len(series_list),
+            "instance_count": sum(s["instances_count"] for s in series_list),
+        }
+        orthanc_info = {
+            "study_id": uuid.uuid4().hex[:16],
+            "orthanc_study_id": uuid.uuid4().hex[:32],
+            "series": series_list,
+        }
 
     return {
         "_template": "RIS",
@@ -1554,17 +1600,8 @@ def _generate_external_ris_worker_result(ocs_id: str, is_confirmed: bool = True)
         "_verifiedAt": timestamp if is_confirmed else None,
         "_verifiedBy": "외부기관" if is_confirmed else None,
 
-        "orthanc": {
-            "study_id": uuid.uuid4().hex[:16],
-            "orthanc_study_id": orthanc_study_id,
-            "series": series_list,
-        },
-
-        "dicom": {
-            "study_uid": study_uid,
-            "series_count": len(series_list),
-            "instance_count": sum(s["instances_count"] for s in series_list),
-        },
+        "orthanc": orthanc_info,
+        "dicom": dicom_info,
 
         "findings": "외부기관 뇌 MRI 검사 결과, 종양 소견이 관찰됩니다.",
         "impression": "뇌종양 의심, 추가 검사 필요",
@@ -1788,6 +1825,7 @@ def create_external_ocs_data(force=False):
                     worker_result=_generate_external_ris_worker_result(
                         ocs_id=ocs_id,
                         is_confirmed=random.choice([True, False]),
+                        index=i,  # 실제 DICOM 정보를 순환하여 사용
                     ),
                     attachments={
                         "files": [],

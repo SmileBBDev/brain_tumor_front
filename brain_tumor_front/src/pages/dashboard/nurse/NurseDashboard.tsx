@@ -9,15 +9,28 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getEncounters, getTodayEncounters } from '@/services/encounter.api';
 import { fetchUsers } from '@/services/users.api';
-import type { Encounter, EncounterSearchParams, EncounterStatus } from '@/types/encounter';
+import type { Encounter, EncounterSearchParams, EncounterStatus, TimeFilter } from '@/types/encounter';
 import type { User } from '@/types/user';
 import Pagination from '@/layout/Pagination';
 import PatientListWidget from '../common/PatientListWidget';
 import { UnifiedCalendar } from '@/components/calendar/UnifiedCalendar';
 import EncounterCreateModal from '@/pages/encounter/EncounterCreateModal';
+import PatientCreateModal from '@/pages/patient/PatientCreateModal';
 import { DashboardHeader } from '../common/DashboardHeader';
+import { EncounterStatusDropdown } from '@/components/encounter';
 import '@/assets/style/patientListView.css';
 import './NurseDashboard.css';
+
+// 요약 카드 필터 타입
+type SummaryFilterType = 'total' | 'scheduled' | 'in_progress' | 'completed' | null;
+
+// 요약 카드 설정
+const SUMMARY_CARD_CONFIG: Record<Exclude<SummaryFilterType, null>, { title: string; statusFilter?: EncounterStatus }> = {
+  total: { title: '오늘 총 접수' },
+  scheduled: { title: '대기중', statusFilter: 'scheduled' },
+  in_progress: { title: '진행중', statusFilter: 'in_progress' },
+  completed: { title: '완료', statusFilter: 'completed' },
+};
 
 // 날짜 포맷
 const formatDate = (dateStr: string | undefined): string => {
@@ -68,9 +81,14 @@ export default function NurseDashboard() {
   const [activeTab, setActiveTab] = useState<'today' | 'monthly'>('today');
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | 'all'>('all');
   const [monthOffset, setMonthOffset] = useState<number | null>(0);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
 
   // 진료 등록 모달 상태
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // 환자 등록 모달 상태
+  const [isPatientCreateModalOpen, setIsPatientCreateModalOpen] = useState(false);
+  // 요약 카드 클릭 시 모달 상태
+  const [summaryModalFilter, setSummaryModalFilter] = useState<SummaryFilterType>(null);
 
   // 의사 목록
   const [doctors, setDoctors] = useState<User[]>([]);
@@ -99,6 +117,12 @@ export default function NurseDashboard() {
     loadDoctors();
   }, []);
 
+  // 시간 기준 환자 구분 헬퍼
+  const isPastPatient = (admissionDate: string | undefined): boolean => {
+    if (!admissionDate) return false;
+    return new Date(admissionDate) < new Date();
+  };
+
   // 오늘 접수 로드
   const loadTodayEncounters = useCallback(async () => {
     setTodayLoading(true);
@@ -110,13 +134,20 @@ export default function NurseDashboard() {
         encounters = encounters.filter(enc => enc.attending_doctor === selectedDoctorId);
       }
 
+      // 시간 필터 적용
+      if (timeFilter === 'past') {
+        encounters = encounters.filter(enc => isPastPatient(enc.admission_date));
+      } else if (timeFilter === 'future') {
+        encounters = encounters.filter(enc => !isPastPatient(enc.admission_date));
+      }
+
       setTodayEncounters(encounters);
     } catch (error) {
       console.error('Failed to fetch today encounters:', error);
     } finally {
       setTodayLoading(false);
     }
-  }, [selectedDoctorId]);
+  }, [selectedDoctorId, timeFilter]);
 
   // 월간 로드
   const loadMonthlyEncounters = useCallback(async () => {
@@ -137,6 +168,11 @@ export default function NurseDashboard() {
         params.attending_doctor = selectedDoctorId;
       }
 
+      // 시간 필터 적용 (백엔드 API 사용)
+      if (timeFilter !== 'all') {
+        params.time_filter = timeFilter;
+      }
+
       const response = await getEncounters(params);
       let encounters: Encounter[] = [];
       if (Array.isArray(response)) {
@@ -154,7 +190,7 @@ export default function NurseDashboard() {
     } finally {
       setMonthlyLoading(false);
     }
-  }, [selectedDoctorId, monthlyPage, monthOffset]);
+  }, [selectedDoctorId, monthlyPage, monthOffset, timeFilter]);
 
   // 현재 선택된 월 정보
   const currentMonthInfo = useMemo(() => monthOffset !== null ? getMonthRange(monthOffset) : null, [monthOffset]);
@@ -179,6 +215,15 @@ export default function NurseDashboard() {
     return summary;
   }, [todayEncounters]);
 
+  // 요약 모달에 표시할 필터링된 환자 목록
+  const filteredEncountersForModal = useMemo(() => {
+    if (!summaryModalFilter) return [];
+    if (summaryModalFilter === 'total') return todayEncounters;
+    const statusFilter = SUMMARY_CARD_CONFIG[summaryModalFilter]?.statusFilter;
+    if (!statusFilter) return todayEncounters;
+    return todayEncounters.filter(enc => enc.status === statusFilter);
+  }, [summaryModalFilter, todayEncounters]);
+
   // 행 클릭
   const handleRowClick = (encounter: Encounter) => {
     navigate(`/patients/${encounter.patient}`);
@@ -194,6 +239,44 @@ export default function NurseDashboard() {
     }
   };
 
+  // 환자 등록 성공 시
+  const handlePatientCreateSuccess = () => {
+    setIsPatientCreateModalOpen(false);
+    // 환자 목록 위젯이 자체적으로 새로고침됨
+  };
+
+  // 상태 변경 성공 시 데이터 새로고침
+  const handleStatusChange = () => {
+    loadTodayEncounters(); // 요약 카드 업데이트를 위해 항상 오늘 데이터 새로고침
+    if (activeTab === 'monthly') {
+      loadMonthlyEncounters();
+    }
+  };
+
+  // 요약 카드 클릭 핸들러
+  const handleSummaryCardClick = (filterType: SummaryFilterType) => {
+    setSummaryModalFilter(filterType);
+  };
+
+  // 요약 모달 닫기
+  const handleCloseSummaryModal = () => {
+    setSummaryModalFilter(null);
+  };
+
+  // 행 클래스 계산 (시간 기준 스타일)
+  const getRowClass = (encounter: Encounter): string => {
+    const classes = ['clickable-row'];
+    // 완료/취소 상태가 아닌 경우에만 시간 기준 스타일 적용
+    if (encounter.status !== 'completed' && encounter.status !== 'cancelled') {
+      if (isPastPatient(encounter.admission_date)) {
+        classes.push('row-past');
+      } else {
+        classes.push('row-future');
+      }
+    }
+    return classes.join(' ');
+  };
+
   const monthlyTotalPages = Math.ceil(monthlyTotalCount / pageSize);
 
   return (
@@ -201,19 +284,31 @@ export default function NurseDashboard() {
       <DashboardHeader role="NURSE" />
       {/* 오늘 요약 카드 */}
       <section className="summary-cards nurse-summary">
-        <div className="card summary total">
+        <div
+          className="card summary total clickable"
+          onClick={() => handleSummaryCardClick('total')}
+        >
           <span className="title">오늘 총 접수</span>
           <strong className="value">{todaySummary.total}</strong>
         </div>
-        <div className="card summary scheduled">
+        <div
+          className="card summary scheduled clickable"
+          onClick={() => handleSummaryCardClick('scheduled')}
+        >
           <span className="title">대기중</span>
           <strong className="value">{todaySummary.scheduled}</strong>
         </div>
-        <div className="card summary in-progress">
+        <div
+          className="card summary in-progress clickable"
+          onClick={() => handleSummaryCardClick('in_progress')}
+        >
           <span className="title">진행중</span>
           <strong className="value">{todaySummary.inProgress}</strong>
         </div>
-        <div className="card summary completed">
+        <div
+          className="card summary completed clickable"
+          onClick={() => handleSummaryCardClick('completed')}
+        >
           <span className="title">완료</span>
           <strong className="value">{todaySummary.completed}</strong>
         </div>
@@ -278,8 +373,31 @@ export default function NurseDashboard() {
       <div className="dashboard-main">
         {/* 접수 테이블 */}
         <section className="card reception-content">
-          {/* 진료 등록 버튼 */}
+          {/* 진료 등록 버튼 및 시간 필터 */}
           <div className="reception-header">
+            <div className="time-filter-group">
+              <button
+                className={`time-filter-btn ${timeFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setTimeFilter('all')}
+              >
+                전체
+              </button>
+              <button
+                className={`time-filter-btn ${timeFilter === 'past' ? 'active' : ''}`}
+                onClick={() => setTimeFilter('past')}
+              >
+                지난 시간
+              </button>
+              <button
+                className={`time-filter-btn ${timeFilter === 'future' ? 'active' : ''}`}
+                onClick={() => setTimeFilter('future')}
+              >
+                이후 시간
+              </button>
+            </div>
+            <button className="btn" onClick={() => setIsPatientCreateModalOpen(true)}>
+              환자 등록
+            </button>
             <button className="btn primary" onClick={() => setIsCreateModalOpen(true)}>
               진료 등록
             </button>
@@ -309,7 +427,7 @@ export default function NurseDashboard() {
                       <tr
                         key={encounter.id}
                         onClick={() => handleRowClick(encounter)}
-                        className="clickable-row"
+                        className={getRowClass(encounter)}
                       >
                         <td>{formatTime(encounter.admission_date)}</td>
                         <td className="patient-name">{encounter.patient_name}</td>
@@ -317,10 +435,13 @@ export default function NurseDashboard() {
                         <td>{encounter.encounter_type_display}</td>
                         <td>{encounter.attending_doctor_name}</td>
                         <td className="chief-complaint">{encounter.chief_complaint}</td>
-                        <td>
-                          <span className={`status-badge ${STATUS_CONFIG[encounter.status]?.className}`}>
-                            {STATUS_CONFIG[encounter.status]?.label || encounter.status_display}
-                          </span>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <EncounterStatusDropdown
+                            encounterId={encounter.id}
+                            currentStatus={encounter.status}
+                            onStatusChange={handleStatusChange}
+                            compact
+                          />
                         </td>
                       </tr>
                     ))}
@@ -367,7 +488,7 @@ export default function NurseDashboard() {
                         <tr
                           key={encounter.id}
                           onClick={() => handleRowClick(encounter)}
-                          className="clickable-row"
+                          className={getRowClass(encounter)}
                         >
                           <td>{formatDate(encounter.admission_date)}</td>
                           <td>{formatTime(encounter.admission_date)}</td>
@@ -375,10 +496,13 @@ export default function NurseDashboard() {
                           <td>{encounter.patient_number}</td>
                           <td>{encounter.encounter_type_display}</td>
                           <td>{encounter.attending_doctor_name}</td>
-                          <td>
-                            <span className={`status-badge ${STATUS_CONFIG[encounter.status]?.className}`}>
-                              {STATUS_CONFIG[encounter.status]?.label || encounter.status_display}
-                            </span>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <EncounterStatusDropdown
+                              encounterId={encounter.id}
+                              currentStatus={encounter.status}
+                              onStatusChange={handleStatusChange}
+                              compact
+                            />
                           </td>
                         </tr>
                       ))}
@@ -415,6 +539,15 @@ export default function NurseDashboard() {
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={handleCreateSuccess}
+        />
+      )}
+
+      {/* 환자 등록 모달 */}
+      {isPatientCreateModalOpen && (
+        <PatientCreateModal
+          isOpen={isPatientCreateModalOpen}
+          onClose={() => setIsPatientCreateModalOpen(false)}
+          onSuccess={handlePatientCreateSuccess}
         />
       )}
     </div>

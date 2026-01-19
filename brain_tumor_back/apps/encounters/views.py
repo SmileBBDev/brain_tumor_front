@@ -16,6 +16,7 @@ from .serializers import (
     EncounterCreateSerializer,
     EncounterUpdateSerializer,
     EncounterSearchSerializer,
+    EncounterStatusChangeSerializer,
 )
 
 
@@ -103,6 +104,13 @@ class EncounterViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(admission_date__gte=start_date)
         if end_date:
             queryset = queryset.filter(admission_date__lte=end_date)
+
+        # 시간 기준 필터 (past: 현재 시간 이전, future: 현재 시간 이후)
+        time_filter = data.get('time_filter')
+        if time_filter == 'past':
+            queryset = queryset.filter(admission_date__lt=timezone.now())
+        elif time_filter == 'future':
+            queryset = queryset.filter(admission_date__gte=timezone.now())
 
         return queryset.select_related('patient', 'attending_doctor').order_by('-admission_date')
 
@@ -215,6 +223,81 @@ class EncounterViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(encounter)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def change_status(self, request, pk=None):
+        """
+        진료 상태 변경 (간호사용)
+
+        POST /api/encounters/{id}/change_status/
+        Body: { "status": "scheduled" | "in_progress" | "completed" | "cancelled" }
+
+        모든 상태 전환이 허용됩니다.
+        상태 변경 시 AccessLog 미들웨어에 의해 자동으로 감사 로그가 기록됩니다.
+        """
+        # 요청 데이터 검증
+        serializer = EncounterStatusChangeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        new_status = serializer.validated_data['status']
+
+        try:
+            with transaction.atomic():
+                # select_for_update로 동시성 문제 방지
+                encounter = Encounter.objects.select_for_update().get(pk=pk, is_deleted=False)
+                previous_status = encounter.status
+
+                # 동일한 상태로 변경 시도 시 무시
+                if previous_status == new_status:
+                    return Response(
+                        {'detail': '이미 해당 상태입니다.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # 상태 변경
+                encounter.status = new_status
+                update_fields = ['status']
+
+                # completed 상태로 변경 시 discharge_date 설정
+                if new_status == 'completed' and not encounter.discharge_date:
+                    encounter.discharge_date = timezone.now()
+                    update_fields.append('discharge_date')
+
+                    # admission_date가 discharge_date보다 미래인 경우 조정
+                    if encounter.admission_date and encounter.admission_date > encounter.discharge_date:
+                        from datetime import timedelta
+                        encounter.admission_date = encounter.discharge_date - timedelta(minutes=1)
+                        update_fields.append('admission_date')
+
+                # completed에서 다른 상태로 변경 시 discharge_date 초기화 (선택적)
+                elif previous_status == 'completed' and new_status != 'completed':
+                    encounter.discharge_date = None
+                    update_fields.append('discharge_date')
+
+                encounter.save(update_fields=update_fields)
+
+            # 변경된 진료 정보 반환
+            response_serializer = EncounterDetailSerializer(encounter)
+            response_data = response_serializer.data
+            response_data['previous_status'] = previous_status
+
+            return Response(response_data)
+
+        except Encounter.DoesNotExist:
+            return Response(
+                {'detail': '진료를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f'진료 상태 변경 중 오류: {e}', exc_info=True)
+            return Response(
+                {'detail': '진료 상태 변경 중 오류가 발생했습니다.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['get'])
     def calendar(self, request):

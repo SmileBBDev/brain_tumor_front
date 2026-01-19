@@ -112,6 +112,32 @@
   background-color: #007bff;
 }
 
+/* 시간 기준 행 스타일 - 지난 시간 환자 (주황색 계열) */
+.encounter-row.row-past {
+  background-color: #fff8e1;
+}
+
+.encounter-row.row-past:hover {
+  background-color: #ffecb3;
+}
+
+.encounter-row.row-past > td:first-child::before {
+  background-color: #ff9800;
+}
+
+/* 시간 기준 행 스타일 - 이후 시간 환자 (파란색 계열) */
+.encounter-row.row-future {
+  background-color: #e3f2fd;
+}
+
+.encounter-row.row-future:hover {
+  background-color: #bbdefb;
+}
+
+.encounter-row.row-future > td:first-child::before {
+  background-color: #2196f3;
+}
+
 /* ========================================
    환자 식별 컬럼 스타일
    ======================================== */

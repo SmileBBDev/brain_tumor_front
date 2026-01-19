@@ -4,12 +4,53 @@
   padding: 1rem;
 }
 
-/* 접수 콘텐츠 헤더 (진료 등록 버튼) */
+/* 접수 콘텐츠 헤더 (진료 등록 버튼 및 시간 필터) */
 .nurse-dashboard .reception-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   padding: 1rem;
   border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+/* 시간 필터 버튼 그룹 */
+.nurse-dashboard .time-filter-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.nurse-dashboard .time-filter-btn {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--card-bg, white);
+  color: var(--text-sub, #64748b);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nurse-dashboard .time-filter-btn:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.nurse-dashboard .time-filter-btn:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.nurse-dashboard .time-filter-btn:not(:first-child):not(:last-child) {
+  border-left: none;
+  border-right: none;
+}
+
+.nurse-dashboard .time-filter-btn:hover {
+  border-color: var(--primary, #5b6fd6);
+  color: var(--primary, #5b6fd6);
+}
+
+.nurse-dashboard .time-filter-btn.active {
+  background: var(--primary, #5b6fd6);
+  border-color: var(--primary, #5b6fd6);
+  color: white;
 }
 
 /* 요약 카드 */
@@ -190,6 +231,25 @@
 
 .nurse-dashboard .reception-table .clickable-row:hover {
   background-color: var(--bg-hover, #f1f5f9);
+}
+
+/* 시간 기준 행 스타일 */
+.nurse-dashboard .reception-table .row-past {
+  background-color: #fff8e1;
+  border-left: 3px solid #ff9800;
+}
+
+.nurse-dashboard .reception-table .row-past:hover {
+  background-color: #ffecb3;
+}
+
+.nurse-dashboard .reception-table .row-future {
+  background-color: #e3f2fd;
+  border-left: 3px solid #2196f3;
+}
+
+.nurse-dashboard .reception-table .row-future:hover {
+  background-color: #bbdefb;
 }
 
 .nurse-dashboard .reception-table .patient-name {

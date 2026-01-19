@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Encounter, SortConfig, SortField } from '@/types/encounter';
+import type { Encounter, SortConfig, SortField, EncounterStatus } from '@/types/encounter';
+import { EncounterStatusDropdown } from '@/components/encounter';
 
 type Props = {
   role: string;
@@ -12,15 +13,19 @@ type Props = {
   onSort?: (field: SortField) => void;
   /** 행 클릭 시 콜백 (설정 시 기본 진료 시작 동작 대체) */
   onRowClick?: (encounter: Encounter) => void;
+  /** 상태 변경 시 콜백 (간호사용) */
+  onStatusChange?: (encounterId: number, newStatus: EncounterStatus) => void;
 };
 
-export default function EncounterListTable({ role, encounters, onEdit, onDelete, onResetFilters, sortConfig, onSort, onRowClick }: Props) {
+export default function EncounterListTable({ role, encounters, onEdit, onDelete, onResetFilters, sortConfig, onSort, onRowClick, onStatusChange }: Props) {
   const navigate = useNavigate();
   const isDoctor = role === 'DOCTOR';
+  const isNurse = role === 'NURSE';
   const isSystemManager = role === 'SYSTEMMANAGER';
   const canEdit = isDoctor || isSystemManager;
   const canCreateOCS = isDoctor || isSystemManager;
   const canStartTreatment = isDoctor || isSystemManager; // Nurse는 진료 시작 불가
+  const canChangeStatus = isNurse || isSystemManager; // 간호사 또는 시스템관리자만 상태 변경 가능
 
   // 더보기 메뉴 상태
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -111,6 +116,29 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
   // 진료 시작 가능 여부
   const canStartEncounter = (status: string) => {
     return status === 'scheduled' || status === 'in_progress';
+  };
+
+  // 시간 기준 환자 구분 (과거/미래)
+  const isPastPatient = (admissionDate: string | undefined): boolean => {
+    if (!admissionDate) return false;
+    return new Date(admissionDate) < new Date();
+  };
+
+  // 행 클래스 계산
+  const getRowClass = (encounter: Encounter): string => {
+    const classes = ['encounter-row'];
+    if (encounter.status === 'in_progress') {
+      classes.push('row-in-progress');
+    }
+    // 시간 기준 스타일 (완료/취소 상태는 제외)
+    if (encounter.status !== 'completed' && encounter.status !== 'cancelled') {
+      if (isPastPatient(encounter.admission_date)) {
+        classes.push('row-past');
+      } else {
+        classes.push('row-future');
+      }
+    }
+    return classes.join(' ');
   };
 
   // 정렬 아이콘 렌더링
@@ -204,7 +232,7 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
         {encounters.map((e) => (
           <tr
             key={e.id}
-            className={`encounter-row ${e.status === 'in_progress' ? 'row-in-progress' : ''}`}
+            className={getRowClass(e)}
             onClick={() => handleRowClick(e)}
             style={{ cursor: 'pointer' }}
           >
@@ -241,14 +269,23 @@ export default function EncounterListTable({ role, encounters, onEdit, onDelete,
               )}
             </td>
 
-            {/* 상태 Badge */}
-            <td>
-              <span className={getStatusBadgeClass(e.status)}>
-                {e.status === 'scheduled' && '예약'}
-                {e.status === 'in_progress' && '입원중'}
-                {e.status === 'completed' && '완료'}
-                {e.status === 'cancelled' && '취소'}
-              </span>
+            {/* 상태 Badge 또는 드롭다운 */}
+            <td onClick={(ev) => canChangeStatus && ev.stopPropagation()}>
+              {canChangeStatus ? (
+                <EncounterStatusDropdown
+                  encounterId={e.id}
+                  currentStatus={e.status}
+                  onStatusChange={(newStatus) => onStatusChange?.(e.id, newStatus)}
+                  compact
+                />
+              ) : (
+                <span className={getStatusBadgeClass(e.status)}>
+                  {e.status === 'scheduled' && '예약'}
+                  {e.status === 'in_progress' && '입원중'}
+                  {e.status === 'completed' && '완료'}
+                  {e.status === 'cancelled' && '취소'}
+                </span>
+              )}
             </td>
 
             {/* 주호소 (말줄임 + tooltip) */}

@@ -53,6 +53,7 @@ export interface EncounterListResponse {
 
 export type SortField = 'admission_date' | 'status';
 export type SortDirection = 'asc' | 'desc';
+export type TimeFilter = 'all' | 'past' | 'future';
 
 export interface SortConfig {
   field: SortField;
@@ -72,6 +73,7 @@ export interface EncounterSearchParams {
   page?: number;
   page_size?: number;
   ordering?: string;
+  time_filter?: TimeFilter;
 }
 
 export interface EncounterCreateData {

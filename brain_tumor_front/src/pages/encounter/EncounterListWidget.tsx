@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/pages/auth/AuthProvider';
 import { getEncounters } from '@/services/encounter.api';
-import type { Encounter, EncounterSearchParams, EncounterType, EncounterStatus, Department, SortConfig, SortField } from '@/types/encounter';
+import type { Encounter, EncounterSearchParams, EncounterType, EncounterStatus, Department, SortConfig, SortField, TimeFilter } from '@/types/encounter';
 import EncounterListTable from './EncounterListTable';
 import EncounterCreateModal from './EncounterCreateModal';
 import EncounterEditModal from './EncounterEditModal';
@@ -86,6 +86,7 @@ export default function EncounterListWidget({
   const [encounterTypeFilter, setEncounterTypeFilter] = useState<EncounterType | ''>(defaultEncounterType || '');
   const [statusFilter, setStatusFilter] = useState<EncounterStatus | ''>(defaultStatus || '');
   const [departmentFilter, setDepartmentFilter] = useState<Department | ''>(defaultDepartment || '');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
 
   // Sorting
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -115,6 +116,7 @@ export default function EncounterListWidget({
         ...(patientId && { patient: patientId }),
         ...(attendingDoctorId && { attending_doctor: attendingDoctorId }),
         ...(ordering && { ordering }),
+        ...(timeFilter !== 'all' && { time_filter: timeFilter }),
       };
 
       const response = await getEncounters(params);
@@ -144,7 +146,7 @@ export default function EncounterListWidget({
 
   useEffect(() => {
     fetchEncounters();
-  }, [page, searchQuery, encounterTypeFilter, statusFilter, departmentFilter, sortConfig, patientId, attendingDoctorId]);
+  }, [page, searchQuery, encounterTypeFilter, statusFilter, departmentFilter, sortConfig, patientId, attendingDoctorId, timeFilter]);
 
   // Handle search
   const handleSearch = (e: React.FormEvent) => {
@@ -193,8 +195,15 @@ export default function EncounterListWidget({
     setEncounterTypeFilter(defaultEncounterType || '');
     setStatusFilter(defaultStatus || '');
     setDepartmentFilter(defaultDepartment || '');
+    setTimeFilter('all');
     setSortConfig(null);
     setPage(1);
+  };
+
+  // Handle status change (간호사용)
+  const handleStatusChange = () => {
+    // 상태 변경 후 목록 새로고침
+    fetchEncounters();
   };
 
   // Handle sort
@@ -277,6 +286,18 @@ export default function EncounterListWidget({
                 <option value="neurosurgery">신경외과</option>
               </select>
 
+              <select
+                value={timeFilter}
+                onChange={(e) => {
+                  setTimeFilter(e.target.value as TimeFilter);
+                  setPage(1);
+                }}
+              >
+                <option value="all">전체 시간</option>
+                <option value="past">지난 시간</option>
+                <option value="future">이후 시간</option>
+              </select>
+
               <button className="btn small" onClick={handleResetFilters}>
                 필터 초기화
               </button>
@@ -305,6 +326,7 @@ export default function EncounterListWidget({
             sortConfig={sortable ? sortConfig : null}
             onSort={sortable ? handleSort : undefined}
             onRowClick={onRowClick}
+            onStatusChange={handleStatusChange}
           />
         )}
       </div>

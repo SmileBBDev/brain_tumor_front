@@ -1463,6 +1463,9 @@ class ExternalPatientOCSCreateView(APIView):
             'last_modified': timezone.now().isoformat(),
         }
 
+        # 외부 환자용 worker_result 생성
+        worker_result = self._generate_external_worker_result(job_role, job_type, patient.patient_number)
+
         ocs = OCS.objects.create(
             patient=patient,
             doctor=request.user,
@@ -1470,6 +1473,7 @@ class ExternalPatientOCSCreateView(APIView):
             job_type=job_type,
             priority=priority,
             doctor_request=doctor_request,
+            worker_result=worker_result,
             attachments=attachments,
             encounter_id=ocs_data.get('encounter_id'),
         )
@@ -1507,6 +1511,70 @@ class ExternalPatientOCSCreateView(APIView):
             'patient': patient_response,
             'ocs': OCSDetailSerializer(ocs).data,
         }, status=status.HTTP_201_CREATED)
+
+    def _generate_external_worker_result(self, job_role: str, job_type: str, patient_number: str) -> dict:
+        """
+        외부 환자용 worker_result 생성
+        - RIS/MRI: study_uid 포함한 DICOM 정보 생성
+        - LIS: 기본 템플릿
+        """
+        import random
+        timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+
+        if job_role == 'RIS' and job_type == 'MRI':
+            # study_uid 생성: 1.2.410.200001.{random}.{patient_num}.{timestamp}
+            patient_num = ''.join(filter(str.isdigit, patient_number)) or str(random.randint(100000, 999999))
+            study_uid = f"1.2.410.200001.{random.randint(1000, 9999)}.{patient_num[-6:]}.{timestamp}"
+
+            # 시리즈 정보 생성
+            series_types = ["T1", "T1C", "T2", "FLAIR"]
+            series_list = []
+            for i, series_type in enumerate(series_types):
+                series_list.append({
+                    "series_uid": f"1.2.826.0.1.3680043.8.498.{random.randint(10000000000, 99999999999)}",
+                    "series_type": series_type,
+                    "description": series_type,
+                    "instances_count": random.randint(100, 200),
+                })
+
+            return {
+                "_template": "RIS",
+                "_version": "1.2",
+                "_confirmed": False,
+                "_external": True,
+                "dicom": {
+                    "study_uid": study_uid,
+                    "series": series_list,
+                    "series_count": len(series_list),
+                    "instance_count": sum(s["instances_count"] for s in series_list),
+                },
+                "findings": "",
+                "impression": "",
+                "recommendation": "",
+                "tumorDetected": False,
+                "_custom": {}
+            }
+
+        elif job_role == 'LIS':
+            return {
+                "_template": "LIS",
+                "_version": "1.0",
+                "_confirmed": False,
+                "_external": True,
+                "test_results": [],
+                "summary": "",
+                "interpretation": "",
+                "_custom": {}
+            }
+
+        else:
+            return {
+                "_template": "default",
+                "_version": "1.0",
+                "_confirmed": False,
+                "_external": True,
+                "_custom": {}
+            }
 
     def _get_client_ip(self, request):
         """클라이언트 IP 추출"""

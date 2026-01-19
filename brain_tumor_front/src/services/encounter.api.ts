@@ -67,6 +67,17 @@ export const cancelEncounter = async (encounterId: number): Promise<Encounter> =
 };
 
 /**
+ * 진료 상태 변경 (간호사용)
+ */
+export const changeEncounterStatus = async (
+  encounterId: number,
+  status: import('@/types/encounter').EncounterStatus
+): Promise<Encounter> => {
+  const response = await api.post<Encounter>(`/encounters/${encounterId}/change_status/`, { status });
+  return response.data;
+};
+
+/**
  * 진료 통계 조회
  */
 export const getEncounterStatistics = async (): Promise<EncounterStatistics> => {
