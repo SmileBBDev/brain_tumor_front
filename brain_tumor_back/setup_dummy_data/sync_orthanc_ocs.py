@@ -49,7 +49,7 @@ ORTHANC_URL = settings.ORTHANC_BASE_URL
 PATIENT_DATA_PATH = settings.PATIENT_DATA_ROOT
 
 
-# 환자 폴더 목록 (순서대로 15개)
+# 환자 폴더 목록 (순서대로 15개 TCGA + 10개 외부환자)
 PATIENT_FOLDERS = [
     "TCGA-CS-4944",
     "TCGA-CS-6666",
@@ -66,6 +66,20 @@ PATIENT_FOLDERS = [
     "TCGA-HT-7602",
     "TCGA-HT-7686",
     "TCGA-HT-7694",
+]
+
+# 외부 환자 폴더 목록 (10개)
+EXTERNAL_PATIENT_FOLDERS = [
+    "EXT-0001",
+    "EXT-0002",
+    "EXT-0003",
+    "EXT-0004",
+    "EXT-0005",
+    "EXT-0006",
+    "EXT-0007",
+    "EXT-0008",
+    "EXT-0009",
+    "EXT-0010",
 ]
 
 # MRI 시리즈 타입 매핑
@@ -474,6 +488,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true', help='테스트 모드 (실제 업로드/업데이트 안 함)')
     parser.add_argument('--skip-upload', action='store_true', help='Orthanc 업로드 스킵 (OCS만 업데이트)')
     parser.add_argument('--limit', type=int, default=0, help='처리할 환자 수 제한 (0=전체)')
+    parser.add_argument('--external-only', action='store_true', help='외부 환자만 처리')
     args = parser.parse_args()
 
     print("=" * 60)
@@ -485,59 +500,95 @@ def main():
 
     # 1. 환자 목록 조회
     print("\n[1단계] 환자 목록 조회...")
-    patients = list(Patient.objects.filter(is_deleted=False).order_by('patient_number')[:15])
+    patients = list(Patient.objects.filter(is_deleted=False).order_by('patient_number'))
     print(f"  DB 환자: {len(patients)}명")
 
     if len(patients) < 15:
-        print(f"  [ERROR] 환자가 15명 미만입니다. 더미 데이터를 먼저 생성하세요.")
-        return
+        print(f"  [WARNING] 환자가 15명 미만입니다.")
 
     # 2. OCS RIS 목록 조회
     print("\n[2단계] OCS RIS 목록 조회...")
     ocs_ris_list = list(OCS.objects.filter(job_role='RIS', job_type='MRI', is_deleted=False).order_by('id'))
     print(f"  OCS RIS: {len(ocs_ris_list)}건")
 
-    if len(ocs_ris_list) < 15:
-        print(f"  [WARNING] OCS RIS가 15건 미만입니다. 가능한 만큼만 처리합니다.")
-
-    # 3. 환자 폴더와 매핑 (15건 1:1 매칭)
-    print("\n[3단계] 환자-폴더 매핑 (15건)...")
-
-    # 환자번호 P202600001 ~ P202600015 순서대로 매핑
-    # 폴더[0] -> 환자 P202600001 -> OCS (patient=P202600001인 MRI)
-    # 폴더[1] -> 환자 P202600002 -> OCS (patient=P202600002인 MRI)
-    # ...
+    # 3. 환자 폴더와 매핑
+    print("\n[3단계] 환자-폴더 매핑...")
 
     mappings = []
 
-    # 처리 제한
-    limit = args.limit if args.limit > 0 else len(PATIENT_FOLDERS)
+    # 3-1. 내부 환자 매핑 (TCGA 폴더 -> P202600001~P202600015)
+    if not args.external_only:
+        print("  [내부 환자]")
+        limit = args.limit if args.limit > 0 else len(PATIENT_FOLDERS)
 
-    for i in range(min(limit, len(PATIENT_FOLDERS))):
-        folder_name = PATIENT_FOLDERS[i]
-        patient_number = f"P20260000{i+1}" if i < 9 else f"P2026000{i+1}"
+        for i in range(min(limit, len(PATIENT_FOLDERS))):
+            folder_name = PATIENT_FOLDERS[i]
+            patient_number = f"P20260000{i+1}" if i < 9 else f"P2026000{i+1}"
 
-        # 해당 환자번호의 환자 찾기
-        patient = next((p for p in patients if p.patient_number == patient_number), None)
+            # 해당 환자번호의 환자 찾기
+            patient = next((p for p in patients if p.patient_number == patient_number), None)
+
+            # 해당 환자의 OCS 찾기
+            ocs = next((o for o in ocs_ris_list if o.patient and o.patient.patient_number == patient_number), None)
+
+            if patient:
+                mappings.append({
+                    "folder": folder_name,
+                    "patient": patient,
+                    "patient_number": patient_number,
+                    "ocs": ocs,
+                    "ocs_id": ocs.ocs_id if ocs else None,
+                    "is_external": False,
+                })
+            else:
+                print(f"    [WARNING] 환자 {patient_number} 없음, 스킵")
+
+        print(f"    내부 환자 매핑: {len(mappings)}건")
+
+    # 3-2. 외부 환자 매핑 (EXT 폴더 -> 외부환자)
+    print("  [외부 환자]")
+    external_mappings_count = 0
+
+    # 외부 환자 조회 (is_external=True인 환자)
+    external_patients = [p for p in patients if p.is_external]
+
+    for i, folder_name in enumerate(EXTERNAL_PATIENT_FOLDERS):
+        # 외부 환자 폴더가 존재하는지 확인
+        folder_path = PATIENT_DATA_PATH / folder_name / "mri"
+        if not folder_path.exists():
+            print(f"    [WARNING] 폴더 없음: {folder_name}, 스킵")
+            continue
+
+        # 외부 환자 찾기 (순서대로 매핑)
+        if i < len(external_patients):
+            patient = external_patients[i]
+            patient_number = patient.patient_number
+        else:
+            # 외부 환자가 부족하면 폴더 이름을 patient_number로 사용
+            patient = None
+            patient_number = folder_name
 
         # 해당 환자의 OCS 찾기
-        ocs = next((o for o in ocs_ris_list if o.patient and o.patient.patient_number == patient_number), None)
-
+        ocs = None
         if patient:
-            mappings.append({
-                "folder": folder_name,
-                "patient": patient,
-                "patient_number": patient_number,
-                "ocs": ocs,
-                "ocs_id": ocs.ocs_id if ocs else None,
-            })
-        else:
-            print(f"  [WARNING] 환자 {patient_number} 없음, 스킵")
+            ocs = next((o for o in ocs_ris_list if o.patient and o.patient.id == patient.id), None)
 
-    print(f"  매핑 완료: {len(mappings)}건")
+        mappings.append({
+            "folder": folder_name,
+            "patient": patient,
+            "patient_number": patient_number,
+            "ocs": ocs,
+            "ocs_id": ocs.ocs_id if ocs else None,
+            "is_external": True,
+        })
+        external_mappings_count += 1
+
+    print(f"    외부 환자 매핑: {external_mappings_count}건")
+    print(f"  총 매핑: {len(mappings)}건")
 
     for m in mappings[:5]:
-        print(f"    {m['folder']} -> {m['patient_number']} -> {m['ocs_id']}")
+        ext_mark = "[외부]" if m.get("is_external") else "[내부]"
+        print(f"    {ext_mark} {m['folder']} -> {m['patient_number']} -> {m['ocs_id']}")
     if len(mappings) > 5:
         print(f"    ... 외 {len(mappings) - 5}건")
 
@@ -684,9 +735,13 @@ def main():
     print("완료!")
     print("=" * 60)
 
+    internal_count = len([m for m in mappings if not m.get("is_external")])
+    external_count = len([m for m in mappings if m.get("is_external")])
+
     print(f"\n[요약]")
-    print(f"  - 환자 폴더: {len(PATIENT_FOLDERS)}개")
-    print(f"  - 업로드 처리: {len(upload_results)}건")
+    print(f"  - 내부 환자 폴더: {len(PATIENT_FOLDERS)}개")
+    print(f"  - 외부 환자 폴더: {len(EXTERNAL_PATIENT_FOLDERS)}개")
+    print(f"  - 업로드 처리: {len(upload_results)}건 (내부: {internal_count}, 외부: {external_count})")
     print(f"  - CONFIRMED (DICOM 있음): {confirmed_count}건")
     print(f"  - 나머지 ORDERED (MRI): {remaining_count}건")
 
