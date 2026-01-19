@@ -986,6 +986,8 @@ def load_menu_permission_seed():
         'LIS': ['DASHBOARD', 'LAB_RESULT_VIEW', 'LAB_RESULT_UPLOAD', 'OCS_LIS', 'OCS_LIS_DETAIL', 'LIS_PROCESS_STATUS', 'AI', 'AI_REQUEST_LIST', 'REPORT', 'REPORT_DASHBOARD'],
         # 환자 전용 메뉴 (MY_CARE 그룹)
         'PATIENT': ['DASHBOARD', 'MY_CARE', 'MY_SUMMARY', 'MY_VISITS', 'MY_IMAGING', 'MY_LAB', 'ABOUT_HOSPITAL'],
+        # 외부기관 전용 메뉴
+        'EXTERNAL': ['DASHBOARD', 'IMAGE_VIEWER', 'AI', 'AI_REQUEST_LIST', 'AI_REQUEST_DETAIL', 'AI_M1_DETAIL', 'AI_MG_DETAIL', 'AI_MM_DETAIL', 'REPORT', 'REPORT_DASHBOARD', 'REPORT_LIST', 'REPORT_DETAIL'],
     }
 
     for role_code, menu_codes in role_menu_permissions.items():
