@@ -18,18 +18,22 @@ export type AdminStats = {
   };
 }
 
+// OCS 상태별 카운트 타입
+export type OcsStatusCounts = {
+  ordered: number;
+  accepted: number;
+  in_progress: number;
+  result_ready: number;
+  confirmed: number;
+  cancelled: number;
+  total: number;
+  total_this_week: number;
+};
+
 // External Dashboard 통계
 export type ExternalStats = {
-  lis_uploads: {
-    pending: number;
-    completed: number;
-    total_this_week: number;
-  };
-  ris_uploads: {
-    pending: number;
-    completed: number;
-    total_this_week: number;
-  };
+  lis_uploads: OcsStatusCounts;
+  ris_uploads: OcsStatusCounts;
   recent_uploads: Array<{
     id: number;
     ocs_id: string;

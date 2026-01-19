@@ -190,15 +190,26 @@ class ExternalDashboardStatsView(APIView):
                 is_deleted=False
             ).select_related('patient').order_by('-created_at')[:10]
 
+            # 모든 상태별 카운트 반환
+            def get_status_counts(queryset):
+                return {
+                    'ordered': queryset.filter(ocs_status=OCS.OcsStatus.ORDERED).count(),
+                    'accepted': queryset.filter(ocs_status=OCS.OcsStatus.ACCEPTED).count(),
+                    'in_progress': queryset.filter(ocs_status=OCS.OcsStatus.IN_PROGRESS).count(),
+                    'result_ready': queryset.filter(ocs_status=OCS.OcsStatus.RESULT_READY).count(),
+                    'confirmed': queryset.filter(ocs_status=OCS.OcsStatus.CONFIRMED).count(),
+                    'cancelled': queryset.filter(ocs_status=OCS.OcsStatus.CANCELLED).count(),
+                }
+
             return Response({
                 'lis_uploads': {
-                    'pending': lis_external.filter(ocs_status=OCS.OcsStatus.RESULT_READY).count(),
-                    'completed': lis_external.filter(ocs_status=OCS.OcsStatus.CONFIRMED).count(),
+                    **get_status_counts(lis_external),
+                    'total': lis_external.count(),
                     'total_this_week': lis_external.filter(created_at__gte=week_ago).count(),
                 },
                 'ris_uploads': {
-                    'pending': ris_external.filter(ocs_status=OCS.OcsStatus.RESULT_READY).count(),
-                    'completed': ris_external.filter(ocs_status=OCS.OcsStatus.CONFIRMED).count(),
+                    **get_status_counts(ris_external),
+                    'total': ris_external.count(),
                     'total_this_week': ris_external.filter(created_at__gte=week_ago).count(),
                 },
                 'recent_uploads': [

@@ -34,32 +34,64 @@ export default function ExternalDashboard() {
       <div className="summary-cards">
         <div className="summary-card lis">
           <h3>🧬 LIS 업로드</h3>
-          <div className="card-stats">
-            <div className="stat pending">
-              <span className="stat-value">{stats.lis_uploads.pending}</span>
-              <span className="stat-label">대기 중</span>
+          <div className="card-stats-grid">
+            <div className="stat ordered">
+              <span className="stat-value">{stats.lis_uploads.ordered}</span>
+              <span className="stat-label">처방됨</span>
             </div>
-            <div className="stat completed">
-              <span className="stat-value">{stats.lis_uploads.completed}</span>
-              <span className="stat-label">완료</span>
+            <div className="stat accepted">
+              <span className="stat-value">{stats.lis_uploads.accepted}</span>
+              <span className="stat-label">접수됨</span>
+            </div>
+            <div className="stat in-progress">
+              <span className="stat-value">{stats.lis_uploads.in_progress}</span>
+              <span className="stat-label">진행 중</span>
+            </div>
+            <div className="stat result-ready">
+              <span className="stat-value">{stats.lis_uploads.result_ready}</span>
+              <span className="stat-label">결과대기</span>
+            </div>
+            <div className="stat confirmed">
+              <span className="stat-value">{stats.lis_uploads.confirmed}</span>
+              <span className="stat-label">확인완료</span>
+            </div>
+            <div className="stat cancelled">
+              <span className="stat-value">{stats.lis_uploads.cancelled}</span>
+              <span className="stat-label">취소됨</span>
             </div>
           </div>
-          <span className="card-sub">이번 주: {stats.lis_uploads.total_this_week}건</span>
+          <span className="card-sub">총 {stats.lis_uploads.total}건 | 이번 주: {stats.lis_uploads.total_this_week}건</span>
         </div>
 
         <div className="summary-card ris">
           <h3>🩻 RIS 업로드</h3>
-          <div className="card-stats">
-            <div className="stat pending">
-              <span className="stat-value">{stats.ris_uploads.pending}</span>
-              <span className="stat-label">대기 중</span>
+          <div className="card-stats-grid">
+            <div className="stat ordered">
+              <span className="stat-value">{stats.ris_uploads.ordered}</span>
+              <span className="stat-label">처방됨</span>
             </div>
-            <div className="stat completed">
-              <span className="stat-value">{stats.ris_uploads.completed}</span>
-              <span className="stat-label">완료</span>
+            <div className="stat accepted">
+              <span className="stat-value">{stats.ris_uploads.accepted}</span>
+              <span className="stat-label">접수됨</span>
+            </div>
+            <div className="stat in-progress">
+              <span className="stat-value">{stats.ris_uploads.in_progress}</span>
+              <span className="stat-label">진행 중</span>
+            </div>
+            <div className="stat result-ready">
+              <span className="stat-value">{stats.ris_uploads.result_ready}</span>
+              <span className="stat-label">결과대기</span>
+            </div>
+            <div className="stat confirmed">
+              <span className="stat-value">{stats.ris_uploads.confirmed}</span>
+              <span className="stat-label">확인완료</span>
+            </div>
+            <div className="stat cancelled">
+              <span className="stat-value">{stats.ris_uploads.cancelled}</span>
+              <span className="stat-label">취소됨</span>
             </div>
           </div>
-          <span className="card-sub">이번 주: {stats.ris_uploads.total_this_week}건</span>
+          <span className="card-sub">총 {stats.ris_uploads.total}건 | 이번 주: {stats.ris_uploads.total_this_week}건</span>
         </div>
       </div>
 

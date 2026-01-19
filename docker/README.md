@@ -107,9 +107,10 @@ docker compose -f docker-compose.fastapi.yml down
 docker compose -f docker-compose.fastapi.yml up -d
 
 
+docker compose -f docker-compose.django.yml down
 
 
-
+docker compose -f docker-compose.django.yml up -d
 
 ---
 

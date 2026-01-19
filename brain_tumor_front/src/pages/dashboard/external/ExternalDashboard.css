@@ -45,15 +45,48 @@
   margin-bottom: 12px;
 }
 
+/* 6개 상태를 위한 그리드 레이아웃 */
+.external-dashboard .card-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+
 .external-dashboard .stat {
   display: flex;
   flex-direction: column;
 }
 
 .external-dashboard .stat-value {
-  font-size: 32px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-main);
+}
+
+/* 각 상태별 색상 */
+.external-dashboard .stat.ordered .stat-value {
+  color: #d68910;
+}
+
+.external-dashboard .stat.accepted .stat-value {
+  color: #2980b9;
+}
+
+.external-dashboard .stat.in-progress .stat-value {
+  color: #1565c0;
+}
+
+.external-dashboard .stat.result-ready .stat-value {
+  color: #e67e22;
+}
+
+.external-dashboard .stat.confirmed .stat-value {
+  color: #1e8449;
+}
+
+.external-dashboard .stat.cancelled .stat-value {
+  color: #7f8c8d;
 }
 
 .external-dashboard .stat.pending .stat-value {
