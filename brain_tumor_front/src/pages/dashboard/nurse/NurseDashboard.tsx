@@ -52,14 +52,6 @@ const formatTime = (dateStr: string | undefined): string => {
   });
 };
 
-// 상태 표시
-const STATUS_CONFIG: Record<EncounterStatus, { label: string; className: string }> = {
-  scheduled: { label: '예정', className: 'status-scheduled' },
-  'in_progress': { label: '진행중', className: 'status-in_progress' },
-  completed: { label: '완료', className: 'status-completed' },
-  cancelled: { label: '취소', className: 'status-cancelled' },
-};
-
 // 월별 범위 계산 (offset: -1=전월, 0=당월, 1=차월)
 const getMonthRange = (offset: number = 0): { start: string; end: string; month: number; year: number } => {
   const now = new Date();

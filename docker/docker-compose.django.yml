@@ -1,6 +1,10 @@
 # =============================================================
 # docker-compose.django.yml - Django Backend + Infrastructure
 # =============================================================
+# ⚠️ DEPRECATED: 단일 VM 배포 시 docker-compose.unified.yml 사용 권장
+#    이 파일은 2-VM 분리 배포 시에만 사용
+#    Use docker-compose.unified.yml for single-VM deployment
+# =============================================================
 # Usage:
 #   docker compose -f docker-compose.django.yml up -d
 # =============================================================

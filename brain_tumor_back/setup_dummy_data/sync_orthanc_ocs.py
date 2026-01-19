@@ -584,6 +584,37 @@ def main():
         external_mappings_count += 1
 
     print(f"    외부 환자 매핑: {external_mappings_count}건")
+
+    # 3-3. 외부기관 OCS (risx_*) 매핑 - 내부 TCGA 폴더를 순환하여 사용
+    print("  [외부기관 OCS (risx_*)]")
+    risx_ocs_list = [o for o in ocs_ris_list if o.ocs_id.startswith('risx_')]
+    risx_mappings_count = 0
+
+    for i, ocs in enumerate(risx_ocs_list):
+        # TCGA 폴더를 순환하여 매핑 (risx_0001 -> TCGA-CS-4944, risx_0002 -> TCGA-CS-6666, ...)
+        folder_idx = i % len(PATIENT_FOLDERS)
+        folder_name = PATIENT_FOLDERS[folder_idx]
+
+        folder_path = PATIENT_DATA_PATH / folder_name / "mri"
+        if not folder_path.exists():
+            print(f"    [WARNING] 폴더 없음: {folder_name}, 스킵")
+            continue
+
+        patient = ocs.patient
+        patient_number = patient.patient_number if patient else f"risx_{i+1:04d}"
+
+        mappings.append({
+            "folder": folder_name,
+            "patient": patient,
+            "patient_number": patient_number,
+            "ocs": ocs,
+            "ocs_id": ocs.ocs_id,
+            "is_external": True,
+            "is_risx": True,  # risx OCS 표시
+        })
+        risx_mappings_count += 1
+
+    print(f"    외부기관 OCS (risx_*) 매핑: {risx_mappings_count}건")
     print(f"  총 매핑: {len(mappings)}건")
 
     for m in mappings[:5]:
@@ -599,13 +630,29 @@ def main():
     skipped_count = 0
     uploaded_count = 0
 
+    # 내부 환자별 Orthanc 정보 캐시 (폴더명 -> orthanc_info)
+    folder_orthanc_cache = {}
+
     for i, mapping in enumerate(mappings):
         folder = mapping["folder"]
         patient_number = mapping["patient_number"]
         ocs = mapping["ocs"]
         ocs_id = mapping["ocs_id"] or f"ocs_new_{i+1:04d}"
+        is_risx = mapping.get("is_risx", False)
 
-        print(f"\n[{i+1}/{len(mappings)}] {folder} -> {patient_number}")
+        print(f"\n[{i+1}/{len(mappings)}] {folder} -> {patient_number} {'(risx)' if is_risx else ''}")
+
+        # risx_* OCS는 같은 폴더를 사용하는 내부환자의 Orthanc 정보를 참조
+        if is_risx and folder in folder_orthanc_cache:
+            orthanc_info = folder_orthanc_cache[folder]
+            print(f"  [REUSE] 내부환자 Orthanc 정보 재사용 (Study: {orthanc_info['orthanc_study_id'][:12]}...)")
+            upload_results.append({
+                "mapping": mapping,
+                "orthanc_info": orthanc_info,
+                "skipped": True
+            })
+            skipped_count += 1
+            continue
 
         # 1) OCS가 이미 CONFIRMED이고 worker_result에 orthanc 정보가 있으면 스킵
         if ocs and ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
@@ -626,6 +673,9 @@ def main():
                     "orthanc_info": orthanc_info,
                     "skipped": True
                 })
+                # 캐시에 저장
+                if not is_risx:
+                    folder_orthanc_cache[folder] = orthanc_info
                 skipped_count += 1
                 continue
 
@@ -638,6 +688,9 @@ def main():
                 "orthanc_info": existing_orthanc,
                 "skipped": True
             })
+            # 캐시에 저장
+            if not is_risx:
+                folder_orthanc_cache[folder] = existing_orthanc
             skipped_count += 1
             continue
 
@@ -650,6 +703,9 @@ def main():
             orthanc_info = upload_patient_mri(folder, patient_number, ocs_id, dry_run=args.dry_run)
             if orthanc_info:
                 uploaded_count += 1
+                # 캐시에 저장
+                if not is_risx:
+                    folder_orthanc_cache[folder] = orthanc_info
 
         upload_results.append({
             "mapping": mapping,
@@ -736,12 +792,14 @@ def main():
     print("=" * 60)
 
     internal_count = len([m for m in mappings if not m.get("is_external")])
-    external_count = len([m for m in mappings if m.get("is_external")])
+    external_count = len([m for m in mappings if m.get("is_external") and not m.get("is_risx")])
+    risx_count = len([m for m in mappings if m.get("is_risx")])
 
     print(f"\n[요약]")
     print(f"  - 내부 환자 폴더: {len(PATIENT_FOLDERS)}개")
     print(f"  - 외부 환자 폴더: {len(EXTERNAL_PATIENT_FOLDERS)}개")
-    print(f"  - 업로드 처리: {len(upload_results)}건 (내부: {internal_count}, 외부: {external_count})")
+    print(f"  - 외부기관 OCS (risx_*): {risx_count}건")
+    print(f"  - 업로드 처리: {len(upload_results)}건 (내부: {internal_count}, 외부: {external_count}, risx: {risx_count})")
     print(f"  - CONFIRMED (DICOM 있음): {confirmed_count}건")
     print(f"  - 나머지 ORDERED (MRI): {remaining_count}건")
 
@@ -758,7 +816,12 @@ def main():
     mri_confirmed = OCS.objects.filter(job_role='RIS', job_type='MRI', ocs_status='CONFIRMED', is_deleted=False).count()
     mri_ordered = OCS.objects.filter(job_role='RIS', job_type='MRI', ocs_status='ORDERED', is_deleted=False).count()
 
+    # risx_* OCS 상태
+    risx_total = OCS.objects.filter(ocs_id__startswith='risx_', is_deleted=False).count()
+    risx_confirmed = OCS.objects.filter(ocs_id__startswith='risx_', ocs_status='CONFIRMED', is_deleted=False).count()
+
     print(f"  - MRI 전체: {mri_total}건 (CONFIRMED: {mri_confirmed}, ORDERED: {mri_ordered})")
+    print(f"  - 외부기관 (risx_*): {risx_total}건 (CONFIRMED: {risx_confirmed})")
 
 
 if __name__ == "__main__":

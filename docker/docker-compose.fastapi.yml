@@ -1,6 +1,10 @@
 # =============================================================
 # docker-compose.fastapi.yml - FastAPI + Celery (Separate VM Deployment)
 # =============================================================
+# ⚠️ DEPRECATED: 단일 VM 배포 시 docker-compose.unified.yml 사용 권장
+#    이 파일은 2-VM 분리 배포 (GPU VM 전용) 시에만 사용
+#    Use docker-compose.unified.yml for single-VM deployment
+# =============================================================
 # This file is designed for STANDALONE deployment on a separate VM
 # It includes its own Redis instance for Celery task queue
 #
