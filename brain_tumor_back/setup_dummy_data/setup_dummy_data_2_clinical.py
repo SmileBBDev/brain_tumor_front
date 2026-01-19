@@ -1435,6 +1435,148 @@ def create_dummy_prescriptions(num_prescriptions=20, num_items_per_rx=3, force=F
     return True
 
 
+def _generate_external_lis_worker_result(job_type: str, ocs_id: str, is_confirmed: bool = True) -> dict:
+    """
+    외부기관 LIS OCS worker_result 생성 (내부 환자와 동일한 v1.2 포맷)
+    """
+    timestamp = timezone.now().isoformat() + "Z"
+
+    if job_type == 'RNA_SEQ':
+        # RNA_SEQ 결과 포맷
+        return {
+            "_template": "LIS",
+            "_version": "1.2",
+            "_confirmed": is_confirmed,
+            "_external": True,
+            "_verifiedAt": timestamp if is_confirmed else None,
+            "_verifiedBy": "외부기관" if is_confirmed else None,
+
+            "test_type": "RNA_SEQ",
+
+            # RNA-seq 결과
+            "RNA_seq": f"CDSS_STORAGE/LIS/{ocs_id}/gene_expression.csv",
+            "gene_expression": {
+                "file_path": f"CDSS_STORAGE/LIS/{ocs_id}/gene_expression.csv",
+                "file_size": random.randint(400000, 500000),
+                "uploaded_at": timestamp,
+                "top_expressed_genes": [
+                    {"gene_symbol": "EGFR", "entrez_id": "1956", "expression": random.uniform(5000, 15000)},
+                    {"gene_symbol": "TP53", "entrez_id": "7157", "expression": random.uniform(3000, 10000)},
+                    {"gene_symbol": "PTEN", "entrez_id": "5728", "expression": random.uniform(2000, 8000)},
+                    {"gene_symbol": "IDH1", "entrez_id": "3417", "expression": random.uniform(1500, 6000)},
+                    {"gene_symbol": "ATRX", "entrez_id": "546", "expression": random.uniform(1000, 5000)},
+                ],
+                "total_genes": 20531,
+            },
+
+            # 분석 결과
+            "sequencing_data": {
+                "method": "RNA-Seq (Illumina HiSeq)",
+                "coverage": round(random.uniform(90, 99), 1),
+                "quality_score": round(random.uniform(35, 40), 1),
+                "raw_data_path": f"CDSS_STORAGE/LIS/{ocs_id}/",
+            },
+
+            "summary": "외부기관 RNA 시퀀싱 분석 완료. 유전자 발현 프로파일 확인됨.",
+            "interpretation": "뇌종양 관련 유전자 발현 패턴 분석 결과",
+
+            "test_results": [],
+            "gene_mutations": [],
+            "_custom": {}
+        }
+    else:
+        # BIOMARKER 결과 포맷
+        protein_markers = [
+            {"marker_name": "14-3-3_beta", "full_name": "YWHAB|14-3-3_beta", "value": str(round(random.uniform(-0.5, 0.5), 4)), "unit": "AU", "reference_range": "-1.0 ~ 1.0", "is_abnormal": False, "interpretation": "정상"},
+            {"marker_name": "14-3-3_epsilon", "full_name": "YWHAE|14-3-3_epsilon", "value": str(round(random.uniform(-0.5, 0.5), 4)), "unit": "AU", "reference_range": "-1.0 ~ 1.0", "is_abnormal": False, "interpretation": "정상"},
+            {"marker_name": "4E-BP1", "full_name": "EIF4EBP1|4E-BP1", "value": str(round(random.uniform(-0.5, 0.5), 4)), "unit": "AU", "reference_range": "-1.0 ~ 1.0", "is_abnormal": False, "interpretation": "정상"},
+            {"marker_name": "EGFR", "full_name": "EGFR", "value": str(round(random.uniform(0.3, 0.8), 4)), "unit": "AU", "reference_range": "-1.0 ~ 1.0", "is_abnormal": True, "interpretation": "과발현"},
+            {"marker_name": "p53", "full_name": "TP53", "value": str(round(random.uniform(-0.3, 0.3), 4)), "unit": "AU", "reference_range": "-1.0 ~ 1.0", "is_abnormal": False, "interpretation": "정상"},
+        ]
+
+        return {
+            "_template": "LIS",
+            "_version": "1.2",
+            "_confirmed": is_confirmed,
+            "_external": True,
+            "_verifiedAt": timestamp if is_confirmed else None,
+            "_verifiedBy": "외부기관" if is_confirmed else None,
+
+            "test_type": "PROTEIN",
+
+            # Protein 결과
+            "protein": f"CDSS_STORAGE/LIS/{ocs_id}/rppa.csv",
+            "protein_markers": protein_markers,
+            "protein_data": {
+                "file_path": f"CDSS_STORAGE/LIS/{ocs_id}/rppa.csv",
+                "file_size": random.randint(5000, 6000),
+                "uploaded_at": timestamp,
+                "method": "RPPA (Reverse Phase Protein Array)",
+                "total_markers": 189,
+            },
+
+            "summary": "외부기관 단백질 발현 분석 완료. RPPA 데이터 확인됨.",
+            "interpretation": "뇌종양 관련 단백질 마커 분석 결과",
+
+            "test_results": [],
+            "_custom": {}
+        }
+
+
+def _generate_external_ris_worker_result(ocs_id: str, is_confirmed: bool = True) -> dict:
+    """
+    외부기관 RIS OCS worker_result 생성 (내부 환자와 동일한 v1.2 포맷)
+    """
+    import uuid
+    timestamp = timezone.now().isoformat() + "Z"
+
+    # 가상의 Orthanc 정보 생성
+    study_uid = f"1.2.410.200001.{random.randint(1000, 9999)}.{random.randint(100000, 999999)}"
+    orthanc_study_id = uuid.uuid4().hex[:32]
+
+    series_types = ["t1", "t1ce", "t2", "flair", "seg"]
+    series_list = []
+
+    for i, series_type in enumerate(series_types):
+        series_list.append({
+            "orthanc_id": uuid.uuid4().hex[:32],
+            "series_uid": f"1.2.826.0.1.3680043.8.498.{random.randint(10000000000, 99999999999)}",
+            "series_type": series_type.upper() if series_type != "t1ce" else "T1C",
+            "description": series_type,
+            "instances_count": 155,
+        })
+
+    return {
+        "_template": "RIS",
+        "_version": "1.2",
+        "_confirmed": is_confirmed,
+        "_external": True,
+        "_verifiedAt": timestamp if is_confirmed else None,
+        "_verifiedBy": "외부기관" if is_confirmed else None,
+
+        "orthanc": {
+            "study_id": uuid.uuid4().hex[:16],
+            "orthanc_study_id": orthanc_study_id,
+            "series": series_list,
+        },
+
+        "dicom": {
+            "study_uid": study_uid,
+            "series_count": len(series_list),
+            "instance_count": sum(s["instances_count"] for s in series_list),
+        },
+
+        "findings": "외부기관 뇌 MRI 검사 결과, 종양 소견이 관찰됩니다.",
+        "impression": "뇌종양 의심, 추가 검사 필요",
+        "recommendation": "신경외과 협진 권고",
+
+        "tumorDetected": True,
+        "imageResults": [],
+        "files": [],
+        "_custom": {}
+    }
+
+
 def copy_patient_data_for_external(ocs_id: str, job_type: str, job_role: str) -> bool:
     """
     기존 patient_data에서 랜덤 환자 데이터를 CDSS_STORAGE로 복사
@@ -1499,21 +1641,9 @@ def copy_patient_data_for_external(ocs_id: str, job_type: str, job_role: str) ->
                 return True
 
     elif job_role == 'RIS':
-        target_dir = cdss_storage_dir / 'RIS' / ocs_id
-        target_dir.mkdir(parents=True, exist_ok=True)
-
-        if job_type == 'MRI':
-            # MRI 데이터 복사 (nii.gz 파일들)
-            source_mri_dir = source_patient / 'mri'
-            if source_mri_dir.exists():
-                for subdir in source_mri_dir.iterdir():
-                    if subdir.is_dir():
-                        target_subdir = target_dir / subdir.name
-                        target_subdir.mkdir(parents=True, exist_ok=True)
-                        for file in subdir.iterdir():
-                            if file.suffix in ['.gz', '.nii']:
-                                shutil.copy2(file, target_subdir / file.name)
-                return True
+        # RIS(MRI)는 Orthanc에 업로드되므로 CDSS_STORAGE/RIS에 파일 복사하지 않음
+        # worker_result에 가상의 Orthanc 정보만 저장
+        return True
 
     return False
 
@@ -1595,16 +1725,11 @@ def create_external_ocs_data(force=False):
                         "original_filename": f"external_lis_{i+1}.xlsx",
                         "_custom": {}
                     },
-                    worker_result={
-                        "_template": "LIS",
-                        "_version": "1.0",
-                        "_confirmed": random.choice([True, False]),
-                        "_external": True,
-                        "test_results": [],
-                        "summary": f"외부기관 {job_type} 검사 결과",
-                        "interpretation": "정상 소견",
-                        "_custom": {}
-                    },
+                    worker_result=_generate_external_lis_worker_result(
+                        job_type=job_type,
+                        ocs_id=ocs_id,
+                        is_confirmed=random.choice([True, False]),
+                    ),
                     attachments={
                         "files": [],
                         "has_data_files": file_copied,
@@ -1660,15 +1785,10 @@ def create_external_ocs_data(force=False):
                         "original_filename": f"external_ris_{i+1}.dcm",
                         "_custom": {}
                     },
-                    worker_result={
-                        "_template": "RIS",
-                        "_version": "1.0",
-                        "_confirmed": random.choice([True, False]),
-                        "_external": True,
-                        "findings": f"외부기관 {job_type} 영상 판독 결과",
-                        "impression": "정상 소견",
-                        "_custom": {}
-                    },
+                    worker_result=_generate_external_ris_worker_result(
+                        ocs_id=ocs_id,
+                        is_confirmed=random.choice([True, False]),
+                    ),
                     attachments={
                         "files": [],
                         "has_data_files": file_copied,
