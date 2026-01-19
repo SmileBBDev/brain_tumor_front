@@ -376,11 +376,11 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
     }
   }
 
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault()
     const newZoom = zoom * (e.deltaY > 0 ? 0.9 : 1.1)
     setZoom(Math.max(0.5, Math.min(3, newZoom)))
-  }
+  }, [zoom])
 
   /** 초기화 및 정리 */
   useEffect(() => {
@@ -408,6 +408,18 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
       }
     }
   }, [initScene])
+
+  /** wheel 이벤트 리스너 (passive: false로 등록) */
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [handleWheel])
 
   /** 뇌 메시 생성 */
   useEffect(() => {
@@ -564,7 +576,6 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
             className="volume-3d-viewer__canvas"
             style={{ width, height, cursor: 'pointer' }}
             onClick={handleCanvasClick}
-            onWheel={handleWheel}
           />
           {controlsPanel}
           {legendPanel}
@@ -604,7 +615,6 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              onWheel={handleWheel}
             />
 
             {/* 컨트롤 패널 */}
