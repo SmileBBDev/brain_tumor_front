@@ -40,25 +40,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 내 정보, 메뉴 조회
   const refreshAuth = async () => {
-  
+
     const meRes = await fetchMe();
+    if (!meRes.success) {
+      console.error('fetchMe 실패:', meRes.error);
+      return null;
+    }
+
     const meInfo = meRes.data;
     const menuRes = await fetchMenu();
 
     setUser(meInfo);
     setRole(meInfo.role.code);
     setPermissions(meInfo.permissions ?? []);
-    
+
     // 비밀번호 변경 필요하면 메뉴/소켓/권한 로딩 중단
     if (meInfo.must_change_password) {
       setMenus([]);
       return meInfo;
     }
 
-    setMenus(menuRes.data.menus);
+    if (menuRes.success) {
+      setMenus(menuRes.data.menus);
+    }
     return meInfo;
-    
-    
+
+
 };
 
 

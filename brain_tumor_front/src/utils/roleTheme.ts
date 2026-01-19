@@ -42,5 +42,11 @@ export const ROLE_THEME = {
     border: '#374151',
     color: '#ffffff',
     icon: 'fa-flask',
+  },
+  EXTERNAL: {
+    bg: 'linear-gradient(90deg, #6b7280, #9ca3af)',
+    border: '#6b7280',
+    color: '#ffffff',
+    icon: 'fa-hospital',
   }
 } as const;

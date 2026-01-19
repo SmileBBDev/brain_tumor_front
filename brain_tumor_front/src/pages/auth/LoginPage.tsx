@@ -36,6 +36,21 @@ export default function LoginPage(){
         try{
             /** 로그인 API 호출 */
             const res = await login(id, pw);
+
+            // 로그인 실패 처리
+            if (!res.success) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '인증 실패',
+                    text: res.error || '아이디 또는 비밀번호를 확인해주세요.',
+                    width: 424,
+                    padding: '1.25rem',
+                    confirmButtonText: '확인',
+                    confirmButtonColor: '#1d4ed8',
+                });
+                return;
+            }
+
             // 로그인 성공 - 토큰 저장
             localStorage.setItem('accessToken', res.data.access); // access 토큰 저장
             localStorage.setItem('refreshToken', res.data.refresh); // refresh 토큰도 저장
@@ -47,7 +62,7 @@ export default function LoginPage(){
                 return;
             }
 
-            
+
             // 로그인 후 유저 정보 갱신
             await refreshAuth();
 
@@ -65,7 +80,7 @@ export default function LoginPage(){
             // navigate('/dashboard', {replace : true});
             await refreshAuth(); // menus, permissions 세팅
 
-            navigate('/', { replace: true }); 
+            navigate('/', { replace: true });
 
         }catch(error : any){
             const code = error?.response?.data?.code;

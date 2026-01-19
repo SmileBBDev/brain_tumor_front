@@ -52,10 +52,11 @@ export default function AppRoutes() {
 
   // PATIENT 역할은 메뉴 기반 라우팅 + 기본 경로만 다름
   const isPatient = role === 'PATIENT';
+  const isExternal = role === 'EXTERNAL';
   const defaultPath = isPatient ? '/my/summary' : '/dashboard';
 
-  // 메뉴/권한 준비 전엔 로딩
-  if (menus.length === 0 || permissions.length === 0) {
+  // 메뉴/권한 준비 전엔 로딩 (EXTERNAL 역할은 메뉴 없이도 대시보드 접근 가능)
+  if (!isExternal && (menus.length === 0 || permissions.length === 0)) {
     return <FullScreenLoader />;
   }
 

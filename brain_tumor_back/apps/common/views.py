@@ -4,7 +4,7 @@ import psutil
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils import timezone
 from django.db.models import Count, Q
 from django.db import connection
@@ -147,23 +147,26 @@ class ExternalDashboardStatsView(APIView):
             now = timezone.now()
             week_ago = now - timedelta(days=7)
 
-            # 외부 LIS 업로드 (extr_ prefix)
+            # 외부 데이터 필터: prefix(extr_, risx_) 또는 doctor_request.source == 'external_upload'
+            # 외부 LIS 업로드
             lis_external = OCS.objects.filter(
-                ocs_id__startswith='extr_',
+                Q(ocs_id__startswith='extr_') | Q(doctor_request__source='external_upload'),
                 job_role='LIS',
                 is_deleted=False
             )
 
-            # 외부 RIS 업로드 (risx_ prefix)
+            # 외부 RIS 업로드
             ris_external = OCS.objects.filter(
-                ocs_id__startswith='risx_',
+                Q(ocs_id__startswith='risx_') | Q(doctor_request__source='external_upload'),
                 job_role='RIS',
                 is_deleted=False
             )
 
-            # 최근 업로드
+            # 최근 업로드 (외부 데이터 전체)
             recent = OCS.objects.filter(
-                Q(ocs_id__startswith='extr_') | Q(ocs_id__startswith='risx_'),
+                Q(ocs_id__startswith='extr_') |
+                Q(ocs_id__startswith='risx_') |
+                Q(doctor_request__source='external_upload'),
                 is_deleted=False
             ).select_related('patient').order_by('-created_at')[:10]
 
@@ -635,10 +638,15 @@ DEFAULT_PDF_WATERMARK_CONFIG = {
 class PdfWatermarkConfigView(APIView):
     """
     PDF 워터마크 설정 API
-    - GET: 현재 설정 조회
-    - PUT: 설정 수정
+    - GET: 현재 설정 조회 (모든 인증된 사용자)
+    - PUT: 설정 수정 (관리자만)
     """
-    permission_classes = [IsAdmin]
+
+    def get_permissions(self):
+        """GET은 인증된 사용자, PUT은 관리자만 허용"""
+        if self.request.method == 'GET':
+            return [IsAuthenticated()]
+        return [IsAdmin()]
 
     def get(self, request):
         """PDF 워터마크 설정 조회"""

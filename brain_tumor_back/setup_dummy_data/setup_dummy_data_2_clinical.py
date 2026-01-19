@@ -1435,6 +1435,172 @@ def create_dummy_prescriptions(num_prescriptions=20, num_items_per_rx=3, force=F
     return True
 
 
+def create_external_ocs_data(force=False):
+    """
+    외부기관 OCS 더미 데이터 생성
+    - LIS 외부 데이터: extr_0001 ~ extr_0010
+    - RIS 외부 데이터: risx_0001 ~ risx_0010
+    """
+    print("\n[12단계] 외부기관 OCS 데이터 생성...")
+
+    from apps.ocs.models import OCS, OCSHistory
+    from apps.patients.models import Patient
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    # 기존 외부기관 데이터 확인
+    existing_lis = OCS.objects.filter(ocs_id__startswith='extr_').count()
+    existing_ris = OCS.objects.filter(ocs_id__startswith='risx_').count()
+
+    if existing_lis >= 5 and existing_ris >= 5 and not force:
+        print(f"[SKIP] 이미 외부기관 OCS 존재 (LIS: {existing_lis}건, RIS: {existing_ris}건)")
+        return True
+
+    # 외부기관 사용자 찾기
+    external_users = list(User.objects.filter(role__code='EXTERNAL'))
+    if not external_users:
+        print("[WARNING] EXTERNAL 역할 사용자가 없습니다. 첫 번째 DOCTOR 사용자를 사용합니다.")
+        external_users = list(User.objects.filter(role__code='DOCTOR')[:1])
+
+    if not external_users:
+        print("[ERROR] 사용할 수 있는 사용자가 없습니다.")
+        return False
+
+    # 환자 목록
+    patients = list(Patient.objects.filter(is_deleted=False)[:20])
+    if not patients:
+        print("[ERROR] 환자가 없습니다.")
+        return False
+
+    now = timezone.now()
+    created_lis = 0
+    created_ris = 0
+
+    # LIS 외부 데이터 생성 (extr_0001 ~ extr_0010)
+    lis_job_types = ['RNA_SEQ', 'BIOMARKER', 'GENE_PANEL', 'CBC', 'CMP']
+    for i in range(10):
+        ocs_id = f"extr_{i+1:04d}"
+        if OCS.objects.filter(ocs_id=ocs_id).exists():
+            continue
+
+        patient = random.choice(patients)
+        user = random.choice(external_users)
+        job_type = random.choice(lis_job_types)
+        days_ago = random.randint(1, 30)
+
+        try:
+            with transaction.atomic():
+                ocs = OCS.objects.create(
+                    ocs_id=ocs_id,
+                    patient=patient,
+                    doctor=user,
+                    worker=user,
+                    job_role='LIS',
+                    job_type=job_type,
+                    ocs_status=random.choice([OCS.OcsStatus.RESULT_READY, OCS.OcsStatus.CONFIRMED]),
+                    priority='normal',
+                    doctor_request={
+                        "_template": "external",
+                        "_version": "1.0",
+                        "source": "external_upload",
+                        "original_filename": f"external_lis_{i+1}.xlsx",
+                        "_custom": {}
+                    },
+                    worker_result={
+                        "_template": "LIS",
+                        "_version": "1.0",
+                        "_confirmed": random.choice([True, False]),
+                        "_external": True,
+                        "test_results": [],
+                        "summary": f"외부기관 {job_type} 검사 결과",
+                        "interpretation": "정상 소견",
+                        "_custom": {}
+                    },
+                    attachments={
+                        "files": [],
+                        "external_source": {
+                            "institution": {
+                                "name": user.name if user else "외부기관",
+                                "code": user.login_id if user else "ext_unknown"
+                            },
+                            "upload_date": (now - timedelta(days=days_ago)).isoformat()
+                        }
+                    },
+                    accepted_at=now - timedelta(days=days_ago),
+                    in_progress_at=now - timedelta(days=days_ago),
+                    result_ready_at=now - timedelta(days=days_ago - 1),
+                )
+                created_lis += 1
+                print(f"  [+] LIS 외부: {ocs_id} ({job_type}) - {patient.patient_number}")
+
+        except Exception as e:
+            print(f"  [ERROR] {ocs_id}: {e}")
+
+    # RIS 외부 데이터 생성 (risx_0001 ~ risx_0010)
+    ris_job_types = ['MRI', 'CT', 'PET']
+    for i in range(10):
+        ocs_id = f"risx_{i+1:04d}"
+        if OCS.objects.filter(ocs_id=ocs_id).exists():
+            continue
+
+        patient = random.choice(patients)
+        user = random.choice(external_users)
+        job_type = random.choice(ris_job_types)
+        days_ago = random.randint(1, 30)
+
+        try:
+            with transaction.atomic():
+                ocs = OCS.objects.create(
+                    ocs_id=ocs_id,
+                    patient=patient,
+                    doctor=user,
+                    worker=user,
+                    job_role='RIS',
+                    job_type=job_type,
+                    ocs_status=random.choice([OCS.OcsStatus.RESULT_READY, OCS.OcsStatus.CONFIRMED]),
+                    priority='normal',
+                    doctor_request={
+                        "_template": "external",
+                        "_version": "1.0",
+                        "source": "external_upload",
+                        "original_filename": f"external_ris_{i+1}.dcm",
+                        "_custom": {}
+                    },
+                    worker_result={
+                        "_template": "RIS",
+                        "_version": "1.0",
+                        "_confirmed": random.choice([True, False]),
+                        "_external": True,
+                        "findings": f"외부기관 {job_type} 영상 판독 결과",
+                        "impression": "정상 소견",
+                        "_custom": {}
+                    },
+                    attachments={
+                        "files": [],
+                        "external_source": {
+                            "institution": {
+                                "name": user.name if user else "외부기관",
+                                "code": user.login_id if user else "ext_unknown"
+                            },
+                            "upload_date": (now - timedelta(days=days_ago)).isoformat()
+                        }
+                    },
+                    accepted_at=now - timedelta(days=days_ago),
+                    in_progress_at=now - timedelta(days=days_ago),
+                    result_ready_at=now - timedelta(days=days_ago - 1),
+                )
+                created_ris += 1
+                print(f"  [+] RIS 외부: {ocs_id} ({job_type}) - {patient.patient_number}")
+
+        except Exception as e:
+            print(f"  [ERROR] {ocs_id}: {e}")
+
+    print(f"\n[OK] 외부기관 OCS 생성 완료")
+    print(f"  - LIS 외부 (extr_): {OCS.objects.filter(ocs_id__startswith='extr_').count()}건")
+    print(f"  - RIS 외부 (risx_): {OCS.objects.filter(ocs_id__startswith='risx_').count()}건")
+    return True
+
+
 def ensure_all_patients_have_prescriptions(min_prescriptions_per_patient=1, force=False):
     """
     모든 환자에게 과거 처방 기록이 있도록 보장
@@ -1637,6 +1803,8 @@ def print_summary():
     print(f"  - OCS (RIS/MRI): {OCS.objects.filter(job_role='RIS').count()}건")
     print(f"  - OCS (LIS/RNA_SEQ): {OCS.objects.filter(job_role='LIS', job_type='RNA_SEQ').count()}건")
     print(f"  - OCS (LIS/BIOMARKER): {OCS.objects.filter(job_role='LIS', job_type='BIOMARKER').count()}건")
+    print(f"  - OCS 외부기관 LIS (extr_): {OCS.objects.filter(ocs_id__startswith='extr_').count()}건")
+    print(f"  - OCS 외부기관 RIS (risx_): {OCS.objects.filter(ocs_id__startswith='risx_').count()}건")
     print(f"  - 영상 검사: {ImagingStudy.objects.count()}건")
     print(f"  - 치료 계획: {TreatmentPlan.objects.count()}건")
     print(f"  - 치료 세션: {TreatmentSession.objects.count()}건")
@@ -1743,6 +1911,10 @@ def main():
 
     # 모든 환자에게 과거 처방 기록 보장
     ensure_all_patients_have_prescriptions(min_prescriptions_per_patient=1, force=force)
+
+    # ===== 외부기관 OCS =====
+    # 외부기관 OCS 더미 데이터 (extr_, risx_ prefix)
+    create_external_ocs_data(force=force)
 
     # 요약 출력
     print_summary()
