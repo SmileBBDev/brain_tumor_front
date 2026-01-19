@@ -453,6 +453,42 @@
   cursor: not-allowed;
 }
 
+/* 외부환자 정보 폼 */
+.external-patient-form {
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+  border-radius: 10px;
+  border: 1px solid #ffd54f;
+}
+
+.external-patient-form h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f57c00;
+}
+
+.form-hint {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #8d6e63;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  font-family: monospace;
+}
+
+.form-row.three-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.form-row.three-cols .form-group {
+  margin-bottom: 0;
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
   .ocs-create-page {
@@ -484,5 +520,9 @@
 
   .form-actions .btn {
     width: 100%;
+  }
+
+  .form-row.three-cols {
+    grid-template-columns: 1fr;
   }
 }

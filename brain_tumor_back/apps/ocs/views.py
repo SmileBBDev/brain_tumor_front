@@ -1358,3 +1358,159 @@ class OCSProcessStatusView(APIView):
             'cancelled': cancelled,
             'total_today': total_today,
         }
+
+
+class ExternalPatientOCSCreateView(APIView):
+    """
+    외부환자 등록 + OCS 생성 통합 API
+
+    의사가 외부기관 검사를 오더할 때:
+    1. 외부환자 등록 (is_external=True)
+    2. OCS 생성
+
+    외부환자 ID 형식: {기관코드}-{YYYYMMDD}-{순번}
+    예: SEV-20260119-001
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["OCS"],
+        summary="외부환자 등록 + OCS 생성",
+        description="외부기관 검사 시 외부환자 등록과 OCS 생성을 동시에 처리합니다.",
+    )
+    @transaction.atomic
+    def post(self, request):
+        from apps.patients.models import Patient
+        from apps.accounts.models import User
+
+        # 요청 데이터 추출
+        patient_data = request.data.get('patient', {})
+        ocs_data = request.data.get('ocs', {})
+
+        # 필수 필드 검증
+        if not patient_data.get('name'):
+            return Response(
+                {'detail': '환자 이름이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not patient_data.get('birth_date'):
+            return Response(
+                {'detail': '환자 생년월일이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not patient_data.get('gender'):
+            return Response(
+                {'detail': '환자 성별이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not patient_data.get('institution_id'):
+            return Response(
+                {'detail': '외부기관 ID가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 외부기관 조회
+        try:
+            institution = User.objects.get(
+                id=patient_data['institution_id'],
+                role__code='EXTERNAL',
+                is_active=True
+            )
+        except User.DoesNotExist:
+            return Response(
+                {'detail': '외부기관을 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 외부환자 생성
+        # patient_number는 save()에서 자동 생성됨: {기관코드}-{YYYYMMDD}-{순번}
+        patient = Patient(
+            name=patient_data['name'],
+            birth_date=patient_data['birth_date'],
+            gender=patient_data['gender'],
+            is_external=True,
+            external_institution=institution,
+            phone='000-0000-0000',  # 외부환자는 더미값
+            ssn=f"EXT-{uuid.uuid4().hex[:12]}",  # 외부환자용 더미 SSN
+            registered_by=request.user,
+        )
+        patient.save()
+
+        # OCS 생성
+        job_role = ocs_data.get('job_role', 'RIS')
+        job_type = ocs_data.get('job_type', '')
+        priority = ocs_data.get('priority', 'normal')
+
+        # doctor_request 구성
+        doctor_request = ocs_data.get('doctor_request', {})
+        if not isinstance(doctor_request, dict):
+            doctor_request = {}
+        doctor_request['_template'] = 'default'
+        doctor_request['_version'] = '1.0'
+
+        # attachments에 외부기관 정보 저장
+        attachments = {
+            'external_source': {
+                'institution': {
+                    'id': institution.id,
+                    'name': institution.name,
+                    'code': institution.login_id,
+                    'email': institution.email or '',
+                },
+            },
+            'files': [],
+            'total_size': 0,
+            'last_modified': timezone.now().isoformat(),
+        }
+
+        ocs = OCS.objects.create(
+            patient=patient,
+            doctor=request.user,
+            job_role=job_role,
+            job_type=job_type,
+            priority=priority,
+            doctor_request=doctor_request,
+            attachments=attachments,
+            encounter_id=ocs_data.get('encounter_id'),
+        )
+
+        # 이력 기록
+        OCSHistory.objects.create(
+            ocs=ocs,
+            action=OCSHistory.Action.CREATED,
+            actor=request.user,
+            to_status=OCS.OcsStatus.ORDERED,
+            reason=f'외부환자 {patient.patient_number} 등록 및 OCS 생성',
+            ip_address=self._get_client_ip(request)
+        )
+
+        # WebSocket 알림
+        notify_ocs_created(ocs, request.user)
+
+        # Patient 직렬화를 위한 간단한 데이터
+        patient_response = {
+            'id': patient.id,
+            'patient_number': patient.patient_number,
+            'name': patient.name,
+            'birth_date': str(patient.birth_date),
+            'gender': patient.gender,
+            'is_external': patient.is_external,
+            'external_institution': {
+                'id': institution.id,
+                'name': institution.name,
+                'code': institution.login_id,
+            },
+        }
+
+        return Response({
+            'message': '외부환자 등록 및 OCS 생성이 완료되었습니다.',
+            'patient': patient_response,
+            'ocs': OCSDetailSerializer(ocs).data,
+        }, status=status.HTTP_201_CREATED)
+
+    def _get_client_ip(self, request):
+        """클라이언트 IP 추출"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')

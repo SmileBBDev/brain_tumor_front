@@ -674,6 +674,38 @@ button.close-btn:hover {
     position: fixed;
     z-index: 9999;
   }
+
+  /* 썸네일 인쇄 스타일 */
+  .pdf-preview-modal .document-content .thumbnail-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px !important;
+    margin: 16px 0 !important;
+  }
+
+  .pdf-preview-modal .document-content .thumbnail-item {
+    display: block !important;
+    text-align: center !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pdf-preview-modal .document-content .thumbnail-item img {
+    display: block !important;
+    width: 100% !important;
+    height: 120px !important;
+    object-fit: contain !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 4px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .pdf-preview-modal .document-content .thumbnail-item .label {
+    display: block !important;
+    font-size: 11px !important;
+    color: #6b7280 !important;
+    margin-top: 4px !important;
+  }
 }
 
 /* Responsive */

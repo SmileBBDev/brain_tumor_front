@@ -119,6 +119,21 @@ class Patient(models.Model):
         verbose_name='등록자'
     )
 
+    # 외부환자 정보
+    is_external = models.BooleanField(
+        default=False,
+        verbose_name='외부환자 여부'
+    )
+    external_institution = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='external_patients',
+        verbose_name='외부기관',
+        help_text='EXTERNAL 역할 사용자 (기관)'
+    )
+
     # 환자 계정 연결 (선택적 - 환자 포털 로그인용)
     user = models.OneToOneField(
         User,
@@ -155,22 +170,42 @@ class Patient(models.Model):
         """환자번호 자동 생성"""
         if not self.patient_number:
             from django.utils import timezone
-            year = timezone.now().year
 
-            # 해당 연도의 마지막 환자 번호 조회
-            last_patient = Patient.objects.filter(
-                patient_number__startswith=f'P{year}'
-            ).order_by('-patient_number').first()
+            if self.is_external and self.external_institution:
+                # 외부환자: {기관코드}-{YYYYMMDD}-{순번}
+                today = timezone.now().strftime('%Y%m%d')
+                inst_code = self.external_institution.login_id  # 기관코드
 
-            if last_patient:
-                # 기존 번호에서 시퀀스 추출 및 증가
-                last_number = int(last_patient.patient_number[5:])
-                new_number = last_number + 1
+                last_patient = Patient.objects.filter(
+                    patient_number__startswith=f'{inst_code}-{today}'
+                ).order_by('-patient_number').first()
+
+                seq = 1
+                if last_patient:
+                    try:
+                        seq = int(last_patient.patient_number.split('-')[-1]) + 1
+                    except (ValueError, IndexError):
+                        seq = 1
+
+                self.patient_number = f'{inst_code}-{today}-{seq:03d}'
             else:
-                # 첫 환자
-                new_number = 1
+                # 내부환자: P{YYYY}{00001}
+                year = timezone.now().year
 
-            self.patient_number = f'P{year}{new_number:05d}'
+                # 해당 연도의 마지막 환자 번호 조회
+                last_patient = Patient.objects.filter(
+                    patient_number__startswith=f'P{year}'
+                ).order_by('-patient_number').first()
+
+                if last_patient:
+                    # 기존 번호에서 시퀀스 추출 및 증가
+                    last_number = int(last_patient.patient_number[5:])
+                    new_number = last_number + 1
+                else:
+                    # 첫 환자
+                    new_number = 1
+
+                self.patient_number = f'P{year}{new_number:05d}'
 
         super().save(*args, **kwargs)
 

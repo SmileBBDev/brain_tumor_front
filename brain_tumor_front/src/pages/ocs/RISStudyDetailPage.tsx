@@ -431,53 +431,15 @@ export default function RISStudyDetailPage() {
 
     try {
       const { generateRISReportPDF } = await import('@/utils/exportUtils');
-      const { getSeriesPreviewBase64 } = await import('@/api/orthancApi');
 
-      // Orthanc 시리즈에서 썸네일 가져오기
-      let thumbnails: Array<{ channel: string; dataUrl: string; description?: string }> = [];
-      const thumbnailLoadErrors: string[] = [];
-      const orthancInfo = getOrthancInfo();
+      // 미리보기에서 이미 로드한 썸네일 재사용 (미리보기와 동일한 이미지 보장)
+      const thumbnails = previewThumbnails.map(t => ({
+        channel: t.channel,
+        dataUrl: t.url,
+        description: '',
+      }));
 
-      if (orthancInfo?.series && orthancInfo.series.length > 0) {
-        console.log('[RIS PDF] Orthanc 시리즈 썸네일 로딩 시작, 개수:', orthancInfo.series.length);
-
-        const thumbnailPromises = orthancInfo.series.map(async (series) => {
-          const seriesId = series.orthanc_id;
-          const seriesLabel = series.series_type || series.description || 'DICOM';
-
-          try {
-            console.log(`[RIS PDF] 썸네일 로딩: ${seriesLabel} (${seriesId})`);
-            const dataUrl = await getSeriesPreviewBase64(seriesId);
-            if (dataUrl) {
-              console.log(`[RIS PDF] 썸네일 로딩 성공: ${seriesLabel}`);
-              return {
-                channel: seriesLabel,
-                dataUrl,
-                description: series.description || '',
-              };
-            } else {
-              console.warn(`[RIS PDF] 썸네일 데이터 없음: ${seriesLabel}`);
-              thumbnailLoadErrors.push(seriesLabel);
-            }
-          } catch (e) {
-            console.error(`[RIS PDF] 썸네일 로딩 실패: ${seriesLabel}`, getErrorMessage(e));
-            thumbnailLoadErrors.push(seriesLabel);
-          }
-          return null;
-        });
-
-        const results = await Promise.all(thumbnailPromises);
-        thumbnails = results.filter((t): t is NonNullable<typeof t> => t !== null);
-
-        console.log(`[RIS PDF] 썸네일 로딩 완료: ${thumbnails.length}/${orthancInfo.series.length}개 성공`);
-
-        if (thumbnailLoadErrors.length > 0) {
-          console.warn('[RIS PDF] 썸네일 로딩 실패 시리즈:', thumbnailLoadErrors.join(', '));
-        }
-      } else {
-        console.log('[RIS PDF] Orthanc 시리즈 정보 없음 (썸네일 생략)');
-      }
-
+      console.log(`[RIS PDF] 미리보기 썸네일 사용: ${thumbnails.length}개`);
       console.log('[RIS PDF] PDF 생성 중...');
 
       await generateRISReportPDF({
@@ -497,11 +459,6 @@ export default function RISStudyDetailPage() {
       }, watermarkConfig);
 
       console.log('[RIS PDF] PDF 출력 완료');
-
-      // 썸네일 일부 실패 시 사용자에게 알림
-      if (thumbnailLoadErrors.length > 0) {
-        alert(`PDF가 생성되었습니다.\n(일부 영상 이미지 로딩 실패: ${thumbnailLoadErrors.join(', ')})`);
-      }
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       console.error('[RIS PDF] PDF 출력 실패:', errorMsg, error);

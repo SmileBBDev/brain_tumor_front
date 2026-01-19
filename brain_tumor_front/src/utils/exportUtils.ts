@@ -455,6 +455,7 @@ export const generateRISReportPDF = async (data: {
 
 /**
  * LIS 검사 결과 PDF 생성
+ * - html2canvas를 사용하여 한글 폰트 지원
  */
 export const generateLISReportPDF = async (data: {
   ocsId: string;
@@ -476,99 +477,156 @@ export const generateLISReportPDF = async (data: {
 }, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
   try {
     const { jsPDF } = await import('jspdf');
-    const { default: autoTable } = await import('jspdf-autotable');
+    const html2canvas = (await import('html2canvas')).default;
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    // 판정 색상 헬퍼
+    const getFlagStyle = (flag: string) => {
+      if (flag === 'critical') return 'color: #c62828; background: #ffebee;';
+      if (flag === 'abnormal') return 'color: #e65100; background: #fff3e0;';
+      return 'color: #2e7d32; background: #e8f5e9;';
+    };
 
-    // 헤더
-    doc.setFontSize(18);
-    doc.text('검사 결과 보고서', pageWidth / 2, 20, { align: 'center' });
+    const getFlagText = (flag: string) => {
+      if (flag === 'critical') return 'Critical';
+      if (flag === 'abnormal') return '이상';
+      return '정상';
+    };
 
-    doc.setFontSize(10);
-    doc.text(`OCS ID: ${data.ocsId}`, pageWidth / 2, 28, { align: 'center' });
+    // HTML 템플릿 생성
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
 
-    // 구분선
-    doc.setLineWidth(0.5);
-    doc.line(20, 32, pageWidth - 20, 32);
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold;">검사 결과 보고서</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">OCS ID: ${data.ocsId}</p>
+      </div>
 
-    // 환자 정보
-    doc.setFontSize(12);
-    doc.text('환자 정보', 20, 42);
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">환자 정보</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div style="min-width: 200px;"><span style="color: #666;">환자명:</span> <strong>${data.patientName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">환자번호:</span> <strong>${data.patientNumber}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">검사 유형:</span> <strong>${data.jobType}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">처방 의사:</span> <strong>${data.doctorName}</strong></div>
+          <div style="min-width: 200px;"><span style="color: #666;">검사자:</span> <strong>${data.workerName}</strong></div>
+        </div>
+      </div>
 
-    doc.setFontSize(10);
-    doc.text(`환자명: ${data.patientName}`, 25, 50);
-    doc.text(`환자번호: ${data.patientNumber}`, 25, 56);
-    doc.text(`검사 유형: ${data.jobType}`, 25, 62);
-    doc.text(`처방 의사: ${data.doctorName}`, 120, 50);
-    doc.text(`검사자: ${data.workerName}`, 120, 56);
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">검사 결과</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background: #5b6fd6; color: white;">
+              <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">검사 항목</th>
+              <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">결과값</th>
+              <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">단위</th>
+              <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">참고 범위</th>
+              <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">판정</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.results.map((r, i) => `
+              <tr style="background: ${i % 2 === 0 ? '#fff' : '#f9fafb'};">
+                <td style="padding: 10px; border: 1px solid #ddd;">${r.itemName}</td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd; font-weight: 500;">${r.value}</td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd; color: #666;">${r.unit}</td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd; color: #666;">${r.refRange}</td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">
+                  <span style="padding: 4px 8px; border-radius: 4px; font-weight: 600; ${getFlagStyle(r.flag)}">
+                    ${getFlagText(r.flag)}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
 
-    // 검사 결과 테이블
-    doc.setFontSize(12);
-    doc.text('검사 결과', 20, 76);
+      ${data.interpretation ? `
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">결과 해석</h2>
+        <div style="padding: 12px; background: #f0f4ff; border-left: 3px solid #5b6fd6; border-radius: 4px; white-space: pre-wrap;">
+          ${data.interpretation}
+        </div>
+      </div>
+      ` : ''}
 
-    autoTable(doc, {
-      startY: 80,
-      head: [['검사 항목', '결과값', '단위', '참고 범위', '판정']],
-      body: data.results.map(r => [
-        r.itemName,
-        r.value,
-        r.unit,
-        r.refRange,
-        r.flag === 'normal' ? '정상' : r.flag === 'abnormal' ? '이상' : 'Critical'
-      ]),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [91, 111, 214] },
-      columnStyles: {
-        4: {
-          fontStyle: 'bold',
-        }
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 4) {
-          const value = data.cell.raw;
-          if (value === 'Critical') {
-            data.cell.styles.textColor = [229, 107, 111];
-          } else if (value === '이상') {
-            data.cell.styles.textColor = [242, 166, 90];
-          } else {
-            data.cell.styles.textColor = [95, 179, 162];
-          }
-        }
-      }
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+        <div style="display: flex; justify-content: space-between;">
+          <div>
+            <p style="margin: 4px 0;">처방일시: ${data.createdAt}</p>
+            ${data.confirmedAt ? `<p style="margin: 4px 0;">확정일시: ${data.confirmedAt}</p>` : ''}
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 4px 0; font-weight: bold;">Brain Tumor CDSS</p>
+            <p style="margin: 4px 0;">발급일시: ${new Date().toLocaleString('ko-KR')}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+
+    // HTML을 Canvas로 변환
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
     });
 
-    // 해석
-    let currentY = (doc as any).lastAutoTable.finalY + 10;
-    if (data.interpretation) {
-      doc.setFontSize(12);
-      doc.text('결과 해석', 20, currentY);
+    document.body.removeChild(container);
 
-      doc.setFontSize(10);
-      const interpLines = doc.splitTextToSize(data.interpretation, pageWidth - 50);
-      doc.text(interpLines, 25, currentY + 8);
-      currentY = currentY + 8 + (interpLines.length * 5) + 10;
+    // Canvas를 PDF로 변환
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20; // 좌우 여백 10mm씩
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    // 페이지 높이보다 크면 여러 페이지로 분할
+    let heightLeft = imgHeight;
+    let position = 10; // 상단 여백
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
     }
-
-    // Footer - 발급일시
-    const pageHeight = doc.internal.pageSize.getHeight();
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`발급일시: ${new Date().toLocaleString('ko-KR')}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
 
     // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
     const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
     if (finalWatermarkConfig) {
-      await applyWatermark(doc, finalWatermarkConfig);
+      await applyWatermark(pdf, finalWatermarkConfig);
     }
 
     // PDF 다운로드
-    doc.save(`LIS_Report_${data.ocsId}_${data.patientNumber}.pdf`);
+    const filename = `LIS_Report_${data.ocsId}_${data.patientNumber}.pdf`;
+    console.log('[exportUtils] LIS PDF 저장:', filename);
+    pdf.save(filename);
 
-  } catch (error) {
-    console.error('PDF 생성 실패:', error);
-    alert('PDF 생성에 실패했습니다. jspdf, jspdf-autotable 패키지가 설치되어 있는지 확인하세요.\nnpm install jspdf jspdf-autotable');
-    throw error;
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.error('[exportUtils] LIS PDF 생성 실패:', errorMsg, error);
+    throw new Error(`LIS PDF 생성 실패: ${errorMsg}`);
   }
 };
 

@@ -371,6 +371,14 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
+  padding: 0.5rem;
+}
+
+.ai-mm-grid .ai-panel-section {
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
 @media (max-width: 768px) {

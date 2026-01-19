@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import OCSViewSet, OCSProcessStatusView, UserLoginStatusView
+from .views import OCSViewSet, OCSProcessStatusView, UserLoginStatusView, ExternalPatientOCSCreateView
 
 
 # =============================================================================
@@ -17,6 +17,8 @@ urlpatterns = [
     path('process-status/', OCSProcessStatusView.as_view(), name='ocs-process-status'),
     # 사용자 로그인 현황 API (RIS + LIS)
     path('user-login-status/', UserLoginStatusView.as_view(), name='user-login-status'),
+    # 외부환자 등록 + OCS 생성 통합 API
+    path('external-patient-ocs/', ExternalPatientOCSCreateView.as_view(), name='external-patient-ocs'),
     path('', include(router.urls)),
 ]
 

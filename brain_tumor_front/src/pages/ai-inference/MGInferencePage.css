@@ -81,7 +81,14 @@
   }
 }
 
-.mg-left-panel,
+.mg-left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
 .mg-right-panel {
   display: flex;
   flex-direction: column;

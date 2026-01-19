@@ -529,3 +529,58 @@ export const clearOCSDrafts = (jobRole: string, ocsId: string): void => {
     removeDraft(key);
   });
 };
+
+// =============================================================================
+// 외부환자 + OCS 통합 생성 API
+// =============================================================================
+
+// 외부환자+OCS 생성 요청 타입
+export interface ExternalPatientOCSData {
+  patient: {
+    name: string;
+    birth_date: string;
+    gender: 'M' | 'F' | 'O';
+    institution_id: number;
+  };
+  ocs: {
+    job_role: string;
+    job_type: string;
+    priority?: string;
+    encounter_id?: number | null;
+    doctor_request?: {
+      clinical_info?: string;
+      request_detail?: string;
+      special_instruction?: string;
+    };
+  };
+}
+
+// 외부환자+OCS 생성 응답 타입
+export interface ExternalPatientOCSResponse {
+  message: string;
+  patient: {
+    id: number;
+    patient_number: string;
+    name: string;
+    birth_date: string;
+    gender: string;
+    is_external: boolean;
+    external_institution: {
+      id: number;
+      name: string;
+      code: string;
+    };
+  };
+  ocs: OCSDetail;
+}
+
+// 외부환자 등록 + OCS 생성
+export const createExternalPatientOCS = async (
+  data: ExternalPatientOCSData
+): Promise<ExternalPatientOCSResponse> => {
+  const response = await api.post<ExternalPatientOCSResponse>(
+    '/ocs/external-patient-ocs/',
+    data
+  );
+  return response.data;
+};

@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createOCS } from '@/services/ocs.api';
+import { createOCS, createExternalPatientOCS } from '@/services/ocs.api';
 import { getPatients, getPatient } from '@/services/patient.api';
 import { fetchExternalInstitutions, type ExternalInstitution } from '@/services/users.api';
 import type { Patient } from '@/types/patient';
@@ -103,6 +103,11 @@ export default function OCSCreatePage() {
   const [institutionSearch, setInstitutionSearch] = useState('');
   const [showInstitutionDropdown, setShowInstitutionDropdown] = useState(false);
 
+  // 외부환자 정보 상태
+  const [externalPatientName, setExternalPatientName] = useState('');
+  const [externalPatientBirthDate, setExternalPatientBirthDate] = useState('');
+  const [externalPatientGender, setExternalPatientGender] = useState<'M' | 'F' | 'O'>('M');
+
   // URL에서 patientId가 있으면 해당 환자 정보 로드
   useEffect(() => {
     if (urlPatientId) {
@@ -186,14 +191,65 @@ export default function OCSCreatePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.patient_id || !formData.job_type) {
-      alert('환자와 검사 유형을 선택해주세요.');
+    // 외부기관 검사인 경우
+    if (isExternalInstitution) {
+      // 외부기관 선택 필수
+      if (!selectedInstitution) {
+        alert('외부기관을 선택해주세요.');
+        return;
+      }
+      // 외부환자 정보 필수
+      if (!externalPatientName.trim()) {
+        alert('외부 환자 이름을 입력해주세요.');
+        return;
+      }
+      if (!externalPatientBirthDate) {
+        alert('외부 환자 생년월일을 입력해주세요.');
+        return;
+      }
+      // 검사 유형 필수
+      if (!formData.job_type) {
+        alert('검사 유형을 선택해주세요.');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        // 외부환자 + OCS 통합 생성 API 호출
+        const response = await createExternalPatientOCS({
+          patient: {
+            name: externalPatientName.trim(),
+            birth_date: externalPatientBirthDate,
+            gender: externalPatientGender,
+            institution_id: selectedInstitution.id,
+          },
+          ocs: {
+            job_role: formData.job_role as string,
+            job_type: formData.job_type,
+            priority: formData.priority as string,
+            encounter_id: formData.encounter_id,
+            doctor_request: {
+              clinical_info: clinicalInfo,
+              request_detail: `${formData.job_type} 검사 요청`,
+              special_instruction: specialInstruction,
+            },
+          },
+        });
+
+        alert(`외부환자 등록 및 OCS 생성이 완료되었습니다.\n환자번호: ${response.patient.patient_number}`);
+        navigate('/ocs/status');
+      } catch (error) {
+        console.error('Failed to create external patient OCS:', error);
+        alert('외부환자 등록 및 OCS 생성에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
-    // 외부기관 체크 시 기관 선택 필수
-    if (isExternalInstitution && !selectedInstitution) {
-      alert('외부기관을 선택해주세요.');
+    // 내부환자인 경우 (기존 로직)
+    if (!formData.patient_id || !formData.job_type) {
+      alert('환자와 검사 유형을 선택해주세요.');
       return;
     }
 
@@ -213,20 +269,6 @@ export default function OCSCreatePage() {
           special_instruction: specialInstruction,
         },
       };
-
-      // 외부기관 정보 추가
-      if (isExternalInstitution && selectedInstitution) {
-        createData.attachments = {
-          external_source: {
-            institution: {
-              id: selectedInstitution.id,
-              name: selectedInstitution.name,
-              code: selectedInstitution.code,
-              email: selectedInstitution.email,
-            },
-          },
-        };
-      }
 
       await createOCS(createData);
       alert('OCS가 생성되었습니다.');
@@ -265,7 +307,8 @@ export default function OCSCreatePage() {
       </div>
 
       <form className="ocs-create-form" onSubmit={handleSubmit}>
-        {/* 환자 선택 섹션 */}
+        {/* 환자 선택 섹션 - 외부기관 검사가 아닐 때만 표시 */}
+        {!isExternalInstitution && (
         <section className="form-section">
           <h2>환자 정보</h2>
 
@@ -343,6 +386,7 @@ export default function OCSCreatePage() {
             )}
           </div>
         </section>
+        )}
 
         {/* 검사 정보 섹션 */}
         <section className="form-section">
@@ -475,6 +519,46 @@ export default function OCSCreatePage() {
             </div>
           )}
 
+          {/* 외부환자 정보 입력 */}
+          {isExternalInstitution && selectedInstitution && (
+            <div className="external-patient-form">
+              <h3>외부 환자 정보</h3>
+              <p className="form-hint">
+                환자번호는 자동 생성됩니다: {selectedInstitution.code}-{new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001
+              </p>
+              <div className="form-row three-cols">
+                <div className="form-group">
+                  <label>환자명 <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={externalPatientName}
+                    onChange={(e) => setExternalPatientName(e.target.value)}
+                    placeholder="환자 이름 입력"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>생년월일 <span className="required">*</span></label>
+                  <input
+                    type="date"
+                    value={externalPatientBirthDate}
+                    onChange={(e) => setExternalPatientBirthDate(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>성별 <span className="required">*</span></label>
+                  <select
+                    value={externalPatientGender}
+                    onChange={(e) => setExternalPatientGender(e.target.value as 'M' | 'F' | 'O')}
+                  >
+                    <option value="M">남성</option>
+                    <option value="F">여성</option>
+                    <option value="O">기타</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="form-group">
             <label>검사 유형 <span className="required">*</span></label>
             <input
@@ -536,9 +620,15 @@ export default function OCSCreatePage() {
           <button
             type="submit"
             className="btn primary"
-            disabled={!formData.patient_id || !formData.job_type || isSubmitting}
+            disabled={
+              isSubmitting ||
+              !formData.job_type ||
+              (isExternalInstitution
+                ? !selectedInstitution || !externalPatientName.trim() || !externalPatientBirthDate
+                : !formData.patient_id)
+            }
           >
-            {isSubmitting ? '생성 중...' : 'OCS 생성'}
+            {isSubmitting ? '생성 중...' : isExternalInstitution ? '외부환자 등록 + OCS 생성' : 'OCS 생성'}
           </button>
         </div>
       </form>

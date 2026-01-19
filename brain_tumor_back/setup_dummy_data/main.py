@@ -125,7 +125,8 @@ def print_final_summary():
     print(f"  - 메뉴 라벨: {MenuLabel.objects.count()}개")
     print(f"  - 메뉴-권한 매핑: {MenuPermission.objects.count()}개")
     print(f"  - 권한: {Permission.objects.count()}개")
-    print(f"  - 환자: {Patient.objects.filter(is_deleted=False).count()}명")
+    print(f"  - 환자 (내부): {Patient.objects.filter(is_deleted=False, is_external=False).count()}명")
+    print(f"  - 환자 (외부): {Patient.objects.filter(is_deleted=False, is_external=True).count()}명")
     print(f"  - 환자-계정 연결: {Patient.objects.filter(user__isnull=False).count()}명")
     print(f"  - 진료 (전체): {Encounter.objects.count()}건")
     print(f"  - 진료 (오늘 예약): {today_scheduled}건")
@@ -219,6 +220,129 @@ def create_additional_users(reset=False):
         )
         print(f"  [CREATE] {login_id} ({user_data['name']}) - {user_data['role_code']}")
         created_count += 1
+
+    print(f"\n  생성: {created_count}명, 스킵: {skipped_count}명")
+    return True
+
+
+def create_external_patients(reset=False):
+    """
+    외부기관 환자 더미 데이터 생성
+    - 각 외부기관(EXTERNAL) 사용자당 3명의 외부환자 생성
+    - 외부환자 ID: {기관코드}-{YYYYMMDD}-{순번}
+    """
+    # Django 설정
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    os.chdir(PROJECT_ROOT)
+
+    import django
+    django.setup()
+
+    from django.utils import timezone
+    from apps.accounts.models import User, Role
+    from apps.patients.models import Patient
+    from datetime import date
+    import random
+
+    print("\n" + "="*60)
+    print("[실행] 외부기관 환자 생성")
+    print("="*60)
+
+    # 외부기관 역할 사용자 조회
+    external_role = Role.objects.filter(code='EXTERNAL').first()
+    if not external_role:
+        print("  [SKIP] EXTERNAL 역할이 없습니다.")
+        return True
+
+    external_institutions = User.objects.filter(role=external_role, is_active=True)
+    if not external_institutions.exists():
+        print("  [SKIP] 외부기관 사용자가 없습니다.")
+        return True
+
+    # 외부환자 더미 데이터 (각 기관당 3명)
+    external_patient_templates = [
+        # 서울대병원 환자
+        {'name': '김외부', 'birth_date': date(1975, 3, 15), 'gender': 'M'},
+        {'name': '이검사', 'birth_date': date(1982, 7, 22), 'gender': 'F'},
+        {'name': '박의뢰', 'birth_date': date(1968, 11, 8), 'gender': 'M'},
+        # 아산병원 환자
+        {'name': '최영상', 'birth_date': date(1990, 5, 12), 'gender': 'F'},
+        {'name': '정진단', 'birth_date': date(1955, 9, 30), 'gender': 'M'},
+        {'name': '강분석', 'birth_date': date(1987, 1, 18), 'gender': 'F'},
+        # 삼성병원 환자
+        {'name': '윤협진', 'birth_date': date(1979, 4, 25), 'gender': 'M'},
+        {'name': '한연계', 'birth_date': date(1992, 8, 7), 'gender': 'F'},
+        {'name': '송전원', 'birth_date': date(1963, 12, 3), 'gender': 'M'},
+        # 세브란스 환자
+        {'name': '조외래', 'birth_date': date(1985, 6, 14), 'gender': 'F'},
+        {'name': '임판독', 'birth_date': date(1971, 2, 28), 'gender': 'M'},
+        {'name': '황자문', 'birth_date': date(1995, 10, 19), 'gender': 'F'},
+        # 전남대병원 환자
+        {'name': '노원격', 'birth_date': date(1960, 7, 11), 'gender': 'M'},
+        {'name': '백상담', 'birth_date': date(1988, 3, 5), 'gender': 'F'},
+        {'name': '서지원', 'birth_date': date(1977, 9, 22), 'gender': 'M'},
+    ]
+
+    created_count = 0
+    skipped_count = 0
+    patient_idx = 0
+
+    # 의사 조회 (OCS 생성 시 사용)
+    doctor_role = Role.objects.filter(code='DOCTOR').first()
+    doctors = list(User.objects.filter(role=doctor_role, is_active=True)[:3])
+    if not doctors:
+        print("  [WARNING] 의사 사용자가 없습니다. 외부환자만 생성합니다.")
+
+    for institution in external_institutions:
+        print(f"\n  [{institution.name}] ({institution.login_id})")
+
+        # 각 기관당 3명의 환자 생성
+        for i in range(3):
+            if patient_idx >= len(external_patient_templates):
+                patient_idx = 0  # 템플릿 재사용
+
+            template = external_patient_templates[patient_idx]
+            patient_idx += 1
+
+            # 리셋 모드: 해당 기관의 외부환자 삭제
+            if reset:
+                Patient.objects.filter(
+                    is_external=True,
+                    external_institution=institution
+                ).delete()
+
+            # 이미 동일 정보의 환자가 있는지 확인
+            existing = Patient.objects.filter(
+                name=template['name'],
+                birth_date=template['birth_date'],
+                is_external=True,
+                external_institution=institution
+            ).first()
+
+            if existing:
+                print(f"    [SKIP] {template['name']} 이미 존재 ({existing.patient_number})")
+                skipped_count += 1
+                continue
+
+            try:
+                # 외부환자 생성 (patient_number는 save()에서 자동 생성)
+                patient = Patient(
+                    name=template['name'],
+                    birth_date=template['birth_date'],
+                    gender=template['gender'],
+                    phone='000-0000-0000',  # 외부환자는 더미값
+                    ssn=f"EXT-{institution.login_id}-{i+1:03d}",
+                    is_external=True,
+                    external_institution=institution,
+                    registered_by=doctors[0] if doctors else None,
+                )
+                patient.save()
+                print(f"    [CREATE] {template['name']} → {patient.patient_number}")
+                created_count += 1
+
+            except Exception as e:
+                print(f"    [ERROR] {template['name']}: {e}")
+                skipped_count += 1
 
     print(f"\n  생성: {created_count}명, 스킵: {skipped_count}명")
     return True
@@ -551,7 +675,7 @@ def main():
 
     # 7. 환자 계정-데이터 연결
     print(f"\n{'='*60}")
-    print(f"[실행] 환자 계정-데이터 연결 (7/9)")
+    print(f"[실행] 환자 계정-데이터 연결 (7/10)")
     print(f"{'='*60}")
     try:
         link_patient_accounts(reset=args.reset)
@@ -559,9 +683,19 @@ def main():
         print(f"\n[WARNING] 환자 계정 연결에 문제가 있습니다: {e}")
         success = False
 
-    # 8. 접근 감사 로그 생성
+    # 8. 외부기관 환자 생성
     print(f"\n{'='*60}")
-    print(f"[실행] 접근 감사 로그 생성 (8/9)")
+    print(f"[실행] 외부기관 환자 생성 (8/10)")
+    print(f"{'='*60}")
+    try:
+        create_external_patients(reset=args.reset)
+    except Exception as e:
+        print(f"\n[WARNING] 외부기관 환자 생성에 문제가 있습니다: {e}")
+        success = False
+
+    # 9. 접근 감사 로그 생성
+    print(f"\n{'='*60}")
+    print(f"[실행] 접근 감사 로그 생성 (9/10)")
     print(f"{'='*60}")
     if not run_script(
         'setup_dummy_data_5_access_logs.py',
