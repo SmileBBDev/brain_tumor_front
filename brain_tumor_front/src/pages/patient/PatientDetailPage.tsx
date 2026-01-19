@@ -132,7 +132,7 @@ export default function PatientDetailPage() {
       </section>
 
       <PatientDetailTabs role={role} />
-      <PatientDetailContent role={role} />
+      <PatientDetailContent role={role} patientName={patient.name} patientNumber={patient.patient_number} />
 
       {/* 환자 요약 모달 */}
       <PatientSummaryModal

@@ -63,9 +63,11 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
   const [zoom, setZoom] = useState(1)
   const [showBrain, setShowBrain] = useState(true)
   const [brainOpacity, setBrainOpacity] = useState(0.15)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // 마우스 드래그 상태
   const isDraggingRef = useRef(false)
+  const wasDraggingRef = useRef(false)
   const previousMouseRef = useRef({ x: 0, y: 0 })
   const rotationRef = useRef({ x: 0, y: 0 })
 
@@ -333,9 +335,10 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
 
   /** 마우스 이벤트 핸들러 */
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isFullscreen) return  // 일반 모드에서는 드래그 비활성화
     isDraggingRef.current = true
+    wasDraggingRef.current = false
     previousMouseRef.current = { x: e.clientX, y: e.clientY }
-    setIsRotating(false)
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -343,6 +346,11 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
 
     const deltaX = e.clientX - previousMouseRef.current.x
     const deltaY = e.clientY - previousMouseRef.current.y
+
+    // 약간의 움직임이 있으면 드래그로 간주
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+      wasDraggingRef.current = true
+    }
 
     rotationRef.current.y += deltaX * 0.01
     rotationRef.current.x += deltaY * 0.01
@@ -352,6 +360,20 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
 
   const handleMouseUp = () => {
     isDraggingRef.current = false
+  }
+
+  const handleCanvasClick = () => {
+    // 드래그 중이었으면 클릭으로 처리하지 않음
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false
+      return
+    }
+
+    if (!isFullscreen) {
+      setIsFullscreen(true)
+    } else {
+      setIsRotating(prev => !prev)
+    }
   }
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -411,111 +433,194 @@ const Volume3DViewer: React.FC<Volume3DViewerProps> = ({
     }
   }, [animate])
 
-  return (
-    <div className="volume-3d-viewer">
-      {/* 3D 캔버스 컨테이너 */}
-      <div
-        ref={containerRef}
-        className="volume-3d-viewer__canvas"
-        style={{ width, height, cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-      />
+  /** ESC 키로 전체화면 닫기 */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false)
+      }
+    }
 
-      {/* 컨트롤 패널 */}
-      <div className="volume-3d-viewer__controls">
-        <label className="volume-3d-viewer__checkbox">
-          <input
-            type="checkbox"
-            checked={showBrain}
-            onChange={(e) => setShowBrain(e.target.checked)}
-          />
-          뇌 표시
-        </label>
+    if (isFullscreen) {
+      window.addEventListener('keydown', handleKeyDown)
+      return () => window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isFullscreen])
 
-        {showBrain && (
-          <div className="volume-3d-viewer__speed">
-            <span>뇌 투명도:</span>
-            <input
-              type="range"
-              min="0.05"
-              max="0.4"
-              step="0.05"
-              value={brainOpacity}
-              onChange={(e) => setBrainOpacity(Number(e.target.value))}
-            />
-          </div>
-        )}
+  /** 전체화면 모드 변경 시 캔버스 크기 조정 및 DOM 이동 */
+  useEffect(() => {
+    if (!rendererRef.current || !cameraRef.current) return
 
-        <label className="volume-3d-viewer__checkbox">
-          <input
-            type="checkbox"
-            checked={isRotating}
-            onChange={(e) => setIsRotating(e.target.checked)}
-          />
-          자동 회전
-        </label>
+    const newWidth = isFullscreen ? Math.min(window.innerWidth * 0.85, 1200) : width
+    const newHeight = isFullscreen ? Math.min(window.innerHeight * 0.75, 800) : height
 
-        <div className="volume-3d-viewer__zoom">
-          <span>확대: {(zoom * 100).toFixed(0)}%</span>
+    rendererRef.current.setSize(newWidth, newHeight)
+    cameraRef.current.aspect = newWidth / newHeight
+    cameraRef.current.updateProjectionMatrix()
+
+    // 캔버스 DOM을 새 컨테이너로 이동
+    if (containerRef.current && rendererRef.current.domElement.parentElement !== containerRef.current) {
+      containerRef.current.appendChild(rendererRef.current.domElement)
+    }
+  }, [isFullscreen, width, height])
+
+  // 컨트롤 패널 JSX (재사용)
+  const controlsPanel = (
+    <div className="volume-3d-viewer__controls">
+      <label className="volume-3d-viewer__checkbox">
+        <input
+          type="checkbox"
+          checked={showBrain}
+          onChange={(e) => setShowBrain(e.target.checked)}
+        />
+        뇌 표시
+      </label>
+
+      {showBrain && (
+        <div className="volume-3d-viewer__speed">
+          <span>뇌 투명도:</span>
           <input
             type="range"
-            min="0.5"
-            max="3"
-            step="0.1"
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
+            min="0.05"
+            max="0.4"
+            step="0.05"
+            value={brainOpacity}
+            onChange={(e) => setBrainOpacity(Number(e.target.value))}
           />
         </div>
+      )}
 
-        <button
-          className="volume-3d-viewer__reset-btn"
-          onClick={() => {
-            rotationRef.current = { x: 0, y: 0 }
-            setZoom(1)
-            setIsRotating(true)
-            setShowBrain(true)
-            setBrainOpacity(0.15)
-          }}
-        >
-          초기화
-        </button>
+      <label className="volume-3d-viewer__checkbox">
+        <input
+          type="checkbox"
+          checked={isRotating}
+          onChange={(e) => setIsRotating(e.target.checked)}
+        />
+        자동 회전
+      </label>
+
+      <div className="volume-3d-viewer__zoom">
+        <span>확대: {(zoom * 100).toFixed(0)}%</span>
+        <input
+          type="range"
+          min="0.5"
+          max="3"
+          step="0.1"
+          value={zoom}
+          onChange={(e) => setZoom(Number(e.target.value))}
+        />
       </div>
 
-      {/* 범례 */}
-      <div className="volume-3d-viewer__legend">
-        <div className="volume-3d-viewer__legend-item">
-          <span className="volume-3d-viewer__legend-color" style={{ background: 'rgba(180, 180, 180, 0.5)' }} />
-          Brain
-        </div>
-        {showLabels.ncr && (
-          <div className="volume-3d-viewer__legend-item">
-            <span className="volume-3d-viewer__legend-color" style={{ background: '#ff0000' }} />
-            NCR/NET
-          </div>
-        )}
-        {showLabels.ed && (
-          <div className="volume-3d-viewer__legend-item">
-            <span className="volume-3d-viewer__legend-color" style={{ background: '#00ff00' }} />
-            Edema
-          </div>
-        )}
-        {showLabels.et && (
-          <div className="volume-3d-viewer__legend-item">
-            <span className="volume-3d-viewer__legend-color" style={{ background: '#0000ff' }} />
-            Enhancing
-          </div>
-        )}
-      </div>
-
-      {/* 조작 힌트 */}
-      <div className="volume-3d-viewer__hint">
-        드래그: 회전 | 스크롤: 확대/축소
-      </div>
+      <button
+        className="volume-3d-viewer__reset-btn"
+        onClick={() => {
+          rotationRef.current = { x: 0, y: 0 }
+          setZoom(1)
+          setIsRotating(true)
+          setShowBrain(true)
+          setBrainOpacity(0.15)
+        }}
+      >
+        초기화
+      </button>
     </div>
+  )
+
+  // 범례 JSX (재사용)
+  const legendPanel = (
+    <div className="volume-3d-viewer__legend">
+      <div className="volume-3d-viewer__legend-item">
+        <span className="volume-3d-viewer__legend-color" style={{ background: 'rgba(180, 180, 180, 0.5)' }} />
+        Brain
+      </div>
+      {showLabels.ncr && (
+        <div className="volume-3d-viewer__legend-item">
+          <span className="volume-3d-viewer__legend-color" style={{ background: '#ff0000' }} />
+          NCR/NET
+        </div>
+      )}
+      {showLabels.ed && (
+        <div className="volume-3d-viewer__legend-item">
+          <span className="volume-3d-viewer__legend-color" style={{ background: '#00ff00' }} />
+          Edema
+        </div>
+      )}
+      {showLabels.et && (
+        <div className="volume-3d-viewer__legend-item">
+          <span className="volume-3d-viewer__legend-color" style={{ background: '#0000ff' }} />
+          Enhancing
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      {/* 일반 모드 */}
+      {!isFullscreen && (
+        <div className="volume-3d-viewer">
+          <div
+            ref={containerRef}
+            className="volume-3d-viewer__canvas"
+            style={{ width, height, cursor: 'pointer' }}
+            onClick={handleCanvasClick}
+            onWheel={handleWheel}
+          />
+          {controlsPanel}
+          {legendPanel}
+          <div className="volume-3d-viewer__hint">
+            클릭: 전체화면 | 스크롤: 확대/축소
+          </div>
+        </div>
+      )}
+
+      {/* 전체화면 모달 */}
+      {isFullscreen && (
+        <div className="volume-3d-viewer__fullscreen-overlay">
+          {/* 배경 (클릭하면 닫힘) */}
+          <div
+            className="volume-3d-viewer__fullscreen-backdrop"
+            onClick={() => setIsFullscreen(false)}
+          />
+
+          {/* 모달 컨텐츠 */}
+          <div className="volume-3d-viewer__fullscreen-content">
+            {/* 닫기 버튼 */}
+            <button
+              className="volume-3d-viewer__fullscreen-close"
+              onClick={() => setIsFullscreen(false)}
+              title="닫기 (ESC)"
+            >
+              ✕
+            </button>
+
+            {/* 3D 캔버스 - 전체화면 */}
+            <div
+              ref={containerRef}
+              className="volume-3d-viewer__canvas volume-3d-viewer__canvas--fullscreen"
+              style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
+              onClick={handleCanvasClick}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onWheel={handleWheel}
+            />
+
+            {/* 컨트롤 패널 */}
+            {controlsPanel}
+
+            {/* 범례 */}
+            {legendPanel}
+
+            {/* 조작 힌트 */}
+            <div className="volume-3d-viewer__hint">
+              클릭: 회전 {isRotating ? '정지' : '시작'} | 드래그: 회전 | 스크롤: 확대/축소
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

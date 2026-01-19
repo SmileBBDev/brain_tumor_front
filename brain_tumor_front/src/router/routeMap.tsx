@@ -40,7 +40,6 @@ const EncounterDetailPage = lazy(() => import('@/pages/encounter/EncounterDetail
 
 // AI Inference
 const AIRequestListPage = lazy(() => import('@/pages/ai-inference/AIRequestListPage'));
-const AIRequestCreatePage = lazy(() => import('@/pages/ai-inference/AIRequestCreatePage'));
 const AIRequestDetailPage = lazy(() => import('@/pages/ai-inference/AIRequestDetailPage'));
 const AIProcessStatusPage = lazy(() => import('@/pages/ai-inference/AIProcessStatusPage'));
 const AIModelsPage = lazy(() => import('@/pages/ai-inference/AIModelsPage'));
@@ -78,7 +77,7 @@ const ReportDetailPage = lazy(() => import('@/pages/report/ReportDetailPage'));
  * ├── OCS: OCS_STATUS, OCS_CREATE, OCS_MANAGE
  * ├── IMAGING: IMAGE_VIEWER, OCS_RIS, OCS_RIS_DETAIL, RIS_DASHBOARD, RIS_RESULT_UPLOAD
  * ├── LAB: LAB_RESULT_VIEW, LAB_RESULT_UPLOAD, OCS_LIS, OCS_LIS_DETAIL, LIS_PROCESS_STATUS
- * ├── AI: AI_REQUEST_LIST, AI_REQUEST_CREATE, AI_REQUEST_DETAIL, AI_PROCESS_STATUS, AI_MODELS,
+ * ├── AI: AI_REQUEST_LIST, AI_REQUEST_DETAIL, AI_PROCESS_STATUS, AI_MODELS,
  * │       AI_M1_INFERENCE, AI_M1_DETAIL, AI_MG_INFERENCE, AI_MG_DETAIL, AI_MM_INFERENCE, AI_MM_DETAIL,
  * │       AI_DASHBOARD, AI_COMPARE_LIST, AI_COMPARE_DETAIL
  * ├── REPORT: REPORT_DASHBOARD, REPORT_LIST, REPORT_CREATE, REPORT_DETAIL
@@ -121,7 +120,6 @@ export const routeMap: Record<string, ComponentType> = {
 
   // === AI 그룹 ===
   AI_REQUEST_LIST: AIRequestListPage,
-  AI_REQUEST_CREATE: AIRequestCreatePage,
   AI_REQUEST_DETAIL: AIRequestDetailPage,
   AI_PROCESS_STATUS: AIProcessStatusPage,
   AI_MODELS: AIModelsPage,

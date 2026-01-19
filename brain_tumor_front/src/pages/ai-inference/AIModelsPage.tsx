@@ -4,9 +4,9 @@
  * - 모델별 상세 정보 및 요구사항
  */
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAIModels } from '@/hooks';
 import { LoadingSpinner } from '@/components/common';
+import { AIAnalysisPopup } from '@/components/AIAnalysisPopup';
 import './AIModelsPage.css';
 
 // AI 모델 상세 정보 (확장)
@@ -81,9 +81,19 @@ const MODEL_DETAILS: Record<string, {
 };
 
 export default function AIModelsPage() {
-  const navigate = useNavigate();
   const { models, loading, error } = useAIModels();
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [showAnalysisPopup, setShowAnalysisPopup] = useState(false);
+  const [initialTab, setInitialTab] = useState<'m1' | 'mg' | 'mm'>('m1');
+
+  // 모달 열기 (모델 코드에 따라 초기 탭 설정)
+  const openAnalysisPopup = (modelCode?: string) => {
+    if (modelCode === 'M1') setInitialTab('m1');
+    else if (modelCode === 'MG') setInitialTab('mg');
+    else if (modelCode === 'MM') setInitialTab('mm');
+    else setInitialTab('m1');
+    setShowAnalysisPopup(true);
+  };
 
   if (loading) {
     return (
@@ -110,7 +120,7 @@ export default function AIModelsPage() {
           <p className="subtitle">사용 가능한 AI 분석 모델 목록 및 상세 정보</p>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => navigate('/ai/requests/create')}>
+          <button className="btn btn-primary" onClick={() => openAnalysisPopup()}>
             새 분석 요청
           </button>
         </div>
@@ -211,7 +221,7 @@ export default function AIModelsPage() {
                       className="btn btn-primary btn-block"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/ai/requests/create?model=${model.code}`);
+                        openAnalysisPopup(model.code);
                       }}
                     >
                       이 모델로 분석 요청
@@ -284,7 +294,7 @@ export default function AIModelsPage() {
                     <td>
                       <button
                         className="btn btn-sm btn-outline"
-                        onClick={() => navigate(`/ai/requests/create?model=${model.code}`)}
+                        onClick={() => openAnalysisPopup(model.code)}
                       >
                         분석 요청
                       </button>
@@ -315,6 +325,13 @@ export default function AIModelsPage() {
           </div>
         </div>
       </section>
+
+      {/* 새 분석 요청 모달 */}
+      <AIAnalysisPopup
+        isOpen={showAnalysisPopup}
+        onClose={() => setShowAnalysisPopup(false)}
+        initialTab={initialTab}
+      />
     </div>
   );
 }

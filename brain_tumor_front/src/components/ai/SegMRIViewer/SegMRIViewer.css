@@ -898,3 +898,105 @@
   height: 10px;
   border-radius: 2px;
 }
+
+/* ========== Volume 3D Viewer Fullscreen Modal ========== */
+
+.volume-3d-viewer__fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.volume-3d-viewer__fullscreen-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  cursor: pointer;
+}
+
+.volume-3d-viewer__fullscreen-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: #1a1a2e;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  max-width: 95vw;
+  max-height: 95vh;
+}
+
+.volume-3d-viewer__fullscreen-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.volume-3d-viewer__fullscreen-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.volume-3d-viewer__canvas--fullscreen {
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__controls {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__controls,
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__checkbox,
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__speed,
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__zoom {
+  color: #ddd;
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__reset-btn {
+  border-color: #64b5f6;
+  color: #64b5f6;
+  background: transparent;
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__reset-btn:hover {
+  background: #64b5f6;
+  color: #1a1a2e;
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__legend {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__legend-item {
+  color: #ddd;
+}
+
+.volume-3d-viewer__fullscreen-content .volume-3d-viewer__hint {
+  color: rgba(255, 255, 255, 0.5);
+}

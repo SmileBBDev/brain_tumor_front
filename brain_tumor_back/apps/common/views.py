@@ -655,7 +655,7 @@ class PdfWatermarkConfigView(APIView):
             data = request.data
 
             # 유효성 검사: 필수 필드
-            required_fields = ['enabled', 'type', 'text', 'position', 'opacity', 'fontSize', 'color', 'rotation', 'repeatPattern']
+            required_fields = ['enabled', 'type', 'text', 'position', 'opacity', 'fontSize', 'color', 'rotation', 'repeatPattern', 'imageWidth', 'imageHeight']
             for field in required_fields:
                 if field not in data:
                     return Response(

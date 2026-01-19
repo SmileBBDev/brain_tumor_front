@@ -5,6 +5,7 @@ import {
   DEFAULT_PDF_WATERMARK_CONFIG,
   type PdfWatermarkConfig
 } from '@/services/pdfWatermark.api';
+import { invalidateWatermarkCache } from '@/utils/exportUtils';
 import './PdfWatermarkSettingsPage.css';
 
 const POSITION_OPTIONS = [
@@ -62,6 +63,7 @@ export default function PdfWatermarkSettingsPage() {
     setSaving(true);
     try {
       await updatePdfWatermarkConfig(editConfig);
+      invalidateWatermarkCache();  // 캐시 무효화하여 다음 PDF 생성 시 새 설정 적용
       setConfig(editConfig);
       setHasChanges(false);
       alert('설정이 저장되었습니다.');

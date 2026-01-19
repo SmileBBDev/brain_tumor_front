@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useAIRequestList, useAIModels } from '@/hooks';
 import { LoadingSpinner, EmptyState, useToast } from '@/components/common';
+import { AIAnalysisPopup } from '@/components/AIAnalysisPopup';
 import Pagination from '@/layout/Pagination';
 import type { AIInferenceRequest } from '@/services/ai.api';
 import './AIRequestListPage.css';
@@ -77,6 +78,9 @@ export default function AIRequestListPage() {
     reviewedAt: string | null;
   } | null>(null);
 
+  // 새 분석 요청 모달 상태
+  const [showAnalysisPopup, setShowAnalysisPopup] = useState(false);
+
   // 데이터 조회
   const { requests, loading, error, refresh } = useAIRequestList({
     status: statusFilter || undefined,
@@ -99,10 +103,10 @@ export default function AIRequestListPage() {
     [navigate]
   );
 
-  // 새 요청 생성 페이지로 이동
+  // 새 분석 요청 모달 열기
   const handleCreateRequest = useCallback(() => {
-    navigate('/ai/requests/create');
-  }, [navigate]);
+    setShowAnalysisPopup(true);
+  }, []);
 
   // 시간 포맷
   const formatDateTime = (dateStr: string | null) => {
@@ -354,6 +358,12 @@ export default function AIRequestListPage() {
 
       {/* Toast 컨테이너 */}
       <toast.ToastContainer position="top-right" />
+
+      {/* 새 분석 요청 모달 */}
+      <AIAnalysisPopup
+        isOpen={showAnalysisPopup}
+        onClose={() => setShowAnalysisPopup(false)}
+      />
     </div>
   );
 }

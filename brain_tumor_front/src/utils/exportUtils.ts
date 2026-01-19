@@ -41,6 +41,15 @@ const getWatermarkConfig = async (): Promise<PdfWatermarkConfig | null> => {
 };
 
 /**
+ * 워터마크 설정 캐시 무효화
+ * 설정 변경 후 호출하여 다음 PDF 생성 시 새 설정을 사용하도록 함
+ */
+export const invalidateWatermarkCache = () => {
+  cachedWatermarkConfig = null;
+  cacheTimestamp = 0;
+};
+
+/**
  * 텍스트를 캔버스로 렌더링하여 이미지로 변환 (한글 지원)
  */
 const renderTextToImage = async (
@@ -111,6 +120,18 @@ const applyWatermark = async (pdf: jsPDF, config: PdfWatermarkConfig): Promise<v
     watermarkImage = config.imageUrl;
     imgWidth = config.imageWidth || 50;
     imgHeight = config.imageHeight || 50;
+
+    // 이미지 크기가 페이지보다 클 경우 비율 유지하며 축소
+    const maxWidth = pageWidth * 0.9;  // 페이지 너비의 90%
+    const maxHeight = pageHeight * 0.9; // 페이지 높이의 90%
+
+    if (imgWidth > maxWidth || imgHeight > maxHeight) {
+      const widthRatio = maxWidth / imgWidth;
+      const heightRatio = maxHeight / imgHeight;
+      const scale = Math.min(widthRatio, heightRatio);
+      imgWidth = imgWidth * scale;
+      imgHeight = imgHeight * scale;
+    }
   } else {
     // 텍스트를 이미지로 변환 (한글 지원)
     watermarkImage = await renderTextToImage(
@@ -1379,6 +1400,243 @@ export const generateFinalReportPDF = async (data: {
     }
 
     pdf.save(`Final_Report_${data.reportId}_${data.patientNumber}.pdf`);
+
+  } catch (error) {
+    console.error('PDF 생성 실패:', error);
+    alert('PDF 생성에 실패했습니다. jspdf, html2canvas 패키지가 설치되어 있는지 확인하세요.');
+    throw error;
+  }
+};
+
+/**
+ * 환자 요약서 PDF 생성
+ */
+export const generatePatientSummaryPDF = async (data: {
+  patientName: string;
+  patientNumber: string;
+  age?: number;
+  gender?: string;
+  birthDate?: string;
+  phone?: string;
+  bloodType?: string;
+  address?: string;
+  encounters: Array<{
+    id: number;
+    admission_date?: string;
+    encounter_type?: string;
+    encounter_type_display?: string;
+    attending_doctor_name?: string;
+    status?: string;
+    status_display?: string;
+    chief_complaint?: string;
+  }>;
+  ocsHistory: Array<{
+    id: number;
+    created_at?: string;
+    job_type?: string;
+    job_role?: string;
+    ocs_status?: string;
+    ocs_status_display?: string;
+  }>;
+  aiInferences: Array<{
+    id: number;
+    requested_at?: string;
+    model_code?: string;
+    model_name?: string;
+    status?: string;
+    status_display?: string;
+  }>;
+  prescriptions: Array<{
+    id: number;
+    prescribed_at?: string;
+    status?: string;
+  }>;
+  generatedAt?: string;
+}, watermarkConfig?: PdfWatermarkConfig): Promise<void> => {
+  try {
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      padding: 40px;
+      background: white;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      box-sizing: border-box;
+    `;
+
+    const genderDisplay = data.gender === 'M' ? '남' : data.gender === 'F' ? '여' : data.gender || '-';
+
+    // 진료 이력 테이블 행
+    const encounterRows = data.encounters.length > 0
+      ? data.encounters.map(enc => `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd;">${enc.admission_date?.split('T')[0] || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${enc.encounter_type_display || enc.encounter_type || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${enc.attending_doctor_name || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${enc.status_display || enc.status || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${enc.chief_complaint || '-'}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="5" style="padding: 16px; text-align: center; color: #666; border: 1px solid #ddd;">진료 이력이 없습니다.</td></tr>';
+
+    // OCS 이력 테이블 행
+    const ocsRows = data.ocsHistory.length > 0
+      ? data.ocsHistory.map(ocs => `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd;">${ocs.created_at?.split('T')[0] || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${ocs.job_type || ocs.job_role || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${ocs.ocs_status_display || ocs.ocs_status || '-'}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="3" style="padding: 16px; text-align: center; color: #666; border: 1px solid #ddd;">검사 이력이 없습니다.</td></tr>';
+
+    // AI 분석 이력 테이블 행
+    const aiRows = data.aiInferences.length > 0
+      ? data.aiInferences.map(ai => `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd;">${ai.requested_at?.split('T')[0] || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${ai.model_name || ai.model_code || '-'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${ai.status_display || ai.status || '-'}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="3" style="padding: 16px; text-align: center; color: #666; border: 1px solid #ddd;">AI 분석 이력이 없습니다.</td></tr>';
+
+    container.innerHTML = `
+      <div style="text-align: center; border-bottom: 2px solid #2196f3; padding-bottom: 20px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold; color: #2196f3;">환자 요약서</h1>
+        <p style="margin: 0; color: #666; font-size: 13px;">생성일시: ${data.generatedAt?.replace('T', ' ').split('.')[0] || new Date().toLocaleString()}</p>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">기본 정보</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; width: 15%; text-align: left;">환자번호</th>
+            <td style="padding: 8px; border: 1px solid #ddd; width: 35%;"><strong>${data.patientNumber}</strong></td>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; width: 15%; text-align: left;">환자명</th>
+            <td style="padding: 8px; border: 1px solid #ddd; width: 35%;"><strong>${data.patientName}</strong></td>
+          </tr>
+          <tr>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; text-align: left;">나이/성별</th>
+            <td style="padding: 8px; border: 1px solid #ddd;">${data.age || '-'}세 / ${genderDisplay}</td>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; text-align: left;">생년월일</th>
+            <td style="padding: 8px; border: 1px solid #ddd;">${data.birthDate || '-'}</td>
+          </tr>
+          <tr>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; text-align: left;">연락처</th>
+            <td style="padding: 8px; border: 1px solid #ddd;">${data.phone || '-'}</td>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; text-align: left;">혈액형</th>
+            <td style="padding: 8px; border: 1px solid #ddd;">${data.bloodType || '-'}</td>
+          </tr>
+          <tr>
+            <th style="padding: 8px; background: #f5f5f5; border: 1px solid #ddd; text-align: left;">주소</th>
+            <td colspan="3" style="padding: 8px; border: 1px solid #ddd;">${data.address || '-'}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">진료 이력 (${data.encounters.length}건)</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="background: #f5f5f5;">
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">날짜</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">유형</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">담당의</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">상태</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">주호소</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${encounterRows}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">검사 이력 (${data.ocsHistory.length}건)</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="background: #f5f5f5;">
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">날짜</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">유형</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">상태</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ocsRows}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd;">AI 분석 이력 (${data.aiInferences.length}건)</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="background: #f5f5f5;">
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">날짜</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">모델</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">상태</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${aiRows}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 12px;">
+        본 문서는 NeuroNova CDSS에서 자동 생성되었습니다.
+      </div>
+    `;
+
+    document.body.appendChild(container);
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+    });
+
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 10;
+
+    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+    heightLeft -= (pdfHeight - 20);
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
+    }
+
+    // 워터마크 적용 (파라미터로 전달받거나 캐시에서 조회)
+    const finalWatermarkConfig = watermarkConfig || await getWatermarkConfig();
+    if (finalWatermarkConfig) {
+      await applyWatermark(pdf, finalWatermarkConfig);
+    }
+
+    pdf.save(`Patient_Summary_${data.patientNumber}.pdf`);
 
   } catch (error) {
     console.error('PDF 생성 실패:', error);

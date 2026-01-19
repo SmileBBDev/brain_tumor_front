@@ -30,13 +30,22 @@ type TabType = 'm1' | 'mg' | 'mm'
 interface AIAnalysisPopupProps {
   isOpen: boolean
   onClose: () => void
+  initialTab?: TabType
+  patientId?: number  // 환자 ID가 있으면 해당 환자의 OCS만 필터링
 }
 
 // ============================================================================
 // Main Component
 // ============================================================================
-export default function AIAnalysisPopup({ isOpen, onClose }: AIAnalysisPopupProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('m1')
+export default function AIAnalysisPopup({ isOpen, onClose, initialTab = 'm1', patientId }: AIAnalysisPopupProps) {
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab)
+
+  // initialTab 변경 시 activeTab 업데이트
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab)
+    }
+  }, [isOpen, initialTab])
 
   // ESC 키로 닫기
   useEffect(() => {
@@ -96,9 +105,9 @@ export default function AIAnalysisPopup({ isOpen, onClose }: AIAnalysisPopupProp
 
         {/* Content */}
         <main className="ai-popup-content">
-          {activeTab === 'm1' && <M1Panel />}
-          {activeTab === 'mg' && <MGPanel />}
-          {activeTab === 'mm' && <MMPanel />}
+          {activeTab === 'm1' && <M1Panel patientId={patientId} />}
+          {activeTab === 'mg' && <MGPanel patientId={patientId} />}
+          {activeTab === 'mm' && <MMPanel patientId={patientId} />}
         </main>
       </div>
     </div>
@@ -108,7 +117,7 @@ export default function AIAnalysisPopup({ isOpen, onClose }: AIAnalysisPopupProp
 // ============================================================================
 // M1 Panel - MRI 분석
 // ============================================================================
-function M1Panel() {
+function M1Panel({ patientId }: { patientId?: number }) {
   const { requestInference, isFastAPIAvailable } = useAIInference()
   const [ocsList, setOcsList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -123,14 +132,22 @@ function M1Panel() {
 
   useEffect(() => {
     loadOcsList()
-  }, [])
+  }, [patientId])
 
   const loadOcsList = async () => {
     try {
       setLoading(true)
-      const res = await api.get('/ocs/', {
-        params: { job_role: 'RIS', job_type: 'MRI', ocs_status: 'CONFIRMED', page_size: 50 }
-      })
+      const params: Record<string, any> = {
+        job_role: 'RIS',
+        job_type: 'MRI',
+        ocs_status: 'CONFIRMED',
+        page_size: 50
+      }
+      // patientId가 있으면 해당 환자의 OCS만 조회
+      if (patientId) {
+        params.patient_id = patientId
+      }
+      const res = await api.get('/ocs/', { params })
       const data = res.data.results || res.data || []
       setOcsList(data.map((item: any) => ({
         id: item.id,
@@ -277,7 +294,7 @@ function M1Panel() {
 // ============================================================================
 // MG Panel - Gene 분석
 // ============================================================================
-function MGPanel() {
+function MGPanel({ patientId }: { patientId?: number }) {
   const { requestInference, isFastAPIAvailable } = useAIInference()
   const [ocsList, setOcsList] = useState<OCSItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -292,14 +309,21 @@ function MGPanel() {
 
   useEffect(() => {
     loadOcsList()
-  }, [])
+  }, [patientId])
 
   const loadOcsList = async () => {
     try {
       setLoading(true)
-      const res = await api.get('/ocs/', {
-        params: { job_role: 'LIS', job_type: 'RNA_SEQ', ocs_status: 'CONFIRMED', page_size: 50 }
-      })
+      const params: Record<string, any> = {
+        job_role: 'LIS',
+        job_type: 'RNA_SEQ',
+        ocs_status: 'CONFIRMED',
+        page_size: 50
+      }
+      if (patientId) {
+        params.patient_id = patientId
+      }
+      const res = await api.get('/ocs/', { params })
       const data = res.data.results || res.data || []
       setOcsList(data.map((item: any) => ({
         id: item.id,
@@ -415,7 +439,7 @@ function MGPanel() {
 // ============================================================================
 // MM Panel - 멀티모달 분석
 // ============================================================================
-function MMPanel() {
+function MMPanel({ patientId }: { patientId?: number }) {
   const { requestInference, isFastAPIAvailable } = useAIInference()
   const [mriList, setMriList] = useState<OCSItem[]>([])
   const [geneList, setGeneList] = useState<OCSItem[]>([])
@@ -434,15 +458,18 @@ function MMPanel() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [patientId])
 
   const loadData = async () => {
     try {
       setLoading(true)
+      const baseParams = { ocs_status: 'CONFIRMED', page_size: 50 }
+      const patientFilter = patientId ? { patient_id: patientId } : {}
+
       const [mriRes, geneRes, proteinRes] = await Promise.all([
-        api.get('/ocs/', { params: { job_role: 'RIS', job_type: 'MRI', ocs_status: 'CONFIRMED', page_size: 50 } }),
-        api.get('/ocs/', { params: { job_role: 'LIS', job_type: 'RNA_SEQ', ocs_status: 'CONFIRMED', page_size: 50 } }),
-        api.get('/ocs/', { params: { job_role: 'LIS', job_type: 'BIOMARKER', ocs_status: 'CONFIRMED', page_size: 50 } })
+        api.get('/ocs/', { params: { ...baseParams, ...patientFilter, job_role: 'RIS', job_type: 'MRI' } }),
+        api.get('/ocs/', { params: { ...baseParams, ...patientFilter, job_role: 'LIS', job_type: 'RNA_SEQ' } }),
+        api.get('/ocs/', { params: { ...baseParams, ...patientFilter, job_role: 'LIS', job_type: 'BIOMARKER' } })
       ])
 
       const mapOcs = (data: any) => (data.results || data || []).map((item: any) => ({

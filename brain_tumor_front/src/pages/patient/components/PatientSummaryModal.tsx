@@ -3,8 +3,11 @@
  * - 환자 기본 정보, 진료 이력, 검사 이력, AI 분석 이력 표시
  * - PDF/인쇄 기능 지원
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPatientSummary, type PatientSummary } from '@/services/patient.api';
+import PdfPreviewModal from '@/components/PdfPreviewModal';
+import { DocumentPreview } from '@/components/pdf-preview';
+import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api';
 import './PatientSummaryModal.css';
 
 type Props = {
@@ -17,6 +20,7 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,9 +43,32 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // PDF 출력 핸들러
+  const handleExportPDF = useCallback(async (watermarkConfig: PdfWatermarkConfig) => {
+    if (!summary) return;
+
+    try {
+      const { generatePatientSummaryPDF } = await import('@/utils/exportUtils');
+      await generatePatientSummaryPDF({
+        patientName: summary.patient.name,
+        patientNumber: summary.patient.patient_number,
+        age: summary.patient.age,
+        gender: summary.patient.gender,
+        birthDate: summary.patient.birth_date,
+        phone: summary.patient.phone,
+        bloodType: summary.patient.blood_type,
+        address: summary.patient.address,
+        encounters: summary.encounters,
+        ocsHistory: summary.ocs_history,
+        aiInferences: summary.ai_inferences,
+        prescriptions: summary.prescriptions,
+        generatedAt: summary.generated_at,
+      }, watermarkConfig);
+    } catch (err) {
+      console.error('PDF 출력 실패:', err);
+      alert('PDF 출력에 실패했습니다.');
+    }
+  }, [summary]);
 
   if (!isOpen) return null;
 
@@ -51,7 +78,11 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
         <div className="modal-header">
           <h2>환자 요약서</h2>
           <div className="modal-actions">
-            <button className="btn btn-primary" onClick={handlePrint}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setPdfPreviewOpen(true)}
+              disabled={!summary}
+            >
               PDF/인쇄
             </button>
             <button className="btn" onClick={onClose}>
@@ -215,6 +246,55 @@ export default function PatientSummaryModal({ isOpen, onClose, patientId }: Prop
             <div className="error-state">요약 정보를 불러올 수 없습니다.</div>
           )}
         </div>
+
+        {/* PDF 미리보기 모달 */}
+        <PdfPreviewModal
+          isOpen={pdfPreviewOpen}
+          onClose={() => setPdfPreviewOpen(false)}
+          onConfirm={handleExportPDF}
+          title="환자 요약서 PDF 미리보기"
+        >
+          {summary && (
+            <DocumentPreview
+              title="환자 요약서"
+              subtitle={`${summary.patient.name} (${summary.patient.patient_number})`}
+              infoGrid={[
+                { label: '환자명', value: summary.patient.name },
+                { label: '환자번호', value: summary.patient.patient_number },
+                { label: '나이/성별', value: `${summary.patient.age}세 / ${summary.patient.gender === 'M' ? '남' : '여'}` },
+                { label: '생년월일', value: summary.patient.birth_date || '-' },
+                { label: '연락처', value: summary.patient.phone || '-' },
+                { label: '혈액형', value: summary.patient.blood_type || '-' },
+              ]}
+              sections={[
+                {
+                  title: `진료 이력 (${summary.encounters.length}건)`,
+                  content: summary.encounters.length > 0
+                    ? summary.encounters.map(enc =>
+                        `${enc.admission_date?.split('T')[0] || '-'} | ${enc.encounter_type_display || enc.encounter_type} | ${enc.attending_doctor_name || '-'}`
+                      ).join('\n')
+                    : '진료 이력이 없습니다.',
+                },
+                {
+                  title: `검사 이력 (${summary.ocs_history.length}건)`,
+                  content: summary.ocs_history.length > 0
+                    ? summary.ocs_history.map(ocs =>
+                        `${ocs.created_at?.split('T')[0] || '-'} | ${ocs.job_type || ocs.job_role} | ${ocs.ocs_status_display || ocs.ocs_status}`
+                      ).join('\n')
+                    : '검사 이력이 없습니다.',
+                },
+                {
+                  title: `AI 분석 이력 (${summary.ai_inferences.length}건)`,
+                  content: summary.ai_inferences.length > 0
+                    ? summary.ai_inferences.map(ai =>
+                        `${ai.requested_at?.split('T')[0] || '-'} | ${ai.model_name || ai.model_code} | ${ai.status_display || ai.status}`
+                      ).join('\n')
+                    : 'AI 분석 이력이 없습니다.',
+                },
+              ]}
+            />
+          )}
+        </PdfPreviewModal>
       </div>
     </div>
   );

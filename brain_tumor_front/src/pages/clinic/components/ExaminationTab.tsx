@@ -32,6 +32,7 @@ import TodayAppointmentCard from './TodayAppointmentCard';
 import PastRecordCard from './PastRecordCard';
 import CalendarCard from './CalendarCard';
 import PastPrescriptionCard from './PastPrescriptionCard';
+import { AIAnalysisPopup } from '@/components/AIAnalysisPopup';
 import './ExaminationTab.css';
 
 interface ExaminationTabProps {
@@ -130,6 +131,9 @@ export default function ExaminationTab({
 
   // AI 추론 관련 상태 (읽기 전용 - 결과 조회용)
   const [aiRequests, setAIRequests] = useState<AIInferenceRequest[]>([]);
+
+  // 새 분석 요청 모달 상태
+  const [showAnalysisPopup, setShowAnalysisPopup] = useState(false);
 
   // 처방 새로고침 키 (처방 발행 시 PastPrescriptionCard 새로고침용)
   const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0);
@@ -548,14 +552,14 @@ export default function ExaminationTab({
               </h4>
             </div>
 
-            {/* 수동 추론 요청 페이지 이동 버튼 */}
+            {/* 수동 추론 요청 버튼 */}
             <div className="ai-action-button">
               <button
                 className="btn btn-primary btn-block"
-                onClick={() => navigate(`/ai/requests/create?patientId=${patientId}`)}
+                onClick={() => setShowAnalysisPopup(true)}
                 disabled={!patientId || patientId <= 0}
               >
-                수동 추론 요청 페이지로 이동
+                수동 추론 요청
               </button>
               <p className="ai-action-hint">
                 검사 완료 시 AI 추론이 자동으로 실행됩니다.
@@ -703,6 +707,13 @@ export default function ExaminationTab({
           onSave={handleSaveAlert}
         />
       )}
+
+      {/* AI 분석 요청 모달 */}
+      <AIAnalysisPopup
+        isOpen={showAnalysisPopup}
+        onClose={() => setShowAnalysisPopup(false)}
+        patientId={patientId}
+      />
     </div>
   );
 }

@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 @extend_schema(tags=["Reports"])
 class FinalReportListCreateView(APIView):
     """최종 보고서 목록 조회 / 생성"""
-    permission_classes = [IsDoctorOrAdmin]
+
+    def get_permissions(self):
+        # GET(조회)는 모든 인증된 사용자 허용, POST(생성)는 의사/관리자만 허용
+        if self.request.method == 'GET':
+            return [IsAuthenticated()]
+        return [IsDoctorOrAdmin()]
 
     @extend_schema(
         summary="보고서 목록 조회",
@@ -78,7 +83,12 @@ class FinalReportListCreateView(APIView):
 @extend_schema(tags=["Reports"])
 class FinalReportDetailView(APIView):
     """최종 보고서 상세 조회 / 수정 / 삭제"""
-    permission_classes = [IsDoctorOrAdmin]
+
+    def get_permissions(self):
+        # GET(조회)는 모든 인증된 사용자 허용, PUT/DELETE는 의사/관리자만 허용
+        if self.request.method == 'GET':
+            return [IsAuthenticated()]
+        return [IsDoctorOrAdmin()]
 
     def get_object(self, pk):
         return get_object_or_404(FinalReport, pk=pk, is_deleted=False)

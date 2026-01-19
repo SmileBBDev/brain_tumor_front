@@ -303,23 +303,83 @@ def run_schedule_generator(start_date='2026-01-15', end_date='2026-02-28', per_d
     )
 
 
+def reset_cdss_storage_folder(folder_path, folder_name):
+    """
+    CDSS_STORAGE 하위 폴더 초기화
+
+    Args:
+        folder_path: Path 객체
+        folder_name: 표시용 폴더 이름 (AI, LIS, RIS)
+
+    Returns:
+        삭제된 폴더/파일 수
+    """
+    import shutil
+    try:
+        if not folder_path.exists():
+            print(f"  CDSS_STORAGE/{folder_name} 폴더가 없습니다.")
+            return 0
+
+        # 하위 폴더/파일 목록 조회
+        items = list(folder_path.iterdir())
+        if not items:
+            print(f"  CDSS_STORAGE/{folder_name}에 데이터가 없습니다.")
+            return 0
+
+        print(f"  CDSS_STORAGE/{folder_name}에 {len(items)}개의 항목이 있습니다. 삭제 중...")
+
+        deleted_count = 0
+        for item in items:
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+                deleted_count += 1
+            except Exception as e:
+                print(f"    [WARNING] {item.name} 삭제 실패: {e}")
+
+        print(f"  [OK] {deleted_count}개 삭제 완료")
+        return deleted_count
+
+    except Exception as e:
+        print(f"  [ERROR] CDSS_STORAGE/{folder_name} 리셋 실패: {e}")
+        return 0
+
+
 def reset_external_storage():
     """
-    외부 저장소 초기화 (CDSS_STORAGE/LIS, Orthanc)
+    외부 저장소 초기화 (CDSS_STORAGE/AI, CDSS_STORAGE/LIS, CDSS_STORAGE/RIS, Orthanc)
 
     setup_dummy_data --reset 실행 시 호출됨
     """
+    # Django 설정
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    os.chdir(PROJECT_ROOT)
+
+    import django
+    django.setup()
+
+    from django.conf import settings
+
     print("\n" + "=" * 60)
     print("[사전 작업] 외부 저장소 초기화")
     print("=" * 60)
 
-    # 1. CDSS_STORAGE/LIS 초기화
-    print("\n[1] CDSS_STORAGE/LIS 초기화...")
-    try:
-        from setup_dummy_data.sync_lis_ocs import reset_cdss_storage_lis
-        reset_cdss_storage_lis()
-    except Exception as e:
-        print(f"  [WARNING] CDSS_STORAGE/LIS 초기화 실패: {e}")
+    # 1. CDSS_STORAGE 초기화 (AI, LIS, RIS)
+    print("\n[1] CDSS_STORAGE 초기화...")
+
+    # 1-1. AI 초기화
+    print("\n  [1-1] CDSS_STORAGE/AI 초기화...")
+    reset_cdss_storage_folder(settings.CDSS_AI_STORAGE, "AI")
+
+    # 1-2. LIS 초기화
+    print("\n  [1-2] CDSS_STORAGE/LIS 초기화...")
+    reset_cdss_storage_folder(settings.CDSS_LIS_STORAGE, "LIS")
+
+    # 1-3. RIS 초기화
+    print("\n  [1-3] CDSS_STORAGE/RIS 초기화...")
+    reset_cdss_storage_folder(settings.CDSS_RIS_STORAGE, "RIS")
 
     # 2. Orthanc 초기화
     print("\n[2] Orthanc 초기화...")

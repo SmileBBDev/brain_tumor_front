@@ -317,6 +317,13 @@ export default function RISStudyDetailPage() {
   const handleSubmitFinal = async () => {
     if (!ocsDetail) return;
 
+    // DICOM 영상 업로드 여부 확인
+    const orthancInfo = getOrthancInfo();
+    if (!orthancInfo?.orthanc_study_id) {
+      alert('DICOM 영상을 먼저 업로드해주세요.\n"검사 결과" 탭에서 "DICOM Viewer & Upload" 버튼을 클릭하여 영상을 업로드할 수 있습니다.');
+      return;
+    }
+
     if (!findings.trim() || !impression.trim()) {
       alert('판독 소견과 결론은 필수 입력입니다.');
       return;
