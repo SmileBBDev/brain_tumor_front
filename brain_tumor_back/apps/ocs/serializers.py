@@ -197,6 +197,7 @@ class OCSCreateSerializer(serializers.ModelSerializer):
     """OCS 생성용 Serializer"""
     patient_id = serializers.IntegerField(write_only=True)
     encounter_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    attachments = serializers.JSONField(required=False, allow_null=True)
 
     class Meta:
         model = OCS
@@ -207,6 +208,7 @@ class OCSCreateSerializer(serializers.ModelSerializer):
             'job_type',
             'doctor_request',
             'priority',
+            'attachments',
         ]
 
     def validate_patient_id(self, value):
@@ -222,6 +224,7 @@ class OCSCreateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         patient_id = validated_data.pop('patient_id')
         encounter_id = validated_data.pop('encounter_id', None)
+        attachments_data = validated_data.pop('attachments', None)
 
         # 기본 템플릿 적용
         if not validated_data.get('doctor_request'):
@@ -234,6 +237,14 @@ class OCSCreateSerializer(serializers.ModelSerializer):
             doctor=request.user,
             **validated_data
         )
+
+        # 외부기관 정보가 있으면 attachments에 병합
+        if attachments_data:
+            default_attachments = ocs.get_default_attachments()
+            if 'external_source' in attachments_data:
+                default_attachments['external_source'].update(attachments_data['external_source'])
+            ocs.attachments = default_attachments
+            ocs.save(update_fields=['attachments'])
 
         # 생성 이력 기록
         OCSHistory.objects.create(

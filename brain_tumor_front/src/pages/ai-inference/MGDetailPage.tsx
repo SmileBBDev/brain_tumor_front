@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import MGResultViewer from '@/components/MGResultViewer'
 import { SurvivalChart } from '@/components/ai/SurvivalChart'
 import { GeneBarChart } from '@/components/ai/GeneBarChart'
 import { GeneHeatmap } from '@/components/ai/GeneHeatmap'
 import { aiApi } from '@/services/ai.api'
+import { useAIRequestDetail } from '@/hooks'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
+import { useToast } from '@/components/common'
 import PdfPreviewModal from '@/components/PdfPreviewModal'
 import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api'
 import {
@@ -14,6 +16,13 @@ import {
   getRiskVariant,
 } from '@/components/pdf-preview'
 import './MGDetailPage.css'
+
+// 검토 상태 라벨
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  pending: '검토 대기',
+  approved: '승인됨',
+  rejected: '반려됨',
+}
 
 interface MGResult {
   patient_id?: string
@@ -85,12 +94,36 @@ export default function MGDetailPage() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { markAsCached } = useThumbnailCache()
+  const toast = useToast()
+
+  // AI Request Detail Hook (for review functionality)
+  const { request: aiRequest, review } = useAIRequestDetail(jobId ?? null)
 
   // State
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [inferenceDetail, setInferenceDetail] = useState<InferenceDetail | null>(null)
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
+
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewStatus, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
+  const [reviewComment, setReviewComment] = useState('')
+
+  // Can review check
+  const canReview = aiRequest?.has_result && aiRequest?.result?.review_status === 'pending'
+
+  // Review submit handler
+  const handleReviewSubmit = useCallback(async () => {
+    try {
+      await review(reviewStatus, reviewComment || undefined)
+      toast.success(`결과가 ${reviewStatus === 'approved' ? '승인' : '반려'}되었습니다.`)
+      setShowReviewModal(false)
+      setReviewComment('')
+    } catch (err) {
+      toast.error('검토 처리에 실패했습니다.')
+    }
+  }, [review, reviewStatus, reviewComment, toast])
 
   // 생존 곡선 데이터 생성 (샘플 데이터 - 실제 API 연동 시 교체)
   const survivalChartData = useMemo(() => {
@@ -296,6 +329,11 @@ export default function MGDetailPage() {
           </div>
         </div>
         <div className="header-actions">
+          {canReview && (
+            <button onClick={() => setShowReviewModal(true)} className="btn-review">
+              검토하기
+            </button>
+          )}
           {inferenceDetail.status === 'COMPLETED' && (
             <button onClick={handleOpenPdfPreview} className="btn-pdf">
               PDF 출력
@@ -333,6 +371,16 @@ export default function MGDetailPage() {
                 <div className="info-item">
                   <dt>완료일</dt>
                   <dd>{new Date(inferenceDetail.completed_at).toLocaleString('ko-KR')}</dd>
+                </div>
+              )}
+              {aiRequest?.has_result && aiRequest?.result && (
+                <div className="info-item">
+                  <dt>검토 상태</dt>
+                  <dd>
+                    <span className={`review-badge review-${aiRequest.result.review_status}`}>
+                      {REVIEW_STATUS_LABELS[aiRequest.result.review_status] || aiRequest.result.review_status}
+                    </span>
+                  </dd>
                 </div>
               )}
             </dl>
@@ -564,6 +612,51 @@ export default function MGDetailPage() {
           />
         )}
       </PdfPreviewModal>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="modal-overlay" onClick={() => setShowReviewModal(false)}>
+          <div className="modal-content review-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>결과 검토</h3>
+            <div className="review-options">
+              <button
+                className={`review-option ${reviewStatus === 'approved' ? 'selected' : ''}`}
+                onClick={() => setReviewStatus('approved')}
+              >
+                <span className="icon icon-approve">✓</span>
+                <span>승인</span>
+              </button>
+              <button
+                className={`review-option ${reviewStatus === 'rejected' ? 'selected' : ''}`}
+                onClick={() => setReviewStatus('rejected')}
+              >
+                <span className="icon icon-reject">✗</span>
+                <span>반려</span>
+              </button>
+            </div>
+            <div className="review-comment-input">
+              <label>검토 의견 (선택)</label>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="검토 의견을 입력하세요..."
+                rows={3}
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowReviewModal(false)}>
+                취소
+              </button>
+              <button className="btn btn-primary" onClick={handleReviewSubmit}>
+                제출
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Container */}
+      <toast.ToastContainer position="top-right" />
     </div>
   )
 }

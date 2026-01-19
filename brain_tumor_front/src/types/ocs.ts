@@ -368,6 +368,16 @@ export interface OCSCreateData {
   job_type: string;
   doctor_request?: Partial<DoctorRequest>;
   priority?: Priority;
+  attachments?: {
+    external_source?: {
+      institution?: {
+        id: number;
+        name: string;
+        code: string;
+        email?: string;
+      };
+    };
+  };
 }
 
 export interface OCSUpdateData {

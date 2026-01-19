@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createOCS } from '@/services/ocs.api';
 import { getPatients, getPatient } from '@/services/patient.api';
+import { fetchExternalInstitutions, type ExternalInstitution } from '@/services/users.api';
 import type { Patient } from '@/types/patient';
 import type { OCSCreateData, JobRole, Priority } from '@/types/ocs';
 import { JOB_ROLE_LABELS, PRIORITY_LABELS } from '@/types/ocs';
@@ -95,6 +96,13 @@ export default function OCSCreatePage() {
   const [clinicalInfo, setClinicalInfo] = useState('');
   const [specialInstruction, setSpecialInstruction] = useState('');
 
+  // 외부기관 상태
+  const [isExternalInstitution, setIsExternalInstitution] = useState(false);
+  const [selectedInstitution, setSelectedInstitution] = useState<ExternalInstitution | null>(null);
+  const [institutions, setInstitutions] = useState<ExternalInstitution[]>([]);
+  const [institutionSearch, setInstitutionSearch] = useState('');
+  const [showInstitutionDropdown, setShowInstitutionDropdown] = useState(false);
+
   // URL에서 patientId가 있으면 해당 환자 정보 로드
   useEffect(() => {
     if (urlPatientId) {
@@ -111,6 +119,19 @@ export default function OCSCreatePage() {
       loadPatient();
     }
   }, [urlPatientId]);
+
+  // 외부기관 목록 로드
+  useEffect(() => {
+    const loadInstitutions = async () => {
+      try {
+        const data = await fetchExternalInstitutions();
+        setInstitutions(data);
+      } catch (error) {
+        console.error('Failed to load institutions:', error);
+      }
+    };
+    loadInstitutions();
+  }, []);
 
   // 환자 검색
   const searchPatients = useCallback(async (query: string) => {
@@ -170,6 +191,12 @@ export default function OCSCreatePage() {
       return;
     }
 
+    // 외부기관 체크 시 기관 선택 필수
+    if (isExternalInstitution && !selectedInstitution) {
+      alert('외부기관을 선택해주세요.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const createData: OCSCreateData = {
@@ -186,6 +213,20 @@ export default function OCSCreatePage() {
           special_instruction: specialInstruction,
         },
       };
+
+      // 외부기관 정보 추가
+      if (isExternalInstitution && selectedInstitution) {
+        createData.attachments = {
+          external_source: {
+            institution: {
+              id: selectedInstitution.id,
+              name: selectedInstitution.name,
+              code: selectedInstitution.code,
+              email: selectedInstitution.email,
+            },
+          },
+        };
+      }
 
       await createOCS(createData);
       alert('OCS가 생성되었습니다.');
@@ -346,6 +387,93 @@ export default function OCSCreatePage() {
               </select>
             </div>
           </div>
+
+          {/* 외부기관 체크박스 */}
+          <div className="form-group external-institution-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={isExternalInstitution}
+                onChange={(e) => {
+                  setIsExternalInstitution(e.target.checked);
+                  if (!e.target.checked) {
+                    setSelectedInstitution(null);
+                    setInstitutionSearch('');
+                    setShowInstitutionDropdown(false);
+                  }
+                }}
+              />
+              <span>외부기관 검사</span>
+            </label>
+          </div>
+
+          {/* 외부기관 선택 드롭다운 */}
+          {isExternalInstitution && (
+            <div className="form-group">
+              <label>외부기관 선택 <span className="required">*</span></label>
+              <div className="institution-search-container">
+                <div className="search-input-wrapper">
+                  <input
+                    type="text"
+                    value={institutionSearch}
+                    onChange={(e) => {
+                      setInstitutionSearch(e.target.value);
+                      setShowInstitutionDropdown(true);
+                      if (selectedInstitution) {
+                        setSelectedInstitution(null);
+                      }
+                    }}
+                    onFocus={() => setShowInstitutionDropdown(true)}
+                    placeholder="기관명 또는 기관코드 검색"
+                    className={selectedInstitution ? 'selected' : ''}
+                  />
+                  {selectedInstitution && (
+                    <button
+                      type="button"
+                      className="clear-btn"
+                      onClick={() => {
+                        setSelectedInstitution(null);
+                        setInstitutionSearch('');
+                        setShowInstitutionDropdown(false);
+                      }}
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+
+                {showInstitutionDropdown && !selectedInstitution && (
+                  <ul className="institution-dropdown">
+                    {institutions
+                      .filter(inst =>
+                        inst.name.toLowerCase().includes(institutionSearch.toLowerCase()) ||
+                        inst.code.toLowerCase().includes(institutionSearch.toLowerCase())
+                      )
+                      .map(inst => (
+                        <li
+                          key={inst.id}
+                          onClick={() => {
+                            setSelectedInstitution(inst);
+                            setInstitutionSearch(`${inst.name} (${inst.code})`);
+                            setShowInstitutionDropdown(false);
+                          }}
+                          className="institution-item"
+                        >
+                          <span className="institution-name">{inst.name}</span>
+                          <span className="institution-code">{inst.code}</span>
+                        </li>
+                      ))}
+                    {institutions.filter(inst =>
+                      inst.name.toLowerCase().includes(institutionSearch.toLowerCase()) ||
+                      inst.code.toLowerCase().includes(institutionSearch.toLowerCase())
+                    ).length === 0 && (
+                      <div className="no-results">검색 결과가 없습니다.</div>
+                    )}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="form-group">
             <label>검사 유형 <span className="required">*</span></label>

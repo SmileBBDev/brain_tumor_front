@@ -5,6 +5,69 @@
   /* max-width: 900px; */
 }
 
+/* 비활성화 페이지 스타일 */
+.ris-upload-page.disabled-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 200px);
+}
+
+.ris-upload-page .disabled-notice {
+  text-align: center;
+  padding: 60px 40px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  max-width: 500px;
+}
+
+.ris-upload-page .disabled-notice .notice-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.ris-upload-page .disabled-notice h2 {
+  margin: 0 0 16px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.ris-upload-page .disabled-notice p {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  color: #6c757d;
+  line-height: 1.6;
+}
+
+.ris-upload-page .disabled-notice .notice-link {
+  color: #3498db;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.ris-upload-page .disabled-notice .notice-link:hover {
+  text-decoration: underline;
+}
+
+.ris-upload-page .disabled-notice .btn-go-ocs {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 14px 32px;
+  background: #3498db;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 15px;
+  transition: background 0.2s;
+}
+
+.ris-upload-page .disabled-notice .btn-go-ocs:hover {
+  background: #2980b9;
+}
+
 /* .ris-upload-page .page-header {
   margin-bottom: 24px;
 } */

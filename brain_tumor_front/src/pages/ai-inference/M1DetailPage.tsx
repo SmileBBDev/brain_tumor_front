@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { InferenceResult } from '@/components/InferenceResult'
 import SegMRIViewer, { type SegmentationData, type CompareResult } from '@/components/ai/SegMRIViewer'
 import { aiApi, getPatientAIHistory, type AIInferenceRequest } from '@/services/ai.api'
+import { useAIRequestDetail } from '@/hooks'
 import { useThumbnailCache } from '@/context/ThumbnailCacheContext'
+import { useToast } from '@/components/common'
 import PdfPreviewModal from '@/components/PdfPreviewModal'
 import type { PdfWatermarkConfig } from '@/services/pdfWatermark.api'
 import {
@@ -72,10 +74,18 @@ interface InferenceDetail {
   mri_thumbnails?: MRIThumbnail[] | null
 }
 
+// 검토 상태 라벨
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  pending: '검토 대기',
+  approved: '승인됨',
+  rejected: '반려됨',
+}
+
 export default function M1DetailPage() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { markAsCached } = useThumbnailCache()
+  const toast = useToast()
 
   // State
   const [loading, setLoading] = useState(true)
@@ -93,6 +103,27 @@ export default function M1DetailPage() {
   // 동일 환자의 다른 M1 결과 (비교 기능용)
   const [otherM1Results, setOtherM1Results] = useState<AIInferenceRequest[]>([])
   const [loadingOtherResults, setLoadingOtherResults] = useState(false)
+
+  // 검토 기능 (useAIRequestDetail 훅 사용)
+  const { request: aiRequest, review } = useAIRequestDetail(jobId ?? null)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewStatus, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
+  const [reviewComment, setReviewComment] = useState('')
+
+  // 검토 가능 여부
+  const canReview = aiRequest?.has_result && aiRequest?.result?.review_status === 'pending'
+
+  // 검토 제출
+  const handleReviewSubmit = useCallback(async () => {
+    try {
+      await review(reviewStatus, reviewComment || undefined)
+      toast.success(`결과가 ${reviewStatus === 'approved' ? '승인' : '반려'}되었습니다.`)
+      setShowReviewModal(false)
+      setReviewComment('')
+    } catch (err) {
+      toast.error('검토 처리에 실패했습니다.')
+    }
+  }, [review, reviewStatus, reviewComment, toast])
 
   // 데이터 로드
   useEffect(() => {
@@ -395,6 +426,11 @@ export default function M1DetailPage() {
           </div>
         </div>
         <div className="header-actions">
+          {canReview && (
+            <button onClick={() => setShowReviewModal(true)} className="btn-review">
+              결과 검토
+            </button>
+          )}
           {inferenceDetail.status === 'COMPLETED' && (
             <button onClick={handleOpenPdfPreview} className="btn-pdf">
               PDF 출력
@@ -432,6 +468,16 @@ export default function M1DetailPage() {
                 <div className="info-item">
                   <dt>완료일</dt>
                   <dd>{new Date(inferenceDetail.completed_at).toLocaleString('ko-KR')}</dd>
+                </div>
+              )}
+              {aiRequest?.result && (
+                <div className="info-item">
+                  <dt>검토 상태</dt>
+                  <dd>
+                    <span className={`review-badge review-${aiRequest.result.review_status}`}>
+                      {REVIEW_STATUS_LABELS[aiRequest.result.review_status] || aiRequest.result.review_status}
+                    </span>
+                  </dd>
                 </div>
               )}
             </dl>
@@ -735,6 +781,57 @@ export default function M1DetailPage() {
           />
         )}
       </PdfPreviewModal>
+
+      {/* 검토 모달 */}
+      {showReviewModal && (
+        <div className="modal-overlay" onClick={() => setShowReviewModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>결과 검토</h3>
+
+            <div className="review-options">
+              <button
+                className={`review-option ${reviewStatus === 'approved' ? 'selected' : ''}`}
+                onClick={() => setReviewStatus('approved')}
+              >
+                <span className="icon icon-approve">&#10003;</span>
+                <span>승인</span>
+              </button>
+              <button
+                className={`review-option ${reviewStatus === 'rejected' ? 'selected' : ''}`}
+                onClick={() => setReviewStatus('rejected')}
+              >
+                <span className="icon icon-reject">&#10007;</span>
+                <span>반려</span>
+              </button>
+            </div>
+
+            <div className="review-comment-input">
+              <label>검토 의견 (선택)</label>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="검토 의견을 입력하세요..."
+                rows={3}
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowReviewModal(false)}
+              >
+                취소
+              </button>
+              <button className="btn-primary" onClick={handleReviewSubmit}>
+                제출
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast 컨테이너 */}
+      <toast.ToastContainer position="top-right" />
     </div>
   )
 }

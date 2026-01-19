@@ -4,7 +4,7 @@
  * - 처리 상태 모니터링
  * - 결과 확인 및 검토
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useAIRequestDetail } from '@/hooks';
@@ -45,6 +45,22 @@ export default function AIRequestDetailPage() {
   const { request, loading, error, refresh, cancel, review } = useAIRequestDetail(
     id ?? null
   );
+
+  // 모델별 상세 페이지로 리다이렉트
+  useEffect(() => {
+    if (!request?.model_code || !request?.request_id) return;
+
+    const modelCode = request.model_code;
+    const requestId = request.request_id;
+
+    if (modelCode === 'M1') {
+      navigate(`/ai/m1/${requestId}`, { replace: true });
+    } else if (modelCode === 'MG') {
+      navigate(`/ai/mg/${requestId}`, { replace: true });
+    } else if (modelCode === 'MM') {
+      navigate(`/ai/mm/${requestId}`, { replace: true });
+    }
+  }, [request?.model_code, request?.request_id, navigate]);
 
   // 시간 포맷
   const formatDateTime = (dateStr: string | null) => {

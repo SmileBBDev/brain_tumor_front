@@ -29,6 +29,7 @@ import type { Encounter } from '@/types/encounter';
 import { getPatientAIRequests, type AIInferenceRequest } from '@/services/ai.api';
 import PrescriptionCard from './DiagnosisPrescriptionCard';
 import TodayAppointmentCard from './TodayAppointmentCard';
+import TodayCompletedCard from './TodayCompletedCard';
 import PastRecordCard from './PastRecordCard';
 import CalendarCard from './CalendarCard';
 import PastPrescriptionCard from './PastPrescriptionCard';
@@ -694,7 +695,11 @@ export default function ExaminationTab({
           <section className="exam-section appointment-card">
             <TodayAppointmentCard onPatientSelect={onPatientChange} />
           </section>
-        
+
+          {/* 금일 진료완료 환자 목록 */}
+          <section className="exam-section appointment-card">
+            <TodayCompletedCard onPatientSelect={onPatientChange} />
+          </section>
         </div>
 
       </div>
