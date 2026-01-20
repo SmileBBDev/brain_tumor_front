@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   getSystemMonitorStats,
   getMonitorAlertConfig,
   updateMonitorAlertConfig,
   acknowledgeAlert,
   getLoginFailLogs,
+  startDummyDataSetup,
+  getDummyDataSetupStatus,
+  cancelDummyDataSetup,
   type SystemMonitorStats,
   type MonitorAlertConfig,
   type MonitorAlertItem,
-  type LoginFailLog
+  type LoginFailLog,
+  type DummyDataSetupOptions,
+  type DummyDataSetupExecution
 } from '@/services/monitor.api';
 import '@/assets/style/adminPageStyle.css';
 
@@ -44,6 +49,13 @@ export default function SystemMonitorPage() {
   const [showLoginFailDetail, setShowLoginFailDetail] = useState(false);
   const [loginFailLogs, setLoginFailLogs] = useState<LoginFailLog[]>([]);
   const [loginFailLoading, setLoginFailLoading] = useState(false);
+
+  // 더미 데이터 설정 상태
+  const [showDummyDataModal, setShowDummyDataModal] = useState(false);
+  const [dummyDataOptions, setDummyDataOptions] = useState<DummyDataSetupOptions>({});
+  const [dummyDataExecution, setDummyDataExecution] = useState<DummyDataSetupExecution | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const outputLogRef = useRef<HTMLPreElement>(null);
 
   const fetchStats = async () => {
     try {
@@ -85,6 +97,74 @@ export default function SystemMonitorPage() {
   const handleShowLoginFailDetail = () => {
     setShowLoginFailDetail(true);
     fetchLoginFailLogs();
+  };
+
+  // 더미 데이터 설정 모달 열기
+  const handleOpenDummyDataModal = async () => {
+    setShowDummyDataModal(true);
+    setDummyDataOptions({});
+    setShowResetConfirm(false);
+    // 현재 실행 상태 조회
+    try {
+      const status = await getDummyDataSetupStatus();
+      setDummyDataExecution(status);
+    } catch {
+      setDummyDataExecution(null);
+    }
+  };
+
+  // 더미 데이터 설정 실행
+  const handleStartDummyDataSetup = async () => {
+    // reset 옵션이 선택되었고 아직 확인하지 않은 경우
+    if (dummyDataOptions.reset && !showResetConfirm) {
+      setShowResetConfirm(true);
+      return;
+    }
+
+    setShowResetConfirm(false);
+
+    try {
+      await startDummyDataSetup(dummyDataOptions);
+      // 상태 폴링 시작
+      pollDummyDataStatus();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      alert(error.response?.data?.detail || '실행 시작에 실패했습니다.');
+    }
+  };
+
+  // 더미 데이터 설정 상태 폴링
+  const pollDummyDataStatus = async () => {
+    try {
+      const status = await getDummyDataSetupStatus();
+      setDummyDataExecution(status);
+
+      // 로그 출력창 자동 스크롤
+      if (outputLogRef.current) {
+        outputLogRef.current.scrollTop = outputLogRef.current.scrollHeight;
+      }
+
+      // 아직 실행 중이면 계속 폴링
+      if (status.status === 'pending' || status.status === 'running') {
+        setTimeout(pollDummyDataStatus, 1000);
+      }
+    } catch {
+      // 에러 시 폴링 중단
+    }
+  };
+
+  // 더미 데이터 설정 취소
+  const handleCancelDummyDataSetup = async () => {
+    if (!window.confirm('실행 중인 작업을 취소하시겠습니까?')) return;
+
+    try {
+      await cancelDummyDataSetup();
+      const status = await getDummyDataSetupStatus();
+      setDummyDataExecution(status);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      alert(error.response?.data?.detail || '취소에 실패했습니다.');
+    }
   };
 
   useEffect(() => {
@@ -311,6 +391,9 @@ export default function SystemMonitorPage() {
       <div className="monitor-header">
         <h2>시스템 모니터링</h2>
         <div className="header-buttons">
+          <button className="settings-btn dummy-data-btn" onClick={handleOpenDummyDataModal}>
+            Dummy Data Setup
+          </button>
           <button className="settings-btn" onClick={openSettingsModal}>
             설정
           </button>
@@ -845,6 +928,171 @@ export default function SystemMonitorPage() {
               <button className="save-btn" onClick={handleAddAlert}>
                 추가
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dummy Data Setup 모달 */}
+      {showDummyDataModal && (
+        <div className="modal-overlay" onClick={() => setShowDummyDataModal(false)}>
+          <div className="modal-content dummy-data-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Dummy Data Setup</h3>
+              <button className="close-btn" onClick={() => setShowDummyDataModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {/* 옵션 선택 */}
+              <div className="dummy-data-options">
+                <h4>실행 옵션</h4>
+                <p className="options-desc">옵션을 선택하지 않으면 전체 설정이 실행됩니다.</p>
+
+                <label className="option-item danger-option">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.reset || false}
+                    onChange={(e) => {
+                      setDummyDataOptions({ ...dummyDataOptions, reset: e.target.checked });
+                      setShowResetConfirm(false);
+                    }}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--reset</span>
+                  <span className="option-desc danger">기존 데이터 삭제 후 재생성 (주의: 모든 데이터가 삭제됩니다)</span>
+                </label>
+
+                <label className="option-item">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.base || false}
+                    onChange={(e) => setDummyDataOptions({ ...dummyDataOptions, base: e.target.checked })}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--base</span>
+                  <span className="option-desc">기본 데이터만 (역할, 사용자, 메뉴)</span>
+                </label>
+
+                <label className="option-item">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.clinical || false}
+                    onChange={(e) => setDummyDataOptions({ ...dummyDataOptions, clinical: e.target.checked })}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--clinical</span>
+                  <span className="option-desc">임상 데이터만 (환자, 진료, OCS)</span>
+                </label>
+
+                <label className="option-item">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.sync || false}
+                    onChange={(e) => setDummyDataOptions({ ...dummyDataOptions, sync: e.target.checked })}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--sync</span>
+                  <span className="option-desc">동기화만 (Orthanc, LIS)</span>
+                </label>
+
+                <label className="option-item">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.extended || false}
+                    onChange={(e) => setDummyDataOptions({ ...dummyDataOptions, extended: e.target.checked })}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--extended</span>
+                  <span className="option-desc">확장 데이터만 (추가 진료, 일정)</span>
+                </label>
+
+                <label className="option-item">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.menu || false}
+                    onChange={(e) => setDummyDataOptions({ ...dummyDataOptions, menu: e.target.checked })}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--menu</span>
+                  <span className="option-desc">메뉴/권한만</span>
+                </label>
+
+                <label className="option-item">
+                  <input
+                    type="checkbox"
+                    checked={dummyDataOptions.schedule || false}
+                    onChange={(e) => setDummyDataOptions({ ...dummyDataOptions, schedule: e.target.checked })}
+                    disabled={dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending'}
+                  />
+                  <span className="option-label">--schedule</span>
+                  <span className="option-desc">진료 일정 생성</span>
+                </label>
+              </div>
+
+              {/* Reset 확인 경고 */}
+              {showResetConfirm && (
+                <div className="reset-warning">
+                  <strong>경고:</strong> --reset 옵션은 모든 기존 데이터를 삭제합니다. 정말 실행하시겠습니까?
+                  <div className="warning-actions">
+                    <button className="cancel-btn" onClick={() => setShowResetConfirm(false)}>취소</button>
+                    <button className="danger-btn" onClick={handleStartDummyDataSetup}>확인, 실행</button>
+                  </div>
+                </div>
+              )}
+
+              {/* 실행 상태 */}
+              {dummyDataExecution && dummyDataExecution.status && (
+                <div className="execution-status">
+                  <div className="status-header">
+                    <h4>실행 상태</h4>
+                    <span className={`status-badge ${dummyDataExecution.status}`}>
+                      {dummyDataExecution.status === 'pending' && '대기 중'}
+                      {dummyDataExecution.status === 'running' && '실행 중'}
+                      {dummyDataExecution.status === 'completed' && '완료'}
+                      {dummyDataExecution.status === 'failed' && '실패'}
+                      {dummyDataExecution.status === 'cancelled' && '취소됨'}
+                    </span>
+                  </div>
+
+                  {dummyDataExecution.started_by && (
+                    <div className="execution-info">
+                      <span>실행자: {dummyDataExecution.started_by}</span>
+                      {dummyDataExecution.started_at && (
+                        <span>시작: {new Date(dummyDataExecution.started_at).toLocaleString('ko-KR')}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {dummyDataExecution.output && (
+                    <pre className="output-log" ref={outputLogRef}>
+                      {dummyDataExecution.output}
+                    </pre>
+                  )}
+
+                  {dummyDataExecution.error_message && (
+                    <div className="error-message">
+                      {dummyDataExecution.error_message}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="cancel-btn" onClick={() => setShowDummyDataModal(false)}>
+                닫기
+              </button>
+              {(dummyDataExecution?.status === 'running' || dummyDataExecution?.status === 'pending') ? (
+                <button className="danger-btn" onClick={handleCancelDummyDataSetup}>
+                  실행 취소
+                </button>
+              ) : (
+                <button
+                  className="save-btn"
+                  onClick={handleStartDummyDataSetup}
+                  disabled={showResetConfirm}
+                >
+                  실행
+                </button>
+              )}
             </div>
           </div>
         </div>

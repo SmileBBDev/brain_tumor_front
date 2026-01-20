@@ -121,3 +121,61 @@ export const getLoginFailLogs = async (): Promise<LoginFailLog[]> => {
   });
   return response.data.results || [];
 };
+
+// ========================
+// Dummy Data Setup API
+// ========================
+
+/**
+ * 더미 데이터 설정 옵션 타입
+ */
+export type DummyDataSetupOptions = {
+  reset?: boolean;
+  base?: boolean;
+  clinical?: boolean;
+  sync?: boolean;
+  extended?: boolean;
+  menu?: boolean;
+  schedule?: boolean;
+};
+
+/**
+ * 더미 데이터 설정 실행 상태 타입
+ */
+export type DummyDataSetupExecution = {
+  id: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
+  options: DummyDataSetupOptions;
+  output: string;
+  error_message: string;
+  started_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  message?: string;
+};
+
+/**
+ * 더미 데이터 설정 실행 시작
+ */
+export const startDummyDataSetup = async (
+  options: DummyDataSetupOptions
+): Promise<{ id: string; status: string; message: string }> => {
+  const response = await api.post('/system/dummy-data-setup/', { options });
+  return response.data;
+};
+
+/**
+ * 더미 데이터 설정 실행 상태 조회
+ */
+export const getDummyDataSetupStatus = async (): Promise<DummyDataSetupExecution> => {
+  const response = await api.get('/system/dummy-data-setup/');
+  return response.data;
+};
+
+/**
+ * 더미 데이터 설정 실행 취소
+ */
+export const cancelDummyDataSetup = async (): Promise<{ detail: string }> => {
+  const response = await api.delete('/system/dummy-data-setup/');
+  return response.data;
+};

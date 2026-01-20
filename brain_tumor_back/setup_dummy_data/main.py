@@ -408,6 +408,140 @@ def link_patient_accounts(reset=False):
     return True
 
 
+def create_external_patient_ocs(reset=False):
+    """
+    외부 환자(is_external=True)에게 OCS 생성 (RIS + LIS)
+
+    - RIS: MRI (sync_orthanc_ocs.py에서 Orthanc과 동기화)
+    - LIS: RNA_SEQ, BIOMARKER (sync_lis_ocs.py에서 파일 동기화)
+    """
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    os.chdir(PROJECT_ROOT)
+
+    import django
+    django.setup()
+
+    from django.utils import timezone
+    from apps.patients.models import Patient
+    from apps.ocs.models import OCS
+    from apps.accounts.models import User
+
+    print("\n" + "="*60)
+    print("[실행] 외부 환자 OCS 생성 (RIS + LIS)")
+    print("="*60)
+
+    # 외부 환자 조회
+    ext_patients = list(Patient.objects.filter(is_external=True, is_deleted=False))
+    print(f"  외부 환자: {len(ext_patients)}명")
+
+    if len(ext_patients) == 0:
+        print("  [SKIP] 외부 환자가 없습니다.")
+        return True
+
+    # 의사 계정 찾기
+    doctor = User.objects.filter(role__code='DOCTOR').first()
+    if not doctor:
+        doctor = User.objects.filter(is_superuser=True).first()
+    print(f"  담당의: {doctor.login_id if doctor else 'None'}")
+
+    # reset 모드면 기존 OCS 삭제
+    if reset:
+        from apps.ai_inference.models import AIInference
+        ext_ocs = OCS.objects.filter(ocs_id__startswith='ext_ocs_')
+        # 연결된 AIInference 삭제
+        for ocs in ext_ocs:
+            AIInference.objects.filter(mri_ocs=ocs).delete()
+            AIInference.objects.filter(rna_ocs=ocs).delete()
+            AIInference.objects.filter(protein_ocs=ocs).delete()
+        ext_ocs.delete()
+        print(f"  기존 ext_ocs_* OCS 삭제 완료")
+
+    created_ris = 0
+    created_lis = 0
+    skipped = 0
+
+    # OCS ID 카운터
+    ocs_counter = 1
+
+    for patient in ext_patients:
+        print(f"\n  [{patient.patient_number}]")
+
+        # 1. RIS OCS (MRI)
+        existing_ris = OCS.objects.filter(patient=patient, job_role='RIS', job_type='MRI').exists()
+        if existing_ris:
+            print(f"    RIS/MRI: 이미 존재, 스킵")
+            skipped += 1
+        else:
+            ocs_id = f'ext_ocs_{ocs_counter:04d}'
+            while OCS.objects.filter(ocs_id=ocs_id).exists():
+                ocs_counter += 1
+                ocs_id = f'ext_ocs_{ocs_counter:04d}'
+
+            OCS.objects.create(
+                ocs_id=ocs_id,
+                patient=patient,
+                job_role='RIS',
+                job_type='MRI',
+                ocs_status=OCS.OcsStatus.ORDERED,
+                doctor=doctor,
+                created_at=timezone.now(),
+            )
+            print(f"    RIS/MRI: {ocs_id} 생성")
+            created_ris += 1
+            ocs_counter += 1
+
+        # 2. LIS OCS (RNA_SEQ)
+        existing_rna = OCS.objects.filter(patient=patient, job_role='LIS', job_type='RNA_SEQ').exists()
+        if existing_rna:
+            print(f"    LIS/RNA_SEQ: 이미 존재, 스킵")
+            skipped += 1
+        else:
+            ocs_id = f'ext_ocs_{ocs_counter:04d}'
+            while OCS.objects.filter(ocs_id=ocs_id).exists():
+                ocs_counter += 1
+                ocs_id = f'ext_ocs_{ocs_counter:04d}'
+
+            OCS.objects.create(
+                ocs_id=ocs_id,
+                patient=patient,
+                job_role='LIS',
+                job_type='RNA_SEQ',
+                ocs_status=OCS.OcsStatus.ORDERED,
+                doctor=doctor,
+                created_at=timezone.now(),
+            )
+            print(f"    LIS/RNA_SEQ: {ocs_id} 생성")
+            created_lis += 1
+            ocs_counter += 1
+
+        # 3. LIS OCS (BIOMARKER)
+        existing_bio = OCS.objects.filter(patient=patient, job_role='LIS', job_type='BIOMARKER').exists()
+        if existing_bio:
+            print(f"    LIS/BIOMARKER: 이미 존재, 스킵")
+            skipped += 1
+        else:
+            ocs_id = f'ext_ocs_{ocs_counter:04d}'
+            while OCS.objects.filter(ocs_id=ocs_id).exists():
+                ocs_counter += 1
+                ocs_id = f'ext_ocs_{ocs_counter:04d}'
+
+            OCS.objects.create(
+                ocs_id=ocs_id,
+                patient=patient,
+                job_role='LIS',
+                job_type='BIOMARKER',
+                ocs_status=OCS.OcsStatus.ORDERED,
+                doctor=doctor,
+                created_at=timezone.now(),
+            )
+            print(f"    LIS/BIOMARKER: {ocs_id} 생성")
+            created_lis += 1
+            ocs_counter += 1
+
+    print(f"\n  생성: RIS {created_ris}건, LIS {created_lis}건, 스킵: {skipped}건")
+    return True
+
+
 def run_schedule_generator(start_date='2026-01-15', end_date='2026-02-28', per_doctor=10, force=False):
     """진료 예약 스케줄 생성"""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -475,6 +609,7 @@ def reset_cdss_storage_folder(folder_path, folder_name):
 def reset_external_storage():
     """
     외부 저장소 초기화 (CDSS_STORAGE/AI, CDSS_STORAGE/LIS, CDSS_STORAGE/RIS, Orthanc)
+    + OCS 상태 초기화 (CONFIRMED -> ORDERED, worker_result 삭제)
 
     setup_dummy_data --reset 실행 시 호출됨
     """
@@ -486,6 +621,7 @@ def reset_external_storage():
     django.setup()
 
     from django.conf import settings
+    from apps.ocs.models import OCS
 
     print("\n" + "=" * 60)
     print("[사전 작업] 외부 저장소 초기화")
@@ -513,6 +649,49 @@ def reset_external_storage():
         reset_orthanc_all()
     except Exception as e:
         print(f"  [WARNING] Orthanc 초기화 실패: {e}")
+
+    # 3. OCS 상태 초기화 (CONFIRMED -> ORDERED, worker_result 삭제)
+    print("\n[3] OCS 상태 초기화...")
+
+    # 3-1. RIS OCS 초기화 (내부 환자 ocs_0001~0015)
+    print("\n  [3-1] RIS OCS 초기화 (ocs_0001~0015)...")
+    ris_ocs = OCS.objects.filter(
+        ocs_id__in=[f'ocs_{i:04d}' for i in range(1, 16)],
+        job_role='RIS'
+    )
+    ris_count = ris_ocs.count()
+    if ris_count > 0:
+        ris_ocs.update(ocs_status=OCS.OcsStatus.ORDERED, worker_result={}, confirmed_at=None)
+        print(f"    {ris_count}건 초기화 완료")
+    else:
+        print("    초기화 대상 없음")
+
+    # 3-2. LIS OCS 초기화 (내부 환자 P202600001~P202600015)
+    print("\n  [3-2] LIS OCS 초기화 (내부 환자)...")
+    lis_ocs = OCS.objects.filter(
+        job_role='LIS',
+        job_type__in=['RNA_SEQ', 'BIOMARKER'],
+        patient__patient_number__in=[f'P2026000{i:02d}' for i in range(1, 16)]
+    )
+    lis_count = lis_ocs.count()
+    if lis_count > 0:
+        lis_ocs.update(ocs_status=OCS.OcsStatus.ORDERED, worker_result={}, confirmed_at=None)
+        print(f"    {lis_count}건 초기화 완료")
+    else:
+        print("    초기화 대상 없음")
+
+    # 3-3. 외부 환자 OCS 초기화 (ext_ocs_*)
+    print("\n  [3-3] 외부 환자 OCS 초기화 (ext_ocs_*)...")
+    ext_ocs = OCS.objects.filter(ocs_id__startswith='ext_ocs_')
+    ext_count = ext_ocs.count()
+    if ext_count > 0:
+        # 연결된 AIInference 먼저 삭제
+        from apps.ai_inference.models import AIInference
+        AIInference.objects.filter(mri_ocs__in=ext_ocs).delete()
+        ext_ocs.delete()
+        print(f"    {ext_count}건 삭제 완료")
+    else:
+        print("    삭제 대상 없음")
 
 
 def main():
@@ -702,6 +881,27 @@ def main():
     except Exception as e:
         print(f"\n[WARNING] 외부기관 환자 생성에 문제가 있습니다: {e}")
         success = False
+
+    # 9-1. 외부 환자 OCS 생성 (RIS + LIS)
+    print(f"\n{'='*60}")
+    print(f"[실행] 외부 환자 OCS 생성 - RIS + LIS (9-1/11)")
+    print(f"{'='*60}")
+    try:
+        create_external_patient_ocs(reset=args.reset)
+    except Exception as e:
+        print(f"\n[WARNING] 외부 환자 OCS 생성에 문제가 있습니다: {e}")
+        success = False
+
+    # 9-2. 외부 환자 Orthanc 동기화 (OCS RIS 생성 후 다시 실행)
+    print(f"\n{'='*60}")
+    print(f"[실행] 외부 환자 Orthanc 동기화 (9-2/11)")
+    print(f"{'='*60}")
+    if not run_script(
+        'sync_orthanc_ocs.py',
+        [],
+        '외부 환자 Orthanc 동기화 - OCS RIS CONFIRMED 상태로 업데이트'
+    ):
+        print("\n[WARNING] 외부 환자 Orthanc 동기화에 문제가 있습니다.")
 
     # 10. 접근 감사 로그 생성
     print(f"\n{'='*60}")

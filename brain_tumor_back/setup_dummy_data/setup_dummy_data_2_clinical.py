@@ -1689,10 +1689,13 @@ def create_external_ocs_data(force=False):
     """
     외부기관 OCS 더미 데이터 생성
     - LIS 외부 데이터: extr_0001 ~ extr_0010 (RNA_SEQ, BIOMARKER)
-    - RIS 외부 데이터: risx_0001 ~ risx_0010 (MRI)
     - patient_data에서 실제 파일을 CDSS_STORAGE로 복사
+
+    ※ RIS 외부 데이터(risx_*)는 더 이상 생성하지 않음
+      - 외부 환자(is_external=True)의 OCS RIS는 main.py에서 생성
+      - sync_orthanc_ocs.py에서 Orthanc 동기화
     """
-    print("\n[12단계] 외부기관 OCS 데이터 생성...")
+    print("\n[12단계] 외부기관 OCS 데이터 생성 (LIS만)...")
 
     from apps.ocs.models import OCS, OCSHistory
     from apps.patients.models import Patient
@@ -1701,10 +1704,9 @@ def create_external_ocs_data(force=False):
 
     # 기존 외부기관 데이터 확인
     existing_lis = OCS.objects.filter(ocs_id__startswith='extr_').count()
-    existing_ris = OCS.objects.filter(ocs_id__startswith='risx_').count()
 
-    if existing_lis >= 5 and existing_ris >= 5 and not force:
-        print(f"[SKIP] 이미 외부기관 OCS 존재 (LIS: {existing_lis}건, RIS: {existing_ris}건)")
+    if existing_lis >= 5 and not force:
+        print(f"[SKIP] 이미 외부기관 OCS 존재 (LIS: {existing_lis}건)")
         return True
 
     # 외부기관 사용자 찾기
@@ -1789,69 +1791,8 @@ def create_external_ocs_data(force=False):
         except Exception as e:
             print(f"  [ERROR] {ocs_id}: {e}")
 
-    # RIS 외부 데이터 생성 (risx_0001 ~ risx_0010)
-    # MRI만 사용 (실제 파일이 있는 타입)
-    for i in range(10):
-        ocs_id = f"risx_{i+1:04d}"
-        if OCS.objects.filter(ocs_id=ocs_id).exists():
-            continue
-
-        patient = random.choice(patients)
-        user = random.choice(external_users)
-        job_type = 'MRI'
-        days_ago = random.randint(1, 30)
-
-        try:
-            # 파일 복사
-            file_copied = copy_patient_data_for_external(ocs_id, job_type, 'RIS')
-
-            with transaction.atomic():
-                ocs = OCS.objects.create(
-                    ocs_id=ocs_id,
-                    patient=patient,
-                    doctor=user,
-                    worker=user,
-                    job_role='RIS',
-                    job_type=job_type,
-                    ocs_status=random.choice([OCS.OcsStatus.RESULT_READY, OCS.OcsStatus.CONFIRMED]),
-                    priority='normal',
-                    doctor_request={
-                        "_template": "external",
-                        "_version": "1.0",
-                        "source": "external_upload",
-                        "original_filename": f"external_ris_{i+1}.dcm",
-                        "_custom": {}
-                    },
-                    worker_result=_generate_external_ris_worker_result(
-                        ocs_id=ocs_id,
-                        is_confirmed=random.choice([True, False]),
-                        index=i,  # 실제 DICOM 정보를 순환하여 사용
-                    ),
-                    attachments={
-                        "files": [],
-                        "has_data_files": file_copied,
-                        "external_source": {
-                            "institution": {
-                                "name": user.name if user else "외부기관",
-                                "code": user.login_id if user else "ext_unknown"
-                            },
-                            "upload_date": (now - timedelta(days=days_ago)).isoformat()
-                        }
-                    },
-                    accepted_at=now - timedelta(days=days_ago),
-                    in_progress_at=now - timedelta(days=days_ago),
-                    result_ready_at=now - timedelta(days=days_ago - 1),
-                )
-                created_ris += 1
-                file_status = "✓" if file_copied else "✗"
-                print(f"  [+] RIS 외부: {ocs_id} ({job_type}) - {patient.patient_number} [파일:{file_status}]")
-
-        except Exception as e:
-            print(f"  [ERROR] {ocs_id}: {e}")
-
     print(f"\n[OK] 외부기관 OCS 생성 완료")
     print(f"  - LIS 외부 (extr_): {OCS.objects.filter(ocs_id__startswith='extr_').count()}건")
-    print(f"  - RIS 외부 (risx_): {OCS.objects.filter(ocs_id__startswith='risx_').count()}건")
     return True
 
 
@@ -2058,7 +1999,6 @@ def print_summary():
     print(f"  - OCS (LIS/RNA_SEQ): {OCS.objects.filter(job_role='LIS', job_type='RNA_SEQ').count()}건")
     print(f"  - OCS (LIS/BIOMARKER): {OCS.objects.filter(job_role='LIS', job_type='BIOMARKER').count()}건")
     print(f"  - OCS 외부기관 LIS (extr_): {OCS.objects.filter(ocs_id__startswith='extr_').count()}건")
-    print(f"  - OCS 외부기관 RIS (risx_): {OCS.objects.filter(ocs_id__startswith='risx_').count()}건")
     print(f"  - 영상 검사: {ImagingStudy.objects.count()}건")
     print(f"  - 치료 계획: {TreatmentPlan.objects.count()}건")
     print(f"  - 치료 세션: {TreatmentSession.objects.count()}건")

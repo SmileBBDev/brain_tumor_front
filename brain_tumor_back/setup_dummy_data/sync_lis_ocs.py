@@ -52,7 +52,7 @@ CDSS_STORAGE_PATH = settings.CDSS_LIS_STORAGE
 
 
 
-# 환자 폴더 목록 (순서대로 15개 - sync_orthanc_ocs.py와 동일)
+# 내부 환자 폴더 목록 (순서대로 15개 - sync_orthanc_ocs.py와 동일)
 PATIENT_FOLDERS = [
     "TCGA-CS-4944",
     "TCGA-CS-6666",
@@ -69,6 +69,16 @@ PATIENT_FOLDERS = [
     "TCGA-HT-7602",
     "TCGA-HT-7686",
     "TCGA-HT-7694",
+]
+
+# 외부 환자 폴더 목록 (6개 - setup_external_patients.py 참조)
+EXTERNAL_PATIENT_FOLDERS = [
+    "EXT-0001",
+    "EXT-0002",
+    "EXT-0003",
+    "EXT-0004",
+    "EXT-0005",
+    "EXT-0006",
 ]
 
 # 파일 매핑
@@ -507,6 +517,103 @@ def main():
 
     print(f"\n  [BIOMARKER 결과] 신규: {biomarker_confirmed_count}건, 스킵: {biomarker_skipped_count}건")
 
+    # 6-1. 외부 환자 RNA_SEQ 처리
+    print("\n[6-1단계] 외부 환자 RNA_SEQ OCS 처리...")
+    ext_rna_confirmed_count = 0
+    ext_rna_skipped_count = 0
+
+    # 외부 환자 OCS (ext_ocs_*) 조회
+    ext_ocs_rna_seq = list(OCS.objects.filter(
+        job_role='LIS',
+        job_type='RNA_SEQ',
+        ocs_id__startswith='ext_ocs_',
+        is_deleted=False
+    ).order_by('ocs_id'))
+
+    print(f"  외부 환자 OCS RNA_SEQ: {len(ext_ocs_rna_seq)}건")
+
+    for i, ocs in enumerate(ext_ocs_rna_seq):
+        processed_rna_ids.append(ocs.id)
+
+        # 이미 CONFIRMED이고 worker_result에 파일 정보가 있으면 스킵
+        if ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
+            existing_result = ocs.worker_result or {}
+            if existing_result.get("RNA_seq") or existing_result.get("gene_expression", {}).get("file_path"):
+                print(f"\n[외부 RNA_SEQ {i+1}/{len(ext_ocs_rna_seq)}] {ocs.ocs_id} - 이미 CONFIRMED (스킵)")
+                ext_rna_skipped_count += 1
+                continue
+
+        # 외부 환자 폴더 찾기 (순서대로 매핑)
+        folder_idx = i % len(EXTERNAL_PATIENT_FOLDERS)
+        folder = EXTERNAL_PATIENT_FOLDERS[folder_idx]
+
+        print(f"\n[외부 RNA_SEQ {i+1}/{len(ext_ocs_rna_seq)}] {ocs.ocs_id} <- {folder}")
+
+        # 파일 복사
+        file_info = copy_lis_file(folder, ocs.ocs_id, 'RNA_SEQ', dry_run=args.dry_run)
+
+        if file_info:
+            worker_result = generate_rna_seq_result(file_info, folder, is_confirmed=True)
+            update_ocs_worker_result(ocs, worker_result, is_confirmed=True, dry_run=args.dry_run)
+            ext_rna_confirmed_count += 1
+            print(f"    -> CONFIRMED")
+        else:
+            if not args.dry_run:
+                ocs.ocs_status = OCS.OcsStatus.ORDERED
+                ocs.accepted_at = None
+                ocs.save()
+            print(f"    -> ORDERED (파일 없음)")
+
+    print(f"\n  [외부 RNA_SEQ 결과] 신규: {ext_rna_confirmed_count}건, 스킵: {ext_rna_skipped_count}건")
+
+    # 6-2. 외부 환자 BIOMARKER 처리
+    print("\n[6-2단계] 외부 환자 BIOMARKER OCS 처리...")
+    ext_biomarker_confirmed_count = 0
+    ext_biomarker_skipped_count = 0
+
+    ext_ocs_biomarker = list(OCS.objects.filter(
+        job_role='LIS',
+        job_type='BIOMARKER',
+        ocs_id__startswith='ext_ocs_',
+        is_deleted=False
+    ).order_by('ocs_id'))
+
+    print(f"  외부 환자 OCS BIOMARKER: {len(ext_ocs_biomarker)}건")
+
+    for i, ocs in enumerate(ext_ocs_biomarker):
+        processed_biomarker_ids.append(ocs.id)
+
+        # 이미 CONFIRMED이고 worker_result에 파일 정보가 있으면 스킵
+        if ocs.ocs_status == OCS.OcsStatus.CONFIRMED:
+            existing_result = ocs.worker_result or {}
+            if existing_result.get("protein") or existing_result.get("protein_data", {}).get("file_path"):
+                print(f"\n[외부 BIOMARKER {i+1}/{len(ext_ocs_biomarker)}] {ocs.ocs_id} - 이미 CONFIRMED (스킵)")
+                ext_biomarker_skipped_count += 1
+                continue
+
+        # 외부 환자 폴더 찾기 (순서대로 매핑)
+        folder_idx = i % len(EXTERNAL_PATIENT_FOLDERS)
+        folder = EXTERNAL_PATIENT_FOLDERS[folder_idx]
+
+        print(f"\n[외부 BIOMARKER {i+1}/{len(ext_ocs_biomarker)}] {ocs.ocs_id} <- {folder}")
+
+        # 파일 복사
+        file_info = copy_lis_file(folder, ocs.ocs_id, 'BIOMARKER', dry_run=args.dry_run)
+
+        if file_info:
+            worker_result = generate_biomarker_result(file_info, folder, is_confirmed=True)
+            update_ocs_worker_result(ocs, worker_result, is_confirmed=True, dry_run=args.dry_run)
+            ext_biomarker_confirmed_count += 1
+            print(f"    -> CONFIRMED")
+        else:
+            if not args.dry_run:
+                ocs.ocs_status = OCS.OcsStatus.ORDERED
+                ocs.accepted_at = None
+                ocs.save()
+            print(f"    -> ORDERED (파일 없음)")
+
+    print(f"\n  [외부 BIOMARKER 결과] 신규: {ext_biomarker_confirmed_count}건, 스킵: {ext_biomarker_skipped_count}건")
+
     # 7. 나머지 OCS를 ORDERED로 변경 (싱크 안됨)
     print("\n[7단계] 나머지 OCS LIS 상태 변경 (ORDERED)...")
 
@@ -539,9 +646,12 @@ def main():
     print("=" * 60)
 
     print(f"\n[요약]")
-    print(f"  - 환자 폴더: {len(PATIENT_FOLDERS)}개")
-    print(f"  - RNA_SEQ CONFIRMED: {rna_confirmed_count}건")
-    print(f"  - BIOMARKER CONFIRMED: {biomarker_confirmed_count}건")
+    print(f"  - 내부 환자 폴더: {len(PATIENT_FOLDERS)}개")
+    print(f"  - 외부 환자 폴더: {len(EXTERNAL_PATIENT_FOLDERS)}개")
+    print(f"  - 내부 RNA_SEQ CONFIRMED: {rna_confirmed_count}건")
+    print(f"  - 내부 BIOMARKER CONFIRMED: {biomarker_confirmed_count}건")
+    print(f"  - 외부 RNA_SEQ CONFIRMED: {ext_rna_confirmed_count}건")
+    print(f"  - 외부 BIOMARKER CONFIRMED: {ext_biomarker_confirmed_count}건")
     print(f"  - 나머지 ORDERED: {remaining_count}건")
 
     # 최종 OCS LIS 상태

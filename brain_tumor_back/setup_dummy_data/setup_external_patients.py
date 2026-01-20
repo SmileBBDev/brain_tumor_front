@@ -361,6 +361,28 @@ def copy_mri_data(patient_dir, source_patient):
                 shutil.copy(dcm_file, dest_seq_dir / dcm_file.name)
 
 
+def reset_external_patients():
+    """기존 외부 환자 데이터 삭제"""
+    print("\n기존 외부 환자 데이터 삭제 중...")
+    deleted_count = 0
+
+    for patient_data in EXTERNAL_PATIENTS:
+        patient_id = patient_data["patient_id"]
+        patient_dir = PATIENT_DATA_DIR / patient_id
+
+        if patient_dir.exists():
+            shutil.rmtree(patient_dir)
+            print(f"  - {patient_id} 삭제됨")
+            deleted_count += 1
+
+    if deleted_count > 0:
+        print(f"  총 {deleted_count}개 폴더 삭제 완료")
+    else:
+        print("  삭제할 폴더 없음")
+
+    return deleted_count
+
+
 def main():
     print("=" * 60)
     print("외부 환자 데이터 생성 스크립트")
@@ -370,18 +392,14 @@ def main():
     print(f"생성할 환자 수: {len(EXTERNAL_PATIENTS)}명")
     print(f"참조 TCGA 환자: {len(TCGA_PATIENTS)}명")
 
+    # 기존 외부 환자 데이터 리셋
+    reset_external_patients()
+
     created_count = 0
-    skipped_count = 0
 
     for i, patient_data in enumerate(EXTERNAL_PATIENTS):
         patient_id = patient_data["patient_id"]
         patient_dir = PATIENT_DATA_DIR / patient_id
-
-        # 이미 존재하는 경우 스킵
-        if patient_dir.exists():
-            print(f"  [{i+1:2d}/10] {patient_id} - 이미 존재 (스킵)")
-            skipped_count += 1
-            continue
 
         print(f"  [{i+1:2d}/10] {patient_id} 생성 중...")
 
@@ -415,7 +433,7 @@ def main():
                 shutil.rmtree(patient_dir)
 
     print("\n" + "=" * 60)
-    print(f"완료: {created_count}명 생성, {skipped_count}명 스킵")
+    print(f"완료: {created_count}명 생성")
     print("=" * 60)
 
     # 최종 환자 목록 출력

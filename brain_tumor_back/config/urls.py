@@ -16,6 +16,7 @@ from apps.common.views import (
     MonitorAlertConfigView,
     MonitorAlertAcknowledgeView,
     PdfWatermarkConfigView,
+    DummyDataSetupView,
 )
 
 
@@ -76,6 +77,7 @@ urlpatterns = [
     path("api/system/monitor/acknowledge/", MonitorAlertAcknowledgeView.as_view(), name="monitor_alert_acknowledge"),
     path("api/system/config/monitor-alerts/", MonitorAlertConfigView.as_view(), name="monitor_alert_config"),
     path("api/system/config/pdf-watermark/", PdfWatermarkConfigView.as_view(), name="pdf_watermark_config"),
+    path("api/system/dummy-data-setup/", DummyDataSetupView.as_view(), name="dummy_data_setup"),
 
     # 진료 보고서 API
     path("api/reports/", include("apps.reports.urls")),

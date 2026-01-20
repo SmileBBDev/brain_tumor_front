@@ -1,4 +1,10 @@
 import logging
+import os
+import sys
+import signal
+import subprocess
+import threading
+import uuid
 import psutil
 
 from rest_framework.views import APIView
@@ -8,6 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils import timezone
 from django.db.models import Count, Q
 from django.db import connection
+from django.conf import settings
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
@@ -741,3 +748,233 @@ class PdfWatermarkConfigView(APIView):
                 {'detail': '설정 저장 중 오류가 발생했습니다.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# Dummy Data Setup 실행 상태 (메모리 기반)
+_dummy_data_execution = {
+    'id': None,
+    'status': None,  # pending, running, completed, failed, cancelled
+    'options': {},
+    'output': '',
+    'error_message': '',
+    'started_by': None,
+    'started_at': None,
+    'completed_at': None,
+    'pid': None,
+    'process': None,
+}
+_dummy_data_lock = threading.Lock()
+
+
+@extend_schema(
+    tags=["System"],
+    summary="더미 데이터 설정 실행",
+    description="더미 데이터 설정 스크립트(setup_dummy_data)를 실행합니다. ADMIN, SYSTEMMANAGER 역할 접근 가능합니다.",
+    responses={
+        200: OpenApiResponse(description="실행 상태 조회 성공"),
+        202: OpenApiResponse(description="실행 시작됨"),
+        400: OpenApiResponse(description="잘못된 요청"),
+        403: OpenApiResponse(description="권한 없음"),
+        409: OpenApiResponse(description="이미 실행 중"),
+    }
+)
+class DummyDataSetupView(APIView):
+    """
+    더미 데이터 설정 실행 API
+    - POST: 스크립트 실행 시작
+    - GET: 현재 실행 상태 조회
+    - DELETE: 실행 중인 작업 취소
+    """
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        """현재 실행 상태 조회"""
+        with _dummy_data_lock:
+            if _dummy_data_execution['id'] is None:
+                return Response({
+                    'status': None,
+                    'message': '실행 기록이 없습니다.'
+                })
+
+            return Response({
+                'id': _dummy_data_execution['id'],
+                'status': _dummy_data_execution['status'],
+                'options': _dummy_data_execution['options'],
+                'output': _dummy_data_execution['output'],
+                'error_message': _dummy_data_execution['error_message'],
+                'started_by': _dummy_data_execution['started_by'],
+                'started_at': _dummy_data_execution['started_at'].isoformat() if _dummy_data_execution['started_at'] else None,
+                'completed_at': _dummy_data_execution['completed_at'].isoformat() if _dummy_data_execution['completed_at'] else None,
+            })
+
+    def post(self, request):
+        """스크립트 실행 시작"""
+        global _dummy_data_execution
+
+        options = request.data.get('options', {})
+        valid_options = ['reset', 'base', 'clinical', 'sync', 'extended', 'menu', 'schedule']
+
+        # 옵션 유효성 검사
+        for key in options:
+            if key not in valid_options and key != 'yes':
+                return Response(
+                    {'detail': f'잘못된 옵션입니다: {key}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        with _dummy_data_lock:
+            # 이미 실행 중인지 확인
+            if _dummy_data_execution['status'] in ['pending', 'running']:
+                return Response(
+                    {'detail': '이미 실행 중인 작업이 있습니다.'},
+                    status=status.HTTP_409_CONFLICT
+                )
+
+            # 새 실행 정보 설정
+            execution_id = str(uuid.uuid4())
+            _dummy_data_execution['id'] = execution_id
+            _dummy_data_execution['status'] = 'pending'
+            _dummy_data_execution['options'] = options
+            _dummy_data_execution['output'] = ''
+            _dummy_data_execution['error_message'] = ''
+            _dummy_data_execution['started_by'] = request.user.name or request.user.login_id
+            _dummy_data_execution['started_at'] = timezone.now()
+            _dummy_data_execution['completed_at'] = None
+            _dummy_data_execution['pid'] = None
+            _dummy_data_execution['process'] = None
+
+        # 백그라운드 스레드에서 실행
+        thread = threading.Thread(
+            target=self._run_setup,
+            args=(execution_id, options),
+            daemon=True
+        )
+        thread.start()
+
+        return Response({
+            'id': execution_id,
+            'status': 'pending',
+            'message': '실행이 시작되었습니다.'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    def delete(self, request):
+        """실행 중인 작업 취소"""
+        global _dummy_data_execution
+
+        with _dummy_data_lock:
+            if _dummy_data_execution['status'] not in ['pending', 'running']:
+                return Response(
+                    {'detail': '실행 중인 작업이 없습니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 프로세스 종료
+            process = _dummy_data_execution.get('process')
+            if process and process.poll() is None:
+                try:
+                    if os.name == 'nt':  # Windows
+                        process.terminate()
+                    else:  # Linux/Mac
+                        os.kill(process.pid, signal.SIGTERM)
+                except Exception as e:
+                    logger.warning(f"Failed to kill process: {e}")
+
+            _dummy_data_execution['status'] = 'cancelled'
+            _dummy_data_execution['completed_at'] = timezone.now()
+            _dummy_data_execution['output'] += '\n\n[작업이 취소되었습니다]'
+
+        return Response({'detail': '작업이 취소되었습니다.'})
+
+    def _run_setup(self, execution_id, options):
+        """백그라운드에서 스크립트 실행"""
+        global _dummy_data_execution
+
+        try:
+            # 상태 업데이트
+            with _dummy_data_lock:
+                if _dummy_data_execution['id'] != execution_id:
+                    return  # 이미 다른 실행으로 대체됨
+                _dummy_data_execution['status'] = 'running'
+
+            # 명령 구성
+            cmd = [sys.executable, '-m', 'setup_dummy_data']
+
+            if options.get('reset'):
+                cmd.append('--reset')
+                cmd.append('-y')  # 자동 확인
+            if options.get('base'):
+                cmd.append('--base')
+            if options.get('clinical'):
+                cmd.append('--clinical')
+            if options.get('sync'):
+                cmd.append('--sync')
+            if options.get('extended'):
+                cmd.append('--extended')
+            if options.get('menu'):
+                cmd.append('--menu')
+            if options.get('schedule'):
+                cmd.append('--schedule')
+
+            # 프로젝트 루트 경로
+            project_root = settings.BASE_DIR
+
+            # subprocess 실행
+            process = subprocess.Popen(
+                cmd,
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                encoding='utf-8',
+                errors='replace'
+            )
+
+            with _dummy_data_lock:
+                _dummy_data_execution['pid'] = process.pid
+                _dummy_data_execution['process'] = process
+
+            # 출력 캡처
+            output_lines = []
+            for line in iter(process.stdout.readline, ''):
+                if not line:
+                    break
+
+                output_lines.append(line)
+
+                # 주기적으로 출력 업데이트
+                if len(output_lines) % 5 == 0:
+                    with _dummy_data_lock:
+                        if _dummy_data_execution['id'] != execution_id:
+                            process.terminate()
+                            return
+                        if _dummy_data_execution['status'] == 'cancelled':
+                            process.terminate()
+                            return
+                        _dummy_data_execution['output'] = ''.join(output_lines)
+
+            process.wait()
+
+            # 최종 상태 업데이트
+            with _dummy_data_lock:
+                if _dummy_data_execution['id'] != execution_id:
+                    return
+                if _dummy_data_execution['status'] == 'cancelled':
+                    return
+
+                _dummy_data_execution['output'] = ''.join(output_lines)
+                _dummy_data_execution['completed_at'] = timezone.now()
+
+                if process.returncode == 0:
+                    _dummy_data_execution['status'] = 'completed'
+                else:
+                    _dummy_data_execution['status'] = 'failed'
+                    _dummy_data_execution['error_message'] = f'Exit code: {process.returncode}'
+
+        except Exception as e:
+            logger.error(f"Dummy data setup error: {str(e)}")
+            with _dummy_data_lock:
+                if _dummy_data_execution['id'] == execution_id:
+                    _dummy_data_execution['status'] = 'failed'
+                    _dummy_data_execution['error_message'] = str(e)
+                    _dummy_data_execution['completed_at'] = timezone.now()
