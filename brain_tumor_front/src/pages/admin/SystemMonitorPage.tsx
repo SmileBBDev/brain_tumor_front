@@ -55,7 +55,9 @@ export default function SystemMonitorPage() {
   const [dummyDataOptions, setDummyDataOptions] = useState<DummyDataSetupOptions>({});
   const [dummyDataExecution, setDummyDataExecution] = useState<DummyDataSetupExecution | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showFullscreenLog, setShowFullscreenLog] = useState(false);
   const outputLogRef = useRef<HTMLPreElement>(null);
+  const fullscreenLogRef = useRef<HTMLPreElement>(null);
 
   const fetchStats = async () => {
     try {
@@ -108,6 +110,10 @@ export default function SystemMonitorPage() {
     try {
       const status = await getDummyDataSetupStatus();
       setDummyDataExecution(status);
+      // 실행 중이면 폴링 재시작
+      if (status.status === 'pending' || status.status === 'running') {
+        setTimeout(pollDummyDataStatus, 1000);
+      }
     } catch {
       setDummyDataExecution(null);
     }
@@ -933,6 +939,28 @@ export default function SystemMonitorPage() {
         </div>
       )}
 
+      {/* 전체 화면 로그 모달 */}
+      {showFullscreenLog && dummyDataExecution?.output && (
+        <div className="modal-overlay fullscreen-overlay" onClick={() => setShowFullscreenLog(false)}>
+          <div className="modal-content fullscreen-log-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>실행 로그</h3>
+              <button className="close-btn" onClick={() => setShowFullscreenLog(false)}>×</button>
+            </div>
+            <div className="modal-body fullscreen-log-body">
+              <pre className="output-log fullscreen-log" ref={fullscreenLogRef}>
+                {dummyDataExecution.output}
+              </pre>
+            </div>
+            <div className="modal-footer">
+              <button className="cancel-btn" onClick={() => setShowFullscreenLog(false)}>
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dummy Data Setup 모달 */}
       {showDummyDataModal && (
         <div className="modal-overlay" onClick={() => setShowDummyDataModal(false)}>
@@ -1063,7 +1091,12 @@ export default function SystemMonitorPage() {
                   )}
 
                   {dummyDataExecution.output && (
-                    <pre className="output-log" ref={outputLogRef}>
+                    <pre
+                      className="output-log clickable-log"
+                      ref={outputLogRef}
+                      onClick={() => setShowFullscreenLog(true)}
+                      title="클릭하여 전체 화면으로 보기"
+                    >
                       {dummyDataExecution.output}
                     </pre>
                   )}
