@@ -80,7 +80,6 @@ services:
       # External Services (같은 VM 내 Docker 서비스)
       - FASTAPI_URL=http://fastapi:9000
       - ORTHANC_URL=http://orthanc:8042
-      - HAPI_FHIR_URL=http://hapi-fhir:8080
     volumes:
       - ../brain_tumor_back:/app
       - ../CDSS_STORAGE:/CDSS_STORAGE
@@ -203,7 +202,6 @@ services:
       - ORTHANC_URL=http://orthanc:8042
       - ORTHANC_USER=${ORTHANC_USER:-orthanc}
       - ORTHANC_PASSWORD=${ORTHANC_PASSWORD:-orthanc}
-      - HAPI_FHIR_URL=http://hapi-fhir:8080
       # GPU Settings
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
     volumes:

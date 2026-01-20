@@ -68,7 +68,7 @@ PATIENT_FOLDERS = [
     "TCGA-HT-7694",
 ]
 
-# 외부 환자 폴더 목록 (10개)
+# 외부 환자 폴더 목록 (6개 - DB 외부 환자 수와 동일)
 EXTERNAL_PATIENT_FOLDERS = [
     "EXT-0001",
     "EXT-0002",
@@ -76,10 +76,6 @@ EXTERNAL_PATIENT_FOLDERS = [
     "EXT-0004",
     "EXT-0005",
     "EXT-0006",
-    "EXT-0007",
-    "EXT-0008",
-    "EXT-0009",
-    "EXT-0010",
 ]
 
 # MRI 시리즈 타입 매핑

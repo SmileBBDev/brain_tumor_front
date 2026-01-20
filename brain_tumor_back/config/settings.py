@@ -19,12 +19,9 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False)
 
-# ALLOWED_HOSTS = ["127.0.0.1", "localhost"] 
-# ALLOWED_HOSTS = [] # 운영 시 실제 도메인 입력
-
-# 추후 실제 배포시 (수정필요)
-DEBUG = env.bool("DEBUG", default=True)
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
+# ALLOWED_HOSTS 설정
+# 운영 환경에서는 .env에서 ALLOWED_HOSTS를 명시적으로 설정하세요
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 
 
 # Application definition
@@ -178,8 +175,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",   # Vite 개발 서버
     "http://localhost:5174",   # Vite 개발 서버 (대체 포트)
     "http://127.0.0.1:5174",   # Vite 개발 서버 (대체 포트)
-
-    # "https://example.com",   # 운영 프론트엔드
+    "http://localhost",        # Nginx (로컬)
+    "http://127.0.0.1",        # Nginx (로컬)
+    "http://34.46.109.203",    # GCP 외부 IP (운영)
 ]
 
 # 헤더 허용 (Authorization 등) : default_headers(기본 헤더) +  Authorization 추가

@@ -68,9 +68,12 @@ cors_origins = [
     "http://localhost:8000",  # Django
     "http://localhost:5173",  # React (Vite)
     "http://localhost:3000",  # React (CRA)
+    "http://localhost",       # Nginx
+    "http://django:8000",     # Docker 내부 Django
 ]
 if main_vm_ip:
     cors_origins.extend([
+        f"http://{main_vm_ip}",       # Nginx on Main VM (포트 80)
         f"http://{main_vm_ip}:8000",  # Django on Main VM
         f"http://{main_vm_ip}:5173",  # React (Vite) on Main VM
         f"http://{main_vm_ip}:3000",  # React (CRA) on Main VM
