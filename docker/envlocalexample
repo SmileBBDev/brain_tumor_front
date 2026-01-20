@@ -1,0 +1,101 @@
+# =============================================================
+# .env.local.example - 로컬 테스트 환경변수 (한 PC에서 모두 실행)
+# =============================================================
+# 사용법: cp .env.local.example .env
+# =============================================================
+
+# =============================================================
+# [Versions]
+# =============================================================
+OPENEMR_VERSION=7.0.2
+MARIADB_VERSION=10.6
+POSTGRES_VERSION=15
+HAPI_FHIR_VERSION=v6.8.3
+ORTHANC_VERSION=1.12.4
+
+# =============================================================
+# [OpenEMR & MariaDB]
+# =============================================================
+OE_USER=admin
+OE_PASS=admin_password
+
+OE_MYSQL_ROOT_PASS=root_secure_password
+OE_MYSQL_USER=openemr
+OE_MYSQL_PASS=openemr_password
+OE_MYSQL_DB=openemr
+
+OE_SKIP_INSTALLER=false
+OE_MANUAL_SETUP=false
+OE_SITE=default
+
+# =============================================================
+# [HAPI FHIR & PostgreSQL]
+# =============================================================
+HAPI_DB_USER=hapifhir
+HAPI_DB_PASS=hapi_password
+HAPI_DB_NAME=hapifhir
+
+# =============================================================
+# [Orthanc]
+# =============================================================
+ORTHANC_DB_USER=orthanc
+ORTHANC_DB_PASS=orthanc_password
+ORTHANC_DB_NAME=orthanc
+
+# Orthanc API 인증
+ORTHANC_USER=orthanc
+ORTHANC_PASSWORD=orthanc
+
+# =============================================================
+# [Django Settings]
+# =============================================================
+DJANGO_DEBUG=True
+DJANGO_SECRET_KEY=your-secret-key
+DJANGO_ALLOWED_HOSTS=*
+
+# Django Database (MySQL)
+DJANGO_DB_NAME=brain_tumor
+DJANGO_DB_USER=root
+DJANGO_DB_PASS=root1234
+DJANGO_DB_ROOT_PASS=root1234
+DJANGO_DB_HOST=django-db
+DJANGO_DB_PORT=3306
+
+# Email Settings
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+
+# =============================================================
+# [VM Communication] (로컬 테스트에서는 사용 안함)
+# =============================================================
+MAIN_VM_IP=192.168.0.11
+FASTAPI_URL=http://localhost:9000
+
+# =============================================================
+# [FastAPI Settings]
+# =============================================================
+FASTAPI_DEBUG=false
+APP_ENV=production
+
+# =============================================================
+# [GPU Settings]
+# =============================================================
+USE_GPU=true
+CUDA_VISIBLE_DEVICES=0
+
+# =============================================================
+# [로컬 테스트 모드] - host.docker.internal 사용
+# =============================================================
+# Docker 컨테이너에서 호스트 PC의 서비스에 접근
+# (호스트에서 Django, Redis, Orthanc가 직접 실행 중일 때)
+
+# Redis (호스트 PC)
+REDIS_URL=redis://host.docker.internal:6379/0
+CELERY_BROKER_URL=redis://host.docker.internal:6379/1
+CELERY_RESULT_BACKEND=redis://host.docker.internal:6379/2
+
+# Orthanc (호스트 PC) - 외부 IP 접근 시 인증 문제 방지
+ORTHANC_URL=http://host.docker.internal:8042
+
+# Django (호스트 PC) - 콜백 URL용
+DJANGO_URL=http://host.docker.internal:8000
