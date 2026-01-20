@@ -243,6 +243,14 @@ class RoleViewSet(ModelViewSet): # - ModelViewSet을 상속하면 기본적으�
         from apps.accounts.services.permission_service import notify_permission_changed
 
         role = self.get_object()
+
+        # ADMIN은 SYSTEMMANAGER 역할의 권한을 수정할 수 없음
+        if role.code == "SYSTEMMANAGER" and request.user.role.code != "SYSTEMMANAGER":
+            return Response(
+                {"detail": "시스템 관리자 권한은 수정할 수 없습니다."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         menu_ids = request.data.get("permission_ids", [])  # 프론트에서 permission_ids로 보내지만 실제로는 menu_ids
 
         if not isinstance(menu_ids, list):
