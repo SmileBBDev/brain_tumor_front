@@ -20,23 +20,17 @@ import re
 import shutil
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:
+    print("PyYAML이 설치되어 있지 않습니다. 설치 중...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyyaml"])
+    import yaml
+
 
 # =============================================================
-# 설정
+# 설정 (동적으로 docker-compose에서 로드)
 # =============================================================
-
-REQUIRED_PORTS = {
-    8000: "Django",
-    9000: "FastAPI",
-    8042: "Orthanc HTTP",
-    8080: "OpenEMR",
-    8081: "HAPI FHIR",
-    6379: "Redis",
-    6380: "FastAPI Redis",
-    3306: "Django MySQL",
-    3308: "OpenEMR MariaDB",
-    5432: "HAPI PostgreSQL",
-}
 
 
 # =============================================================
@@ -114,6 +108,42 @@ def get_project_root():
     if script_dir.name == "docker":
         return script_dir.parent
     return script_dir
+
+
+def detect_compose_file():
+    """docker-compose 파일 감지 (unified > fastapi 우선순위)"""
+    script_dir = get_script_dir()
+    unified = script_dir / "docker-compose.unified.yml"
+    fastapi = script_dir / "docker-compose.fastapi.yml"
+
+    if unified.exists():
+        return unified, "unified"
+    elif fastapi.exists():
+        return fastapi, "fastapi"
+    return None, None
+
+
+def parse_ports_from_compose(compose_file):
+    """docker-compose 파일에서 포트 정보 파싱"""
+    if not compose_file or not compose_file.exists():
+        return {}
+
+    with open(compose_file, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+
+    ports = {}
+    services = data.get('services', {})
+    for service_name, service_config in services.items():
+        service_ports = service_config.get('ports', [])
+        for port_mapping in service_ports:
+            # "8000:8000" 또는 "80:80" 형식 처리
+            port_str = str(port_mapping).split(':')[0]
+            try:
+                port = int(port_str)
+                ports[port] = service_name
+            except ValueError:
+                continue
+    return ports
 
 
 # =============================================================
@@ -195,12 +225,16 @@ def check_gpu():
     return cuda_version
 
 
-def check_ports():
+def check_ports(required_ports: dict):
     """포트 사용 가능 여부 확인"""
     print_header("3. 포트 체크")
 
+    if not required_ports:
+        print_warn("체크할 포트 정보가 없습니다")
+        return True
+
     all_ok = True
-    for port, service in REQUIRED_PORTS.items():
+    for port, service in required_ports.items():
         if check_port(port):
             print_ok(f"Port {port}", f"{service} 사용 가능")
         else:
@@ -259,16 +293,18 @@ def setup_env_file(use_gpu: bool, cuda_version: str = None):
     return True
 
 
-def setup_docker_compose_gpu(enable_gpu: bool):
-    """docker-compose.fastapi.yml GPU 설정"""
+def setup_docker_compose_gpu(enable_gpu: bool, compose_file: Path = None):
+    """docker-compose GPU 설정"""
     print_header("5. Docker Compose GPU 설정")
 
-    script_dir = get_script_dir()
-    compose_file = script_dir / "docker-compose.fastapi.yml"
+    if compose_file is None:
+        compose_file, _ = detect_compose_file()
 
-    if not compose_file.exists():
-        print_fail("docker-compose.fastapi.yml 없음")
+    if not compose_file or not compose_file.exists():
+        print_fail("docker-compose 파일 없음")
         return False
+
+    print_info(f"대상 파일: {compose_file.name}")
 
     with open(compose_file, 'r', encoding='utf-8') as f:
         content = f.read()
@@ -296,7 +332,7 @@ def setup_docker_compose_gpu(enable_gpu: bool):
 
         if gpu_section_commented in content:
             content = content.replace(gpu_section_commented, gpu_section_enabled)
-            print_ok("GPU 설정 활성화됨", "docker-compose.fastapi.yml")
+            print_ok("GPU 설정 활성화됨", compose_file.name)
         elif "# GPU Support - 활성화됨" in content:
             print_ok("GPU 설정 이미 활성화됨")
         else:
@@ -323,6 +359,20 @@ def main():
 
     errors = []
 
+    # 0. docker-compose 파일 감지
+    print_header("0. Docker Compose 파일 감지")
+    compose_file, compose_type = detect_compose_file()
+    if compose_file:
+        print_ok(f"감지됨: {compose_file.name}", f"타입: {compose_type}")
+    else:
+        print_fail("docker-compose.unified.yml 또는 docker-compose.fastapi.yml 없음")
+        errors.append("Docker Compose 파일")
+
+    # 포트 정보 파싱
+    required_ports = parse_ports_from_compose(compose_file) if compose_file else {}
+    if required_ports:
+        print_info(f"포트 {len(required_ports)}개 감지됨: {list(required_ports.keys())}")
+
     # 1. Docker 체크
     if not check_docker():
         errors.append("Docker")
@@ -332,7 +382,7 @@ def main():
     use_gpu = cuda_version is not None
 
     # 3. 포트 체크
-    if not check_ports():
+    if not check_ports(required_ports):
         print_warn("일부 포트가 사용 중입니다. 충돌이 발생할 수 있습니다.")
 
     # 4. 환경 변수 설정
@@ -340,7 +390,7 @@ def main():
         errors.append("환경 변수")
 
     # 5. Docker Compose GPU 설정
-    setup_docker_compose_gpu(use_gpu)
+    setup_docker_compose_gpu(use_gpu, compose_file)
 
     # 결과 요약
     print_header("설정 완료")
@@ -357,7 +407,10 @@ def main():
     print(f"  1. .env 파일에서 IP 주소와 비밀번호를 수정하세요")
     print(f"  2. 아래 명령어로 Docker를 실행하세요:\n")
 
-    if use_gpu:
+    if compose_type == "unified":
+        print(f"     {Colors.CYAN}# 통합 배포 (Single VM){Colors.END}")
+        print(f"     docker compose -f docker-compose.unified.yml up -d --build\n")
+    elif use_gpu:
         print(f"     {Colors.CYAN}# FastAPI VM (GPU){Colors.END}")
         print(f"     docker compose -f docker-compose.fastapi.yml up -d --build\n")
     else:
